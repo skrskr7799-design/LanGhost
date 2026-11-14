@@ -50,6 +50,5 @@ class DevicePreferences(private val context: Context) {
             }
             prefs[key(ip)] = json.toString()
         }
-        }
     }
 }
