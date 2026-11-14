@@ -27,6 +27,8 @@ import com.langhost.ui.theme.*
 @Composable
 fun DashboardScreen(
     onNavigateToDevices: () -> Unit,
+    onNavigateToSettings: () -> Unit = {},
+    onNavigateToNearbyWifi: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: DashboardViewModel = viewModel()
 ) {
@@ -63,6 +65,9 @@ fun DashboardScreen(
                 actions = {
                     IconButton(onClick = { viewModel.refreshNetworkInfo() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Обновить", tint = TextPrimary)
+                    }
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Настройки", tint = TextPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -169,6 +174,20 @@ fun DashboardScreen(
                 subtitle = if (state.devices.isNotEmpty()) "${state.devices.size} хостов найдено" else "Список обнаруженных устройств",
                 icon = Icons.Default.Devices,
                 onClick = onNavigateToDevices
+            )
+
+            ActionButton(
+                title = "Соседние сети",
+                subtitle = "Анализ Wi-Fi вокруг вас",
+                icon = Icons.Default.WifiFind,
+                onClick = onNavigateToNearbyWifi
+            )
+
+            ActionButton(
+                title = "Настройки",
+                subtitle = "Параметры приложения",
+                icon = Icons.Default.Settings,
+                onClick = onNavigateToSettings
             )
         }
     }

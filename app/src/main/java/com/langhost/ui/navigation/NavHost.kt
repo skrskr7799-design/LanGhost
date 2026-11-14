@@ -20,14 +20,17 @@ import androidx.navigation.navArgument
 import com.langhost.ui.screens.dashboard.DashboardScreen
 import com.langhost.ui.screens.device.DeviceDetailScreen
 import com.langhost.ui.screens.devices.DevicesScreen
+import com.langhost.ui.screens.settings.SettingsScreen
+import com.langhost.ui.screens.wifi.NearbyNetworksScreen
 import com.langhost.ui.theme.Divider
 
 object Routes {
     const val DASHBOARD = "dashboard"
     const val DEVICES = "devices"
     const val DEVICE_DETAIL = "device/{deviceIp}"
+    const val SETTINGS = "settings"
+    const val NEARBY_WIFI = "nearby_wifi"
 
-    // Replace dots so Navigation Compose doesn't break on IP addresses
     fun deviceDetail(ip: String) = "device/${ip.replace('.', '_')}"
     fun decodeIp(encoded: String) = encoded.replace('_', '.')
 }
@@ -55,15 +58,15 @@ private fun PhoneNavHost() {
     ) {
         composable(Routes.DASHBOARD) {
             DashboardScreen(
-                onNavigateToDevices = { navController.navigate(Routes.DEVICES) }
+                onNavigateToDevices = { navController.navigate(Routes.DEVICES) },
+                onNavigateToSettings = { navController.navigate(Routes.SETTINGS) },
+                onNavigateToNearbyWifi = { navController.navigate(Routes.NEARBY_WIFI) }
             )
         }
         composable(Routes.DEVICES) {
             DevicesScreen(
                 onBack = { navController.popBackStack() },
-                onDeviceClick = { ip ->
-                    navController.navigate(Routes.deviceDetail(ip))
-                }
+                onDeviceClick = { ip -> navController.navigate(Routes.deviceDetail(ip)) }
             )
         }
         composable(
@@ -76,6 +79,12 @@ private fun PhoneNavHost() {
                 deviceIp = ip,
                 onBack = { navController.popBackStack() }
             )
+        }
+        composable(Routes.SETTINGS) {
+            SettingsScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.NEARBY_WIFI) {
+            NearbyNetworksScreen(onBack = { navController.popBackStack() })
         }
     }
 }
@@ -102,6 +111,8 @@ private fun TabletNavHost() {
         } else {
             DashboardScreen(
                 onNavigateToDevices = {},
+                onNavigateToSettings = {},
+                onNavigateToNearbyWifi = {},
                 modifier = Modifier.weight(0.6f)
             )
         }
