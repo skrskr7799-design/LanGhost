@@ -20,6 +20,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.langhost.data.AppSettings
 import com.langhost.data.AppSettingsData
@@ -92,7 +93,7 @@ fun SettingsScreen(
                     onCheckedChange = { enabled ->
                         viewModel.setWatchMode(enabled)
                         if (enabled) {
-                            if (notificationPermission != null && !notificationPermission.status.allPermissionsGranted) {
+                            if (notificationPermission != null && !notificationPermission.status.isGranted) {
                                 notificationPermission.launchPermissionRequest()
                             }
                             WatchWorker.start(context)
