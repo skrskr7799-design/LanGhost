@@ -41,15 +41,15 @@ fun DevicesScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Devices", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                        Text("Устройства", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         if (devices.isNotEmpty()) {
-                            Text("${devices.size} hosts", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                            Text("${devices.size} хостов", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         }
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = TextPrimary)
                     }
                 },
                 actions = {
@@ -57,7 +57,7 @@ fun DevicesScreen(
                         if (state.isScanning) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Primary)
                         } else {
-                            Icon(Icons.Default.Radar, contentDescription = "Scan", tint = TextPrimary)
+                            Icon(Icons.Default.Radar, contentDescription = "Сканировать", tint = TextPrimary)
                         }
                     }
                 },
@@ -70,8 +70,8 @@ fun DevicesScreen(
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Icon(Icons.Default.Devices, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(48.dp))
-                    Text("No devices discovered yet", style = MaterialTheme.typography.titleMedium, color = TextSecondary)
-                    Text("Tap the radar icon to scan", style = MaterialTheme.typography.bodyMedium, color = TextTertiary)
+                    Text("Устройства ещё не найдены", style = MaterialTheme.typography.titleMedium, color = TextSecondary)
+                    Text("Нажмите на радар, чтобы начать сканирование", style = MaterialTheme.typography.bodyMedium, color = TextTertiary)
                 }
             }
         } else {
@@ -123,7 +123,7 @@ private fun DeviceCard(device: Device, onClick: () -> Unit) {
                         Spacer(Modifier.width(6.dp))
                         SuggestionChip(
                             onClick = {},
-                            label = { Text("Gateway", style = MaterialTheme.typography.labelSmall) },
+                            label = { Text("Шлюз", style = MaterialTheme.typography.labelSmall) },
                             colors = SuggestionChipDefaults.suggestionChipColors(
                                 containerColor = Primary.copy(alpha = 0.15f),
                                 labelColor = Primary
@@ -135,7 +135,7 @@ private fun DeviceCard(device: Device, onClick: () -> Unit) {
                         Spacer(Modifier.width(6.dp))
                         SuggestionChip(
                             onClick = {},
-                            label = { Text("This device", style = MaterialTheme.typography.labelSmall) },
+                            label = { Text("Это устройство", style = MaterialTheme.typography.labelSmall) },
                             colors = SuggestionChipDefaults.suggestionChipColors(
                                 containerColor = Secondary.copy(alpha = 0.15f),
                                 labelColor = Secondary

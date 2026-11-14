@@ -34,6 +34,7 @@ fun DeviceDetailScreen(
 ) {
     val context = LocalContext.current
     val viewModel: DeviceDetailViewModel = viewModel(
+        key = deviceIp, // Important: different ViewModel for each device
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -51,12 +52,12 @@ fun DeviceDetailScreen(
     fun copyToClipboard(label: String, value: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
-        Toast.makeText(context, "$label copied", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "$label скопирован", Toast.LENGTH_SHORT).show()
     }
 
     fun formatTime(timestamp: Long): String {
         if (timestamp == 0L) return "—"
-        val sdf = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault())
+        val sdf = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale("ru"))
         return sdf.format(Date(timestamp))
     }
 
@@ -75,7 +76,7 @@ fun DeviceDetailScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = "Назад",
                             tint = TextPrimary
                         )
                     }
@@ -84,14 +85,14 @@ fun DeviceDetailScreen(
                     IconButton(onClick = { viewModel.toggleFavorite() }) {
                         Icon(
                             imageVector = if (state.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
-                            contentDescription = "Favorite",
+                            contentDescription = "Избранное",
                             tint = if (state.isFavorite) Secondary else TextPrimary
                         )
                     }
                     IconButton(onClick = { viewModel.toggleWatched() }) {
                         Icon(
                             imageVector = if (state.isWatched) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = "Watch",
+                            contentDescription = "Наблюдение",
                             tint = if (state.isWatched) Primary else TextPrimary
                         )
                     }
@@ -109,7 +110,7 @@ fun DeviceDetailScreen(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Device not found", color = TextSecondary)
+                Text("Устройство не найдено", color = TextSecondary)
             }
             return@Scaffold
         }
@@ -132,30 +133,30 @@ fun DeviceDetailScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("Device Info", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                    Text("Информация об устройстве", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                     HorizontalDivider(color = Divider)
 
-                    CopyableInfoRow("IP Address", device.ip) {
+                    CopyableInfoRow("IP-адрес", device.ip) {
                         copyToClipboard("IP", device.ip)
                     }
-                    CopyableInfoRow("MAC Address", device.mac.ifBlank { "—" }) {
+                    CopyableInfoRow("MAC-адрес", device.mac.ifBlank { "—" }) {
                         if (device.mac.isNotBlank()) copyToClipboard("MAC", device.mac)
                     }
 
-                    InfoRow("Hostname", device.hostname.ifBlank { "—" })
-                    InfoRow("Vendor", device.vendor.ifBlank { "Unknown" })
-                    InfoRow("OS Guess", device.osGuess.ifBlank { "Unknown" })
-                    InfoRow("Status", if (device.isOnline) "Online" else "Offline")
+                    InfoRow("Имя хоста", device.hostname.ifBlank { "—" })
+                    InfoRow("Производитель", device.vendor.ifBlank { "Неизвестно" })
+                    InfoRow("ОС (предположение)", device.osGuess.ifBlank { "Неизвестно" })
+                    InfoRow("Статус", if (device.isOnline) "Онлайн" else "Оффлайн")
 
                     when {
-                        device.isGateway -> InfoRow("Role", "Gateway / Router")
-                        device.isLocalDevice -> InfoRow("Role", "This device")
+                        device.isGateway -> InfoRow("Роль", "Шлюз / Роутер")
+                        device.isLocalDevice -> InfoRow("Роль", "Это устройство")
                     }
 
                     HorizontalDivider(color = Divider)
 
-                    InfoRow("First seen", formatTime(device.firstSeen))
-                    InfoRow("Last seen", formatTime(device.lastSeen))
+                    InfoRow("Впервые замечен", formatTime(device.firstSeen))
+                    InfoRow("Последний раз", formatTime(device.lastSeen))
                 }
             }
 
@@ -174,7 +175,7 @@ fun DeviceDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Port Scanner", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                        Text("Сканер портов", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                         Button(
                             onClick = { viewModel.scanPorts() },
                             enabled = !state.isScanningPorts,
@@ -187,16 +188,16 @@ fun DeviceDetailScreen(
                                     color = OnPrimary
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Text("Scanning...")
+                                Text("Сканирование...")
                             } else {
-                                Text("Scan Ports")
+                                Text("Сканировать")
                             }
                         }
                     }
 
                     if (state.openPorts.isNotEmpty()) {
                         Text(
-                            text = "Open ports (${state.openPorts.size}):",
+                            text = "Открытые порты (${state.openPorts.size}):",
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary
                         )
@@ -228,7 +229,7 @@ fun DeviceDetailScreen(
                                 3389 -> "RDP"
                                 5900 -> "VNC"
                                 8080, 8443 -> "HTTP-Alt"
-                                9100 -> "Printer"
+                                9100 -> "Принтер"
                                 else -> null
                             }
                             name?.let { "$port ($it)" }
@@ -242,7 +243,7 @@ fun DeviceDetailScreen(
                         }
                     } else if (!state.isScanningPorts) {
                         Text(
-                            text = "No open ports found or scan not performed",
+                            text = "Открытых портов не найдено или сканирование не выполнялось",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextTertiary
                         )
@@ -260,12 +261,12 @@ fun DeviceDetailScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Customization", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                    Text("Персонализация", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
 
                     OutlinedTextField(
                         value = state.nickname,
                         onValueChange = { viewModel.updateNickname(it) },
-                        label = { Text("Nickname") },
+                        label = { Text("Кличка") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -279,7 +280,7 @@ fun DeviceDetailScreen(
                     OutlinedTextField(
                         value = state.notes,
                         onValueChange = { viewModel.updateNotes(it) },
-                        label = { Text("Notes") },
+                        label = { Text("Заметки") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 100.dp),
@@ -297,7 +298,7 @@ fun DeviceDetailScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = Primary)
                     ) {
-                        Text(if (state.isSaving) "Saving..." else "Save")
+                        Text(if (state.isSaving) "Сохранение..." else "Сохранить")
                     }
                 }
             }
@@ -343,7 +344,7 @@ private fun CopyableInfoRow(label: String, value: String, onCopy: () -> Unit) {
                 ) {
                     Icon(
                         imageVector = Icons.Default.ContentCopy,
-                        contentDescription = "Copy",
+                        contentDescription = "Копировать",
                         tint = TextTertiary,
                         modifier = Modifier.size(16.dp)
                     )

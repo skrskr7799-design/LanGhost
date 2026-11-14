@@ -2,7 +2,6 @@ package com.langhost.ui.navigation
 
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
@@ -28,7 +27,9 @@ object Routes {
     const val DEVICES = "devices"
     const val DEVICE_DETAIL = "device/{deviceIp}"
 
-    fun deviceDetail(ip: String) = "device/$ip"
+    // Replace dots so Navigation Compose doesn't break on IP addresses
+    fun deviceDetail(ip: String) = "device/${ip.replace('.', '_')}"
+    fun decodeIp(encoded: String) = encoded.replace('_', '.')
 }
 
 @Composable
@@ -38,10 +39,8 @@ fun LanGhostNavHost(
     val isExpanded = windowSizeClass?.widthSizeClass == WindowWidthSizeClass.Expanded
 
     if (isExpanded) {
-        // Tablet / wide layout with split view
         TabletNavHost()
     } else {
-        // Phone layout
         PhoneNavHost()
     }
 }
@@ -62,14 +61,17 @@ private fun PhoneNavHost() {
         composable(Routes.DEVICES) {
             DevicesScreen(
                 onBack = { navController.popBackStack() },
-                onDeviceClick = { ip -> navController.navigate(Routes.deviceDetail(ip)) }
+                onDeviceClick = { ip ->
+                    navController.navigate(Routes.deviceDetail(ip))
+                }
             )
         }
         composable(
             route = Routes.DEVICE_DETAIL,
             arguments = listOf(navArgument("deviceIp") { type = NavType.StringType })
         ) { backStackEntry ->
-            val ip = backStackEntry.arguments?.getString("deviceIp") ?: ""
+            val encodedIp = backStackEntry.arguments?.getString("deviceIp") ?: ""
+            val ip = Routes.decodeIp(encodedIp)
             DeviceDetailScreen(
                 deviceIp = ip,
                 onBack = { navController.popBackStack() }
@@ -83,7 +85,6 @@ private fun TabletNavHost() {
     var selectedDeviceIp by remember { mutableStateOf<String?>(null) }
 
     Row(modifier = Modifier.fillMaxSize()) {
-        // Left pane - always show devices list + dashboard access
         DevicesScreen(
             onBack = { selectedDeviceIp = null },
             onDeviceClick = { ip -> selectedDeviceIp = ip },
@@ -92,7 +93,6 @@ private fun TabletNavHost() {
 
         VerticalDivider(color = Divider, thickness = 1.dp)
 
-        // Right pane - device detail or empty state
         if (selectedDeviceIp != null) {
             DeviceDetailScreen(
                 deviceIp = selectedDeviceIp!!,
@@ -100,7 +100,6 @@ private fun TabletNavHost() {
                 modifier = Modifier.weight(0.6f)
             )
         } else {
-            // Empty state for right pane
             DashboardScreen(
                 onNavigateToDevices = {},
                 modifier = Modifier.weight(0.6f)

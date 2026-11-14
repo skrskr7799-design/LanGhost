@@ -62,7 +62,7 @@ fun DashboardScreen(
                 },
                 actions = {
                     IconButton(onClick = { viewModel.refreshNetworkInfo() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = TextPrimary)
+                        Icon(Icons.Default.Refresh, contentDescription = "Обновить", tint = TextPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -94,15 +94,15 @@ fun DashboardScreen(
                     ) {
                         Icon(Icons.Default.Warning, contentDescription = null, tint = Warning)
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Permissions required", color = TextPrimary, fontWeight = FontWeight.Medium)
+                            Text("Нужны разрешения", color = TextPrimary, fontWeight = FontWeight.Medium)
                             Text(
-                                "Location permission is needed to read Wi-Fi SSID and scan the network.",
+                                "Для чтения названия сети и сканирования требуется доступ к геолокации.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary
                             )
                         }
                         TextButton(onClick = { permissionState.launchMultiplePermissionRequest() }) {
-                            Text("Grant")
+                            Text("Разрешить")
                         }
                     }
                 }
@@ -115,13 +115,13 @@ fun DashboardScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 StatCard(
-                    title = "Online",
+                    title = "Онлайн",
                     value = if (state.devices.isNotEmpty()) state.devices.size.toString() else "—",
                     icon = Icons.Default.Devices,
                     modifier = Modifier.weight(1f)
                 )
                 StatCard(
-                    title = "Signal",
+                    title = "Сигнал",
                     value = if (network.signalDbm != 0) "${network.signalDbm} dBm" else "—",
                     icon = Icons.Default.Wifi,
                     modifier = Modifier.weight(1f)
@@ -144,29 +144,29 @@ fun DashboardScreen(
                             strokeWidth = 2.dp,
                             color = Primary
                         )
-                        Text("Scanning network...", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                        Text("Сканирование сети...", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
                     }
                 }
             }
 
             Text(
-                text = "Actions",
+                text = "Действия",
                 style = MaterialTheme.typography.titleMedium,
                 color = TextSecondary,
                 modifier = Modifier.padding(top = 8.dp)
             )
 
             ActionButton(
-                title = "Scan Network",
-                subtitle = if (state.lastScanTime > 0) "Last scan completed" else "Discover all devices",
+                title = "Сканировать сеть",
+                subtitle = if (state.lastScanTime > 0) "Последнее сканирование завершено" else "Найти все устройства",
                 icon = Icons.Default.Radar,
                 onClick = { viewModel.startScan() },
                 enabled = !state.isScanning
             )
 
             ActionButton(
-                title = "Devices",
-                subtitle = if (state.devices.isNotEmpty()) "${state.devices.size} hosts found" else "View discovered hosts",
+                title = "Устройства",
+                subtitle = if (state.devices.isNotEmpty()) "${state.devices.size} хостов найдено" else "Список обнаруженных устройств",
                 icon = Icons.Default.Devices,
                 onClick = onNavigateToDevices
             )
@@ -195,7 +195,7 @@ private fun NetworkStatusCard(network: com.langhost.data.model.NetworkInfo) {
                     tint = if (network.isConnected) Primary else TextTertiary
                 )
                 Text(
-                    text = if (network.isConnected) network.ssid else "Not connected",
+                    text = if (network.isConnected) network.ssid else "Нет подключения",
                     style = MaterialTheme.typography.titleMedium,
                     color = TextPrimary,
                     fontWeight = FontWeight.SemiBold
@@ -205,12 +205,12 @@ private fun NetworkStatusCard(network: com.langhost.data.model.NetworkInfo) {
             HorizontalDivider(color = Divider)
 
             InfoRow("BSSID", network.bssid)
-            InfoRow("Signal", if (network.signalDbm != 0) "${network.signalDbm} dBm (${network.frequencyBand})" else "—")
-            InfoRow("Channel", if (network.channel > 0) network.channel.toString() else "—")
-            InfoRow("Link Speed", if (network.linkSpeedMbps > 0) "${network.linkSpeedMbps} Mbps" else "—")
-            InfoRow("Security", network.security)
-            InfoRow("Gateway", network.gateway)
-            InfoRow("Local IP", network.ipAddress)
+            InfoRow("Сигнал", if (network.signalDbm != 0) "${network.signalDbm} dBm (${network.frequencyBand})" else "—")
+            InfoRow("Канал", if (network.channel > 0) network.channel.toString() else "—")
+            InfoRow("Скорость", if (network.linkSpeedMbps > 0) "${network.linkSpeedMbps} Мбит/с" else "—")
+            InfoRow("Защита", network.security)
+            InfoRow("Шлюз", network.gateway)
+            InfoRow("Локальный IP", network.ipAddress)
             InfoRow("DNS", listOf(network.dns1, network.dns2).filter { it != "0.0.0.0" && it != "—" }.joinToString(" / ").ifBlank { "—" })
         }
     }
