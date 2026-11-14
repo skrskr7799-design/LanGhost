@@ -1,5 +1,6 @@
 package com.langhost.ui.screens.devices
 
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -200,6 +201,3 @@ private fun DeviceCard(device: Device, onClick: () -> Unit) {
         }
     }
 }
-
-// Need Intent import
-private val Intent = android.content.Intent
