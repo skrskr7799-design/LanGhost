@@ -1,12 +1,13 @@
 package com.langhost.ui.screens.settings
 
+import android.Manifest
+import android.os.Build
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,8 +19,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.rememberPermissionState
 import com.langhost.data.AppSettings
 import com.langhost.data.AppSettingsData
+import com.langhost.data.WatchWorker
 import com.langhost.ui.theme.*
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,7 +39,7 @@ class SettingsViewModel(private val appSettings: AppSettings) : ViewModel() {
     fun setAutoScan(enabled: Boolean) = viewModelScope.launch { appSettings.setAutoScanOnOpen(enabled) }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit
@@ -51,6 +55,10 @@ fun SettingsScreen(
     )
 
     val settings by viewModel.settings.collectAsState()
+
+    val notificationPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS)
+    } else null
 
     Scaffold(
         topBar = {
@@ -76,13 +84,22 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Monitoring section
             SettingsSection(title = "Мониторинг") {
                 SettingsSwitch(
                     title = "Режим наблюдения",
-                    subtitle = "Фоновый мониторинг сети (в разработке)",
+                    subtitle = "Периодическое сканирование сети в фоне (каждые ~15 мин)",
                     checked = settings.watchModeEnabled,
-                    onCheckedChange = { viewModel.setWatchMode(it) }
+                    onCheckedChange = { enabled ->
+                        viewModel.setWatchMode(enabled)
+                        if (enabled) {
+                            if (notificationPermission != null && !notificationPermission.status.allPermissionsGranted) {
+                                notificationPermission.launchPermissionRequest()
+                            }
+                            WatchWorker.start(context)
+                        } else {
+                            WatchWorker.stop(context)
+                        }
+                    }
                 )
                 SettingsSwitch(
                     title = "Уведомления о новых устройствах",
@@ -92,7 +109,6 @@ fun SettingsScreen(
                 )
             }
 
-            // Scanning section
             SettingsSection(title = "Сканирование") {
                 SettingsSwitch(
                     title = "Автосканирование при запуске",
@@ -102,7 +118,6 @@ fun SettingsScreen(
                 )
             }
 
-            // About
             SettingsSection(title = "О приложении") {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -111,7 +126,7 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("LanGhost", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                        Text("Версия 0.1.0", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                        Text("Версия 0.2.0", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                         Text(
                             "Локальный сетевой разведчик. Агрессивный сбор информации об устройствах в вашей сети.",
                             style = MaterialTheme.typography.bodySmall,
@@ -125,10 +140,7 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingsSection(
-    title: String,
-    content: @Composable ColumnScope.() -> Unit
-) {
+private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(text = title, style = MaterialTheme.typography.titleMedium, color = TextSecondary)
         content()
@@ -148,9 +160,7 @@ private fun SettingsSwitch(
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {

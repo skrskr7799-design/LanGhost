@@ -13,7 +13,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "0.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -65,24 +65,16 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
 
-    // Navigation
     implementation("androidx.navigation:navigation-compose:2.8.3")
-
-    // ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
-
-    // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-
-    // Accompanist (permissions)
     implementation("com.google.accompanist:accompanist-permissions:0.36.0")
-
-    // DataStore
     implementation("androidx.datastore:datastore-preferences:1.1.1")
-
-    // Window size for tablet layouts
     implementation("androidx.compose.material3:material3-window-size-class:1.3.1")
+
+    // WorkManager for Watch Mode
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
