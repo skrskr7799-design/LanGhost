@@ -1,5 +1,6 @@
 package com.langhost.ui.screens.devices
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,16 +11,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.langhost.data.ExportHelper
 import com.langhost.data.model.Device
 import com.langhost.ui.screens.dashboard.DashboardViewModel
 import com.langhost.ui.theme.*
@@ -34,6 +35,8 @@ fun DevicesScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val devices = state.devices
+    val context = LocalContext.current
+    var showExportMenu by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier,
@@ -53,6 +56,38 @@ fun DevicesScreen(
                     }
                 },
                 actions = {
+                    if (devices.isNotEmpty()) {
+                        Box {
+                            IconButton(onClick = { showExportMenu = true }) {
+                                Icon(Icons.Default.Share, contentDescription = "Экспорт", tint = TextPrimary)
+                            }
+                            DropdownMenu(
+                                expanded = showExportMenu,
+                                onDismissRequest = { showExportMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Экспорт в TXT") },
+                                    onClick = {
+                                        showExportMenu = false
+                                        val intent = ExportHelper.exportDevicesAsText(context, devices)
+                                        if (intent != null) context.startActivity(Intent.createChooser(intent, "Экспорт"))
+                                        else Toast.makeText(context, "Ошибка экспорта", Toast.LENGTH_SHORT).show()
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Description, contentDescription = null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Экспорт в CSV") },
+                                    onClick = {
+                                        showExportMenu = false
+                                        val intent = ExportHelper.exportDevicesAsCsv(context, devices)
+                                        if (intent != null) context.startActivity(Intent.createChooser(intent, "Экспорт"))
+                                        else Toast.makeText(context, "Ошибка экспорта", Toast.LENGTH_SHORT).show()
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.TableChart, contentDescription = null) }
+                                )
+                            }
+                        }
+                    }
                     IconButton(onClick = { viewModel.startScan() }, enabled = !state.isScanning) {
                         if (state.isScanning) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Primary)
@@ -165,3 +200,6 @@ private fun DeviceCard(device: Device, onClick: () -> Unit) {
         }
     }
 }
+
+// Need Intent import
+private val Intent = android.content.Intent
