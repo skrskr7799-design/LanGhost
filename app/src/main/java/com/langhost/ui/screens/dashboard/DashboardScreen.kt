@@ -1,5 +1,6 @@
 package com.langhost.ui.screens.dashboard
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -9,19 +10,26 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.langhost.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
-    onNavigateToDevices: () -> Unit
+    onNavigateToDevices: () -> Unit,
+    viewModel: DashboardViewModel = viewModel()
 ) {
+    val state by viewModel.uiState.collectAsState()
+    val network = state.networkInfo
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -31,6 +39,11 @@ fun DashboardScreen(
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.refreshNetworkInfo() }) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = TextPrimary)
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Background,
@@ -49,7 +62,7 @@ fun DashboardScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Network Status Card
-            NetworkStatusCard()
+            NetworkStatusCard(network)
 
             // Quick Stats
             Row(
@@ -58,15 +71,49 @@ fun DashboardScreen(
             ) {
                 StatCard(
                     title = "Online",
-                    value = "—",
+                    value = if (state.devices.isNotEmpty()) state.devices.size.toString() else "—",
                     icon = Icons.Default.Devices,
                     modifier = Modifier.weight(1f)
                 )
                 StatCard(
-                    title = "New today",
-                    value = "—",
-                    icon = Icons.Default.PersonAdd,
+                    title = "Signal",
+                    value = if (network.signalDbm != 0) "${network.signalDbm} dBm" else "—",
+                    icon = Icons.Default.Wifi,
                     modifier = Modifier.weight(1f)
+                )
+            }
+
+            // Scan progress
+            AnimatedVisibility(visible = state.isScanning) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceVariant),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = Primary
+                        )
+                        Text(
+                            text = "Scanning network...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextPrimary
+                        )
+                    }
+                }
+            }
+
+            state.error?.let { error ->
+                Text(
+                    text = error,
+                    color = Danger,
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
 
@@ -80,14 +127,15 @@ fun DashboardScreen(
 
             ActionButton(
                 title = "Scan Network",
-                subtitle = "Discover all devices",
+                subtitle = if (state.lastScanTime > 0) "Last scan just now" else "Discover all devices",
                 icon = Icons.Default.Radar,
-                onClick = { /* TODO */ }
+                onClick = { viewModel.startScan() },
+                enabled = !state.isScanning
             )
 
             ActionButton(
                 title = "Devices",
-                subtitle = "View discovered hosts",
+                subtitle = if (state.devices.isNotEmpty()) "${state.devices.size} hosts found" else "View discovered hosts",
                 icon = Icons.Default.Devices,
                 onClick = onNavigateToDevices
             )
@@ -96,14 +144,14 @@ fun DashboardScreen(
                 title = "Port Scanner",
                 subtitle = "Deep scan selected target",
                 icon = Icons.Default.Security,
-                onClick = { /* TODO */ }
+                onClick = { /* TODO: navigate to scanner */ }
             )
         }
     }
 }
 
 @Composable
-private fun NetworkStatusCard() {
+private fun NetworkStatusCard(network: com.langhost.data.model.NetworkInfo) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Surface),
@@ -120,23 +168,26 @@ private fun NetworkStatusCard() {
                 Icon(
                     imageVector = Icons.Default.Wifi,
                     contentDescription = null,
-                    tint = Primary
+                    tint = if (network.isConnected) Primary else TextTertiary
                 )
                 Text(
-                    text = "Current Network",
+                    text = if (network.isConnected) network.ssid else "Not connected",
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary
+                    color = TextPrimary,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
 
-            Divider(color = Divider)
+            HorizontalDivider(color = Divider)
 
-            InfoRow("SSID", "—")
-            InfoRow("Signal", "—")
-            InfoRow("Channel", "—")
-            InfoRow("Security", "—")
-            InfoRow("Gateway", "—")
-            InfoRow("Local IP", "—")
+            InfoRow("BSSID", network.bssid)
+            InfoRow("Signal", if (network.signalDbm != 0) "${network.signalDbm} dBm (${network.frequencyBand})" else "—")
+            InfoRow("Channel", if (network.channel > 0) network.channel.toString() else "—")
+            InfoRow("Link Speed", if (network.linkSpeedMbps > 0) "${network.linkSpeedMbps} Mbps" else "—")
+            InfoRow("Security", network.security)
+            InfoRow("Gateway", network.gateway)
+            InfoRow("Local IP", network.ipAddress)
+            InfoRow("DNS", listOf(network.dns1, network.dns2).filter { it != "0.0.0.0" && it != "—" }.joinToString(" / ").ifBlank { "—" })
         }
     }
 }
@@ -203,12 +254,17 @@ private fun ActionButton(
     title: String,
     subtitle: String,
     icon: ImageVector,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    enabled: Boolean = true
 ) {
     Card(
         onClick = onClick,
+        enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Surface),
+        colors = CardDefaults.cardColors(
+            containerColor = Surface,
+            disabledContainerColor = Surface.copy(alpha = 0.6f)
+        ),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
