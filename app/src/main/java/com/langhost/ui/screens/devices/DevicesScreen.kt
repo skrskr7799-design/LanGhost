@@ -29,12 +29,14 @@ import com.langhost.ui.theme.*
 fun DevicesScreen(
     onBack: () -> Unit,
     onDeviceClick: (String) -> Unit = {},
+    modifier: Modifier = Modifier,
     viewModel: DashboardViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
     val devices = state.devices
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             TopAppBar(
                 title = {

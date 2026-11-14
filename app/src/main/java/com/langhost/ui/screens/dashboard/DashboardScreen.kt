@@ -27,6 +27,7 @@ import com.langhost.ui.theme.*
 @Composable
 fun DashboardScreen(
     onNavigateToDevices: () -> Unit,
+    modifier: Modifier = Modifier,
     viewModel: DashboardViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -49,6 +50,7 @@ fun DashboardScreen(
     }
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             TopAppBar(
                 title = {
@@ -79,7 +81,6 @@ fun DashboardScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Permission warning
             if (!permissionState.allPermissionsGranted) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),

@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -22,14 +23,16 @@ import com.langhost.ui.theme.*
 @Composable
 fun DeviceDetailScreen(
     deviceIp: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val viewModel: DeviceDetailViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 return DeviceDetailViewModel(
-                    application = androidx.compose.ui.platform.LocalContext.current.applicationContext as android.app.Application,
+                    application = context.applicationContext as android.app.Application,
                     deviceIp = deviceIp
                 ) as T
             }
@@ -40,6 +43,7 @@ fun DeviceDetailScreen(
     val device = state.device
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             TopAppBar(
                 title = {
@@ -171,6 +175,38 @@ fun DeviceDetailScreen(
                             color = Success,
                             fontWeight = FontWeight.Medium
                         )
+
+                        // Simple service hints
+                        val serviceHints = state.openPorts.mapNotNull { port ->
+                            when (port) {
+                                21 -> "FTP"
+                                22 -> "SSH"
+                                23 -> "Telnet"
+                                25 -> "SMTP"
+                                53 -> "DNS"
+                                80 -> "HTTP"
+                                110 -> "POP3"
+                                139, 445 -> "SMB"
+                                143 -> "IMAP"
+                                443 -> "HTTPS"
+                                993 -> "IMAPS"
+                                995 -> "POP3S"
+                                1723 -> "PPTP"
+                                3306 -> "MySQL"
+                                3389 -> "RDP"
+                                5900 -> "VNC"
+                                8080, 8443 -> "HTTP-Alt"
+                                9100 -> "Printer"
+                                else -> null
+                            }?.let { "$port ($it)" }
+                        }
+                        if (serviceHints.isNotEmpty()) {
+                            Text(
+                                text = serviceHints.joinToString("  •  "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextTertiary
+                            )
+                        }
                     } else if (!state.isScanningPorts) {
                         Text(
                             text = "No open ports found or scan not performed",
