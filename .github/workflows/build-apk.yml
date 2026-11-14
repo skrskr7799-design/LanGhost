@@ -23,35 +23,40 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Accept Android licenses
+      - name: Accept licenses
+        run: yes | sdkmanager --licenses >/dev/null 2>&1 || true
+
+      - name: Install Android SDK components
         run: |
-          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Generate Gradle Wrapper
+      - name: Create local.properties
         run: |
-          gradle wrapper --gradle-version 8.9
-          chmod +x gradlew
-          ls -la
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          cat local.properties
 
-      - name: Build Debug APK
+      - name: Build with Gradle
         run: |
-          ./gradlew assembleDebug --stacktrace --info
+          gradle assembleDebug --stacktrace --no-daemon
 
-      - name: List output
+      - name: Find and list APK
         if: always()
         run: |
-          find . -name "*.apk" || true
-          ls -la app/build/outputs/apk/debug/ || true
+          echo "=== Searching for APK ==="
+          find . -name "*.apk" -type f
+          echo "=== Debug folder ==="
+          ls -la app/build/outputs/apk/debug/ || echo "No debug folder"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: LanGhost-debug
-          path: app/build/outputs/apk/debug/*.apk
+          path: |
+            app/build/outputs/apk/debug/*.apk
           retention-days: 14
           if-no-files-found: warn
