@@ -1,5 +1,9 @@
 package com.langhost.ui.screens.device
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +22,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.langhost.ui.theme.*
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +47,18 @@ fun DeviceDetailScreen(
 
     val state by viewModel.uiState.collectAsState()
     val device = state.device
+
+    fun copyToClipboard(label: String, value: String) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
+        Toast.makeText(context, "$label copied", Toast.LENGTH_SHORT).show()
+    }
+
+    fun formatTime(timestamp: Long): String {
+        if (timestamp == 0L) return "—"
+        val sdf = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault())
+        return sdf.format(Date(timestamp))
+    }
 
     Scaffold(
         modifier = modifier,
@@ -116,15 +134,28 @@ fun DeviceDetailScreen(
                 ) {
                     Text("Device Info", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                     HorizontalDivider(color = Divider)
-                    InfoRow("IP Address", device.ip)
-                    InfoRow("MAC Address", device.mac.ifBlank { "—" })
+
+                    CopyableInfoRow("IP Address", device.ip) {
+                        copyToClipboard("IP", device.ip)
+                    }
+                    CopyableInfoRow("MAC Address", device.mac.ifBlank { "—" }) {
+                        if (device.mac.isNotBlank()) copyToClipboard("MAC", device.mac)
+                    }
+
                     InfoRow("Hostname", device.hostname.ifBlank { "—" })
                     InfoRow("Vendor", device.vendor.ifBlank { "Unknown" })
+                    InfoRow("OS Guess", device.osGuess.ifBlank { "Unknown" })
                     InfoRow("Status", if (device.isOnline) "Online" else "Offline")
+
                     when {
                         device.isGateway -> InfoRow("Role", "Gateway / Router")
                         device.isLocalDevice -> InfoRow("Role", "This device")
                     }
+
+                    HorizontalDivider(color = Divider)
+
+                    InfoRow("First seen", formatTime(device.firstSeen))
+                    InfoRow("Last seen", formatTime(device.lastSeen))
                 }
             }
 
@@ -176,9 +207,8 @@ fun DeviceDetailScreen(
                             fontWeight = FontWeight.Medium
                         )
 
-                        // Simple service hints
                         val serviceHints = state.openPorts.mapNotNull { port ->
-                            when (port) {
+                            val name = when (port) {
                                 21 -> "FTP"
                                 22 -> "SSH"
                                 23 -> "Telnet"
@@ -186,9 +216,11 @@ fun DeviceDetailScreen(
                                 53 -> "DNS"
                                 80 -> "HTTP"
                                 110 -> "POP3"
+                                135 -> "RPC"
                                 139, 445 -> "SMB"
                                 143 -> "IMAP"
                                 443 -> "HTTPS"
+                                548 -> "AFP"
                                 993 -> "IMAPS"
                                 995 -> "POP3S"
                                 1723 -> "PPTP"
@@ -198,7 +230,8 @@ fun DeviceDetailScreen(
                                 8080, 8443 -> "HTTP-Alt"
                                 9100 -> "Printer"
                                 else -> null
-                            }?.let { "$port ($it)" }
+                            }
+                            name?.let { "$port ($it)" }
                         }
                         if (serviceHints.isNotEmpty()) {
                             Text(
@@ -285,5 +318,37 @@ private fun InfoRow(label: String, value: String) {
             color = TextPrimary,
             fontWeight = FontWeight.Medium
         )
+    }
+}
+
+@Composable
+private fun CopyableInfoRow(label: String, value: String, onCopy: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextPrimary,
+                fontWeight = FontWeight.Medium
+            )
+            if (value != "—") {
+                IconButton(
+                    onClick = onCopy,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ContentCopy,
+                        contentDescription = "Copy",
+                        tint = TextTertiary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
     }
 }

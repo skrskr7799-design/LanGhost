@@ -120,16 +120,10 @@ class NetworkRepository(context: Context) {
                 val mac = arpDevices[ip] ?: devicesCache[ip]?.mac ?: ""
                 val existing = devicesCache[ip]
 
-                // Load customizations
-                var nickname = existing?.nickname ?: ""
-                var notes = existing?.notes ?: ""
-                var isFavorite = existing?.isFavorite ?: false
-                var isWatched = existing?.isWatched ?: false
-
                 Device(
                     ip = ip,
                     mac = mac,
-                    hostname = existing?.hostname ?: resolveHostname(ip),
+                    hostname = existing?.hostname?.takeIf { it.isNotBlank() } ?: resolveHostname(ip),
                     vendor = existing?.vendor?.takeIf { it.isNotBlank() } ?: lookupVendor(mac),
                     isLocalDevice = ip == localIp,
                     isGateway = ip == gateway,
@@ -137,15 +131,16 @@ class NetworkRepository(context: Context) {
                     lastSeen = System.currentTimeMillis(),
                     openPorts = existing?.openPorts ?: emptyList(),
                     osGuess = existing?.osGuess ?: "",
-                    nickname = nickname,
-                    notes = notes,
-                    isFavorite = isFavorite,
-                    isWatched = isWatched
+                    nickname = existing?.nickname ?: "",
+                    notes = existing?.notes ?: "",
+                    isFavorite = existing?.isFavorite ?: false,
+                    isWatched = existing?.isWatched ?: false
                 ).also { devicesCache[ip] = it }
             }.sortedWith(
                 compareByDescending<Device> { it.isGateway }
                     .thenByDescending { it.isLocalDevice }
                     .thenByDescending { it.isFavorite }
+                    .thenByDescending { it.isWatched }
                     .thenBy { it.ip }
             )
 
@@ -204,7 +199,7 @@ class NetworkRepository(context: Context) {
         return try {
             val address = InetAddress.getByName(ip)
             val host = address.canonicalHostName
-            if (host != null && host != ip) host else ""
+            if (host != null && host != ip && !host.matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+"))) host else ""
         } catch (_: Exception) {
             ""
         }
@@ -248,10 +243,21 @@ class NetworkRepository(context: Context) {
         }
     }
 
+    suspend fun updateDevicePorts(ip: String, ports: List<Int>) {
+        _devices.update { list ->
+            list.map { device ->
+                if (device.ip == ip) {
+                    val updated = device.withUpdatedPorts(ports)
+                    devicesCache[ip] = updated
+                    updated
+                } else device
+            }
+        }
+    }
+
     suspend fun updateDeviceCustomization(ip: String, customization: DeviceCustomization) {
         devicePreferences.saveCustomization(ip, customization)
 
-        // Update in-memory list
         _devices.update { list ->
             list.map { device ->
                 if (device.ip == ip) {
@@ -271,7 +277,7 @@ class NetworkRepository(context: Context) {
     companion object {
         val COMMON_PORTS = listOf(
             21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143,
-            443, 445, 993, 995, 1723, 3306, 3389, 5900, 8080, 8443, 9100
+            443, 445, 548, 993, 995, 1723, 3306, 3389, 5900, 8080, 8443, 9100
         )
 
         @Volatile

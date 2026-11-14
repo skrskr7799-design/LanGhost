@@ -34,6 +34,10 @@ class DeviceDetailViewModel(
     val uiState: StateFlow<DeviceDetailUiState> = _uiState.asStateFlow()
 
     init {
+        loadDevice()
+    }
+
+    private fun loadDevice() {
         val device = repository.getDevice(deviceIp)
         _uiState.update {
             it.copy(
@@ -54,10 +58,13 @@ class DeviceDetailViewModel(
             _uiState.update { it.copy(isScanningPorts = true) }
             try {
                 val ports = repository.scanPorts(deviceIp)
+                repository.updateDevicePorts(deviceIp, ports)
+                val updatedDevice = repository.getDevice(deviceIp)
                 _uiState.update {
                     it.copy(
                         isScanningPorts = false,
-                        openPorts = ports
+                        openPorts = ports,
+                        device = updatedDevice
                     )
                 }
             } catch (e: Exception) {
@@ -97,7 +104,6 @@ class DeviceDetailViewModel(
                     isWatched = state.isWatched
                 )
             )
-            // Refresh device
             val updated = repository.getDevice(deviceIp)
             _uiState.update {
                 it.copy(
