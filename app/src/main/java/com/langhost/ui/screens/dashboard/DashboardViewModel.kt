@@ -6,62 +6,54 @@ import androidx.lifecycle.viewModelScope
 import com.langhost.data.NetworkRepository
 import com.langhost.data.model.Device
 import com.langhost.data.model.NetworkInfo
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class DashboardUiState(
     val networkInfo: NetworkInfo = NetworkInfo(),
     val devices: List<Device> = emptyList(),
     val isScanning: Boolean = false,
-    val lastScanTime: Long = 0L,
-    val error: String? = null
+    val lastScanTime: Long = 0L
 )
 
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = NetworkRepository(application)
+    private val repository = NetworkRepository.getInstance(application)
 
-    private val _uiState = MutableStateFlow(DashboardUiState())
-    val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
+    val uiState: StateFlow<DashboardUiState> = combine(
+        repository.networkInfo,
+        repository.devices,
+        repository.isScanning,
+        repository.lastScanTime
+    ) { networkInfo, devices, isScanning, lastScanTime ->
+        DashboardUiState(
+            networkInfo = networkInfo,
+            devices = devices,
+            isScanning = isScanning,
+            lastScanTime = lastScanTime
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = DashboardUiState()
+    )
 
     init {
-        refreshNetworkInfo()
+        repository.refreshNetworkInfo()
     }
 
     fun refreshNetworkInfo() {
-        val info = repository.getCurrentNetworkInfo()
-        _uiState.update { it.copy(networkInfo = info) }
+        repository.refreshNetworkInfo()
     }
 
     fun startScan() {
-        if (_uiState.value.isScanning) return
-
         viewModelScope.launch {
-            _uiState.update { it.copy(isScanning = true, error = null) }
-            try {
-                val devices = repository.scanDevices()
-                _uiState.update {
-                    it.copy(
-                        devices = devices,
-                        isScanning = false,
-                        lastScanTime = System.currentTimeMillis()
-                    )
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isScanning = false,
-                        error = e.message ?: "Scan failed"
-                    )
-                }
-            }
+            repository.scanDevices()
         }
     }
 
-    fun getDevices(): List<Device> = _uiState.value.devices.ifEmpty {
-        repository.getCachedDevices()
-    }
+    fun getDevice(ip: String): Device? = repository.getDevice(ip)
 }

@@ -1,7 +1,6 @@
 package com.langhost.ui.screens.devices
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -40,95 +39,47 @@ fun DevicesScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(
-                            text = "Devices",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text("Devices", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         if (devices.isNotEmpty()) {
-                            Text(
-                                text = "${devices.size} hosts",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary
-                            )
+                            Text("${devices.size} hosts", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         }
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = TextPrimary
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary)
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = { viewModel.startScan() },
-                        enabled = !state.isScanning
-                    ) {
+                    IconButton(onClick = { viewModel.startScan() }, enabled = !state.isScanning) {
                         if (state.isScanning) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = Primary
-                            )
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Primary)
                         } else {
                             Icon(Icons.Default.Radar, contentDescription = "Scan", tint = TextPrimary)
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Background,
-                    titleContentColor = TextPrimary
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Background, titleContentColor = TextPrimary)
             )
         },
         containerColor = Background
     ) { padding ->
         if (devices.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Devices,
-                        contentDescription = null,
-                        tint = TextTertiary,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Text(
-                        text = "No devices discovered yet",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextSecondary
-                    )
-                    Text(
-                        text = "Tap the radar icon to scan",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextTertiary
-                    )
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(Icons.Default.Devices, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(48.dp))
+                    Text("No devices discovered yet", style = MaterialTheme.typography.titleMedium, color = TextSecondary)
+                    Text("Tap the radar icon to scan", style = MaterialTheme.typography.bodyMedium, color = TextTertiary)
                 }
             }
         } else {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(devices, key = { it.ip }) { device ->
-                    DeviceCard(
-                        device = device,
-                        onClick = { onDeviceClick(device.ip) }
-                    )
+                    DeviceCard(device = device, onClick = { onDeviceClick(device.ip) })
                 }
             }
         }
@@ -136,10 +87,7 @@ fun DevicesScreen(
 }
 
 @Composable
-private fun DeviceCard(
-    device: Device,
-    onClick: () -> Unit
-) {
+private fun DeviceCard(device: Device, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -147,18 +95,12 @@ private fun DeviceCard(
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
-            modifier = Modifier
-                .padding(14.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.padding(14.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Status indicator
             Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(if (device.isOnline) Success else TextTertiary)
+                modifier = Modifier.size(10.dp).clip(CircleShape).background(if (device.isOnline) Success else TextTertiary)
             )
 
             Column(modifier = Modifier.weight(1f)) {
@@ -171,6 +113,10 @@ private fun DeviceCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (device.isFavorite) {
+                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.Default.Star, contentDescription = null, tint = Secondary, modifier = Modifier.size(16.dp))
+                    }
                     if (device.isGateway) {
                         Spacer(Modifier.width(6.dp))
                         SuggestionChip(
@@ -209,19 +155,11 @@ private fun DeviceCard(
                 )
 
                 if (device.vendor.isNotBlank()) {
-                    Text(
-                        text = device.vendor,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextTertiary
-                    )
+                    Text(text = device.vendor, style = MaterialTheme.typography.bodySmall, color = TextTertiary)
                 }
             }
 
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = TextTertiary
-            )
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextTertiary)
         }
     }
 }

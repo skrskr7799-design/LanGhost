@@ -1,5 +1,7 @@
 package com.langhost.ui.screens.dashboard
 
+import android.Manifest
+import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -9,9 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,9 +19,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.langhost.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun DashboardScreen(
     onNavigateToDevices: () -> Unit,
@@ -29,6 +31,22 @@ fun DashboardScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val network = state.networkInfo
+
+    val permissions = buildList {
+        add(Manifest.permission.ACCESS_FINE_LOCATION)
+        add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            add(Manifest.permission.NEARBY_WIFI_DEVICES)
+        }
+    }
+
+    val permissionState = rememberMultiplePermissionsState(permissions)
+
+    LaunchedEffect(Unit) {
+        if (!permissionState.allPermissionsGranted) {
+            permissionState.launchMultiplePermissionRequest()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -61,10 +79,36 @@ fun DashboardScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Network Status Card
+            // Permission warning
+            if (!permissionState.allPermissionsGranted) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Warning.copy(alpha = 0.15f)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = Warning)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Permissions required", color = TextPrimary, fontWeight = FontWeight.Medium)
+                            Text(
+                                "Location permission is needed to read Wi-Fi SSID and scan the network.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
+                        TextButton(onClick = { permissionState.launchMultiplePermissionRequest() }) {
+                            Text("Grant")
+                        }
+                    }
+                }
+            }
+
             NetworkStatusCard(network)
 
-            // Quick Stats
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -83,7 +127,6 @@ fun DashboardScreen(
                 )
             }
 
-            // Scan progress
             AnimatedVisibility(visible = state.isScanning) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -100,24 +143,11 @@ fun DashboardScreen(
                             strokeWidth = 2.dp,
                             color = Primary
                         )
-                        Text(
-                            text = "Scanning network...",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextPrimary
-                        )
+                        Text("Scanning network...", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
                     }
                 }
             }
 
-            state.error?.let { error ->
-                Text(
-                    text = error,
-                    color = Danger,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-
-            // Actions
             Text(
                 text = "Actions",
                 style = MaterialTheme.typography.titleMedium,
@@ -127,7 +157,7 @@ fun DashboardScreen(
 
             ActionButton(
                 title = "Scan Network",
-                subtitle = if (state.lastScanTime > 0) "Last scan just now" else "Discover all devices",
+                subtitle = if (state.lastScanTime > 0) "Last scan completed" else "Discover all devices",
                 icon = Icons.Default.Radar,
                 onClick = { viewModel.startScan() },
                 enabled = !state.isScanning
@@ -138,13 +168,6 @@ fun DashboardScreen(
                 subtitle = if (state.devices.isNotEmpty()) "${state.devices.size} hosts found" else "View discovered hosts",
                 icon = Icons.Default.Devices,
                 onClick = onNavigateToDevices
-            )
-
-            ActionButton(
-                title = "Port Scanner",
-                subtitle = "Deep scan selected target",
-                icon = Icons.Default.Security,
-                onClick = { /* TODO: navigate to scanner */ }
             )
         }
     }
@@ -198,53 +221,22 @@ private fun InfoRow(label: String, value: String) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextPrimary,
-            fontWeight = FontWeight.Medium
-        )
+        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+        Text(text = value, style = MaterialTheme.typography.bodyMedium, color = TextPrimary, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
-private fun StatCard(
-    title: String,
-    value: String,
-    icon: ImageVector,
-    modifier: Modifier = Modifier
-) {
+private fun StatCard(title: String, value: String, icon: ImageVector, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = Surface),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = Primary,
-                modifier = Modifier.size(20.dp)
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.headlineMedium,
-                color = TextPrimary,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary
-            )
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(imageVector = icon, contentDescription = null, tint = Primary, modifier = Modifier.size(20.dp))
+            Text(text = value, style = MaterialTheme.typography.headlineMedium, color = TextPrimary, fontWeight = FontWeight.Bold)
+            Text(text = title, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
         }
     }
 }
@@ -261,49 +253,25 @@ private fun ActionButton(
         onClick = onClick,
         enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = Surface,
-            disabledContainerColor = Surface.copy(alpha = 0.6f)
-        ),
+        colors = CardDefaults.cardColors(containerColor = Surface, disabledContainerColor = Surface.copy(alpha = 0.6f)),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Primary.copy(alpha = 0.15f)),
+                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(Primary.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = Primary
-                )
+                Icon(imageVector = icon, contentDescription = null, tint = Primary)
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary
-                )
+                Text(text = title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
             }
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = TextTertiary
-            )
+            Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = TextTertiary)
         }
     }
 }

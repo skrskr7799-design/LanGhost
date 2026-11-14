@@ -78,6 +78,12 @@ dependencies {
     // Accompanist (permissions)
     implementation("com.google.accompanist:accompanist-permissions:0.36.0")
 
+    // DataStore
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // Window size for tablet layouts
+    implementation("androidx.compose.material3:material3-window-size-class:1.3.1")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

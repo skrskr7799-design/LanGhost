@@ -13,26 +13,31 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.langhost.data.model.Device
-import com.langhost.ui.screens.dashboard.DashboardViewModel
 import com.langhost.ui.theme.*
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceDetailScreen(
     deviceIp: String,
-    onBack: () -> Unit,
-    viewModel: DashboardViewModel = viewModel()
+    onBack: () -> Unit
 ) {
-    val state by viewModel.uiState.collectAsState()
-    val device = state.devices.find { it.ip == deviceIp }
-        ?: viewModel.getDevices().find { it.ip == deviceIp }
+    val viewModel: DeviceDetailViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return DeviceDetailViewModel(
+                    application = androidx.compose.ui.platform.LocalContext.current.applicationContext as android.app.Application,
+                    deviceIp = deviceIp
+                ) as T
+            }
+        }
+    )
 
-    var isScanningPorts by remember { mutableStateOf(false) }
-    var openPorts by remember { mutableStateOf<List<Int>>(emptyList()) }
-    val scope = rememberCoroutineScope()
+    val state by viewModel.uiState.collectAsState()
+    val device = state.device
 
     Scaffold(
         topBar = {
@@ -50,6 +55,22 @@ fun DeviceDetailScreen(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
                             tint = TextPrimary
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.toggleFavorite() }) {
+                        Icon(
+                            imageVector = if (state.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = "Favorite",
+                            tint = if (state.isFavorite) Secondary else TextPrimary
+                        )
+                    }
+                    IconButton(onClick = { viewModel.toggleWatched() }) {
+                        Icon(
+                            imageVector = if (state.isWatched) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = "Watch",
+                            tint = if (state.isWatched) Primary else TextPrimary
                         )
                     }
                 },
@@ -79,7 +100,7 @@ fun DeviceDetailScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Main info card
+            // Main info
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Surface),
@@ -89,17 +110,21 @@ fun DeviceDetailScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    Text("Device Info", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                    HorizontalDivider(color = Divider)
                     InfoRow("IP Address", device.ip)
                     InfoRow("MAC Address", device.mac.ifBlank { "—" })
                     InfoRow("Hostname", device.hostname.ifBlank { "—" })
                     InfoRow("Vendor", device.vendor.ifBlank { "Unknown" })
                     InfoRow("Status", if (device.isOnline) "Online" else "Offline")
-                    if (device.isGateway) InfoRow("Role", "Gateway / Router")
-                    if (device.isLocalDevice) InfoRow("Role", "This device")
+                    when {
+                        device.isGateway -> InfoRow("Role", "Gateway / Router")
+                        device.isLocalDevice -> InfoRow("Role", "This device")
+                    }
                 }
             }
 
-            // Port scanner section
+            // Port Scanner
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Surface),
@@ -114,45 +139,41 @@ fun DeviceDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Port Scanner",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = TextPrimary
-                        )
+                        Text("Port Scanner", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                         Button(
-                            onClick = {
-                                isScanningPorts = true
-                                scope.launch {
-                                    // We need access to repository — temporary workaround via viewModel later
-                                    // For now just simulate / placeholder
-                                    openPorts = listOf(80, 443) // placeholder until full wiring
-                                    isScanningPorts = false
-                                }
-                            },
-                            enabled = !isScanningPorts,
+                            onClick = { viewModel.scanPorts() },
+                            enabled = !state.isScanningPorts,
                             colors = ButtonDefaults.buttonColors(containerColor = Primary)
                         ) {
-                            if (isScanningPorts) {
+                            if (state.isScanningPorts) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(16.dp),
                                     strokeWidth = 2.dp,
                                     color = OnPrimary
                                 )
                                 Spacer(Modifier.width(8.dp))
+                                Text("Scanning...")
+                            } else {
+                                Text("Scan Ports")
                             }
-                            Text(if (isScanningPorts) "Scanning..." else "Scan Ports")
                         }
                     }
 
-                    if (openPorts.isNotEmpty()) {
+                    if (state.openPorts.isNotEmpty()) {
                         Text(
-                            text = "Open ports: ${openPorts.joinToString(", ")}",
+                            text = "Open ports (${state.openPorts.size}):",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Success
+                            color = TextSecondary
                         )
-                    } else if (!isScanningPorts) {
                         Text(
-                            text = "No scan performed yet",
+                            text = state.openPorts.joinToString(", "),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Success,
+                            fontWeight = FontWeight.Medium
+                        )
+                    } else if (!state.isScanningPorts) {
+                        Text(
+                            text = "No open ports found or scan not performed",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextTertiary
                         )
@@ -160,7 +181,7 @@ fun DeviceDetailScreen(
                 }
             }
 
-            // Notes / Nickname section (UI only for now)
+            // Nickname & Notes
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Surface),
@@ -170,16 +191,45 @@ fun DeviceDetailScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = "Notes & Tags",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary
+                    Text("Customization", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+
+                    OutlinedTextField(
+                        value = state.nickname,
+                        onValueChange = { viewModel.updateNickname(it) },
+                        label = { Text("Nickname") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Primary,
+                            unfocusedBorderColor = Border,
+                            focusedLabelColor = Primary,
+                            cursorColor = Primary
+                        )
                     )
-                    Text(
-                        text = "Nickname and notes will be available in the next update",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextTertiary
+
+                    OutlinedTextField(
+                        value = state.notes,
+                        onValueChange = { viewModel.updateNotes(it) },
+                        label = { Text("Notes") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 100.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Primary,
+                            unfocusedBorderColor = Border,
+                            focusedLabelColor = Primary,
+                            cursorColor = Primary
+                        )
                     )
+
+                    Button(
+                        onClick = { viewModel.saveCustomization() },
+                        enabled = !state.isSaving,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                    ) {
+                        Text(if (state.isSaving) "Saving..." else "Save")
+                    }
                 }
             }
         }
@@ -192,11 +242,7 @@ private fun InfoRow(label: String, value: String) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary
-        )
+        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
