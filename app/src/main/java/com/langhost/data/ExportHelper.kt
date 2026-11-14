@@ -63,8 +63,8 @@ object ExportHelper {
 
     fun exportDevicesAsCsv(context: Context, devices: List<Device>): Intent? {
         return try {
-            val sdf = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.getDefault())
-            val fileName = "langhost_devices_$sdf.csv".replace(" ", "_")
+            val timeStr = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.getDefault()).format(Date())
+            val fileName = "langhost_devices_$timeStr.csv"
 
             val content = buildString {
                 appendLine("IP,MAC,Hostname,Vendor,OS,Nickname,Notes,OpenPorts,IsGateway,IsLocal")

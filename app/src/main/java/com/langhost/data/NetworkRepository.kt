@@ -13,6 +13,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -44,41 +45,45 @@ class NetworkRepository(context: Context) {
 
     @SuppressLint("MissingPermission", "HardwareIds")
     fun refreshNetworkInfo() {
-        val wifiInfo = wifiManager.connectionInfo
-        val dhcpInfo = wifiManager.dhcpInfo
+        try {
+            val wifiInfo = wifiManager.connectionInfo
+            val dhcpInfo = wifiManager.dhcpInfo
 
-        val ssid = wifiInfo.ssid
-            ?.removeSurrounding("\"")
-            ?.takeIf { it.isNotBlank() && it != "<unknown ssid>" } ?: "—"
+            val ssid = wifiInfo.ssid
+                ?.removeSurrounding("\"")
+                ?.takeIf { it.isNotBlank() && it != "<unknown ssid>" } ?: "—"
 
-        val bssid = wifiInfo.bssid ?: "—"
-        val signalDbm = wifiInfo.rssi
-        val frequency = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) wifiInfo.frequency else 0
-        val linkSpeed = wifiInfo.linkSpeed
-        val channel = frequencyToChannel(frequency)
+            val bssid = wifiInfo.bssid ?: "—"
+            val signalDbm = wifiInfo.rssi
+            val frequency = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) wifiInfo.frequency else 0
+            val linkSpeed = wifiInfo.linkSpeed
+            val channel = frequencyToChannel(frequency)
 
-        val ip = intToIp(wifiInfo.ipAddress)
-        val gateway = intToIp(dhcpInfo.gateway)
-        val netmask = intToIp(dhcpInfo.netmask)
-        val dns1 = intToIp(dhcpInfo.dns1)
-        val dns2 = intToIp(dhcpInfo.dns2)
+            val ip = intToIp(wifiInfo.ipAddress)
+            val gateway = intToIp(dhcpInfo.gateway)
+            val netmask = intToIp(dhcpInfo.netmask)
+            val dns1 = intToIp(dhcpInfo.dns1)
+            val dns2 = intToIp(dhcpInfo.dns2)
 
-        _networkInfo.value = NetworkInfo(
-            ssid = ssid,
-            bssid = bssid,
-            signalDbm = signalDbm,
-            frequencyMhz = frequency,
-            linkSpeedMbps = linkSpeed,
-            channel = channel,
-            security = "WPA/WPA2/WPA3",
-            ipAddress = ip,
-            gateway = gateway,
-            netmask = netmask,
-            dns1 = dns1,
-            dns2 = dns2,
-            networkId = wifiInfo.networkId,
-            isConnected = wifiInfo.networkId != -1 && ip != "0.0.0.0"
-        )
+            _networkInfo.value = NetworkInfo(
+                ssid = ssid,
+                bssid = bssid,
+                signalDbm = signalDbm,
+                frequencyMhz = frequency,
+                linkSpeedMbps = linkSpeed,
+                channel = channel,
+                security = "WPA/WPA2/WPA3",
+                ipAddress = ip,
+                gateway = gateway,
+                netmask = netmask,
+                dns1 = dns1,
+                dns2 = dns2,
+                networkId = wifiInfo.networkId,
+                isConnected = wifiInfo.networkId != -1 && ip != "0.0.0.0"
+            )
+        } catch (_: Exception) {
+            _networkInfo.value = NetworkInfo()
+        }
     }
 
     private fun frequencyToChannel(freq: Int): Int = when {
@@ -87,13 +92,16 @@ class NetworkRepository(context: Context) {
         else -> 0
     }
 
-    private fun intToIp(value: Int): String = String.format(
-        "%d.%d.%d.%d",
-        value and 0xff,
-        value shr 8 and 0xff,
-        value shr 16 and 0xff,
-        value shr 24 and 0xff
-    )
+    private fun intToIp(value: Int): String {
+        if (value == 0) return "0.0.0.0"
+        return String.format(
+            "%d.%d.%d.%d",
+            value and 0xff,
+            value shr 8 and 0xff,
+            value shr 16 and 0xff,
+            value shr 24 and 0xff
+        )
+    }
 
     suspend fun scanDevices() {
         if (_isScanning.value) return
@@ -112,13 +120,30 @@ class NetworkRepository(context: Context) {
             val gateway = networkInfo.gateway
             val prefix = localIp.substringBeforeLast(".")
 
-            val arpDevices = readArpTable()
-            val pinged = pingSweep(prefix, localIp)
-            val allIps = (arpDevices.keys + pinged).toSet()
+            // Parallel discovery methods
+            val arpDevices = withContext(Dispatchers.IO) { readArpTable() }
+            val pinged = discoverHosts(prefix, localIp)
+
+            // Always include gateway and local
+            val allIps = (arpDevices.keys + pinged + setOf(localIp, gateway).filter {
+                it != "0.0.0.0" && it != "—" && it.isNotBlank()
+            }).toSet()
 
             val result = allIps.map { ip ->
                 val mac = arpDevices[ip] ?: devicesCache[ip]?.mac ?: ""
                 val existing = devicesCache[ip]
+
+                // CRITICAL: load saved customization from DataStore
+                val saved = try {
+                    devicePreferences.getCustomization(ip).first()
+                } catch (_: Exception) {
+                    DeviceCustomization()
+                }
+
+                val nickname = saved.nickname.ifBlank { existing?.nickname ?: "" }
+                val notes = saved.notes.ifBlank { existing?.notes ?: "" }
+                val isFavorite = saved.isFavorite || (existing?.isFavorite == true)
+                val isWatched = saved.isWatched || (existing?.isWatched == true)
 
                 Device(
                     ip = ip,
@@ -131,10 +156,10 @@ class NetworkRepository(context: Context) {
                     lastSeen = System.currentTimeMillis(),
                     openPorts = existing?.openPorts ?: emptyList(),
                     osGuess = existing?.osGuess ?: "",
-                    nickname = existing?.nickname ?: "",
-                    notes = existing?.notes ?: "",
-                    isFavorite = existing?.isFavorite ?: false,
-                    isWatched = existing?.isWatched ?: false
+                    nickname = nickname,
+                    notes = notes,
+                    isFavorite = isFavorite,
+                    isWatched = isWatched
                 ).also { devicesCache[ip] = it }
             }.sortedWith(
                 compareByDescending<Device> { it.isGateway }
@@ -146,6 +171,9 @@ class NetworkRepository(context: Context) {
 
             _devices.value = result
             _lastScanTime.value = System.currentTimeMillis()
+
+            // Persist known IPs for Watch Mode
+            devicePreferences.saveKnownIps(result.map { it.ip })
         } finally {
             _isScanning.value = false
         }
@@ -173,8 +201,14 @@ class NetworkRepository(context: Context) {
         return result
     }
 
-    private suspend fun pingSweep(prefix: String, localIp: String): Set<String> = coroutineScope {
+    /**
+     * Hybrid discovery: ICMP isReachable + TCP connect to common ports.
+     * isReachable often fails on Android without root.
+     */
+    private suspend fun discoverHosts(prefix: String, localIp: String): Set<String> = coroutineScope {
         val alive = ConcurrentHashMap.newKeySet<String>()
+        val portsToTry = listOf(80, 443, 8080, 22, 135, 445, 139, 53, 3389)
+
         val jobs = (1..254).map { i ->
             async(Dispatchers.IO) {
                 val ip = "$prefix.$i"
@@ -183,9 +217,22 @@ class NetworkRepository(context: Context) {
                     return@async
                 }
                 try {
+                    // Method 1: ICMP-ish
                     val address = InetAddress.getByName(ip)
-                    if (address.isReachable(180)) {
+                    if (address.isReachable(120)) {
                         alive.add(ip)
+                        return@async
+                    }
+                    // Method 2: TCP connect fallback (works when ICMP is blocked)
+                    for (port in portsToTry) {
+                        try {
+                            Socket().use { socket ->
+                                socket.connect(InetSocketAddress(ip, port), 100)
+                                alive.add(ip)
+                                return@async
+                            }
+                        } catch (_: Exception) {
+                        }
                     }
                 } catch (_: Exception) {
                 }
@@ -232,7 +279,7 @@ class NetworkRepository(context: Context) {
                 async {
                     try {
                         Socket().use { socket ->
-                            socket.connect(InetSocketAddress(ip, port), 280)
+                            socket.connect(InetSocketAddress(ip, port), 400)
                             port
                         }
                     } catch (_: Exception) {
@@ -273,6 +320,8 @@ class NetworkRepository(context: Context) {
     }
 
     fun getDevice(ip: String): Device? = devicesCache[ip] ?: _devices.value.find { it.ip == ip }
+
+    suspend fun getKnownIps(): Set<String> = devicePreferences.getKnownIps()
 
     companion object {
         val COMMON_PORTS = listOf(

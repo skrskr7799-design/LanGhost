@@ -24,14 +24,17 @@ class WatchWorker(
             }
 
             val repository = NetworkRepository.getInstance(applicationContext)
-            val knownBefore = repository.devices.value.map { it.ip }.toSet()
+            val knownBefore = repository.getKnownIps()
 
             repository.scanDevices()
 
             val after = repository.devices.value
-            val newDevices = after.filter { it.ip !in knownBefore && !it.isLocalDevice && !it.isGateway }
+            val newDevices = after.filter {
+                it.ip !in knownBefore && !it.isLocalDevice && !it.isGateway
+            }
 
-            if (settings.notifyNewDevices && newDevices.isNotEmpty()) {
+            if (settings.notifyNewDevices && newDevices.isNotEmpty() && knownBefore.isNotEmpty()) {
+                // Only notify if we already had a baseline (avoid spam on first run)
                 if (newDevices.size == 1) {
                     val d = newDevices.first()
                     NotificationHelper.notifyNewDevice(

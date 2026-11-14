@@ -5,8 +5,10 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
 
@@ -22,6 +24,7 @@ data class DeviceCustomization(
 class DevicePreferences(private val context: Context) {
 
     private fun key(ip: String) = stringPreferencesKey("device_$ip")
+    private val KEY_KNOWN_IPS = stringSetPreferencesKey("known_ips")
 
     fun getCustomization(ip: String): Flow<DeviceCustomization> {
         return context.deviceDataStore.data.map { prefs ->
@@ -49,6 +52,21 @@ class DevicePreferences(private val context: Context) {
                 put("isWatched", customization.isWatched)
             }
             prefs[key(ip)] = json.toString()
+        }
+    }
+
+    suspend fun saveKnownIps(ips: List<String>) {
+        context.deviceDataStore.edit { prefs ->
+            val existing = prefs[KEY_KNOWN_IPS] ?: emptySet()
+            prefs[KEY_KNOWN_IPS] = existing + ips.toSet()
+        }
+    }
+
+    suspend fun getKnownIps(): Set<String> {
+        return try {
+            context.deviceDataStore.data.map { it[KEY_KNOWN_IPS] ?: emptySet() }.first()
+        } catch (_: Exception) {
+            emptySet()
         }
     }
 }
