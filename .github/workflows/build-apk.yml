@@ -22,13 +22,13 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: ''   # don't install deprecated packages
 
-      - name: Accept licenses
-        run: yes | sdkmanager --licenses >/dev/null 2>&1 || true
-
-      - name: Install Android SDK components
+      - name: Install required SDK packages
         run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -37,26 +37,23 @@ jobs:
 
       - name: Create local.properties
         run: |
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "sdk.dir=$ANDROID_SDK_ROOT" >> local.properties
           cat local.properties
 
-      - name: Build with Gradle
-        run: |
-          gradle assembleDebug --stacktrace --no-daemon
+      - name: Build Debug APK
+        run: gradle assembleDebug --stacktrace --no-daemon
 
-      - name: Find and list APK
+      - name: List APK
         if: always()
         run: |
-          echo "=== Searching for APK ==="
-          find . -name "*.apk" -type f
-          echo "=== Debug folder ==="
-          ls -la app/build/outputs/apk/debug/ || echo "No debug folder"
+          find . -name "*.apk" -type f || true
+          ls -la app/build/outputs/apk/debug/ || true
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: LanGhost-debug
-          path: |
-            app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
           if-no-files-found: warn
