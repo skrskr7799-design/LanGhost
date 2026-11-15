@@ -40,6 +40,15 @@ class NetworkIdentityTest {
     }
 
     @Test
+    fun legacyScopeRemainsAvailableForExistingCustomizationKeys() {
+        val current = NetworkIdentity.scopeId("Home WiFi", "192.168.1.1", "192.168.1.20", "255.255.255.0")
+        val legacy = NetworkIdentity.legacyScopeId("Home WiFi", "192.168.1.1", "192.168.1.20", "255.255.255.0")
+
+        assertEquals(16, legacy.length)
+        assertNotEquals(current, legacy)
+    }
+
+    @Test
     fun missingNetworkIdentifiersRemainUnknown() {
         assertEquals("unknown", NetworkIdentity.scopeId("—", "0.0.0.0", "0.0.0.0", "0.0.0.0"))
     }
