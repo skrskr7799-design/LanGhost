@@ -224,6 +224,7 @@ class NetworkRepository(context: Context) {
                 dns1 = dnsServers.getOrNull(0) ?: "0.0.0.0",
                 dns2 = dnsServers.getOrNull(1) ?: "0.0.0.0",
                 networkId = wifiInfo?.networkId ?: -1,
+                interfaceName = linkProperties.interfaceName.orEmpty(),
                 isConnected = localAddress != null && (isWifi ||
                     capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
             ))
@@ -442,7 +443,7 @@ class NetworkRepository(context: Context) {
 
             // /proc/net/arp may contain entries from other interfaces; keep only this subnet.
             val arpDevices = subnet?.let { currentSubnet ->
-                readArpTable().filterKeys(currentSubnet::contains)
+                readArpTable(networkInfo.interfaceName).filterKeys(currentSubnet::contains)
             }.orEmpty()
             val candidates = subnet?.hostAddresses(MAX_DISCOVERY_TARGETS, localIp).orEmpty()
             val discoveredIps = HostDiscovery.discover(
@@ -583,26 +584,15 @@ class NetworkRepository(context: Context) {
         }
     }
 
-    private fun readArpTable(): Map<String, String> {
-        val result = mutableMapOf<String, String>()
-        try {
+    private fun readArpTable(interfaceName: String): Map<String, String> {
+        if (interfaceName.isBlank()) return emptyMap()
+        return try {
             BufferedReader(FileReader("/proc/net/arp")).use { reader ->
-                reader.readLine()
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    val parts = line!!.split(Regex("\\s+"))
-                    if (parts.size >= 4) {
-                        val ip = parts[0]
-                        val mac = parts[3]
-                        if (mac != "00:00:00:00:00:00" && mac.contains(":")) {
-                            result[ip] = mac.uppercase()
-                        }
-                    }
-                }
+                parseArpTable(reader.readText(), interfaceName)
             }
         } catch (_: Exception) {
+            emptyMap()
         }
-        return result
     }
 
     private suspend fun probeHost(ip: String, budgetMs: Int): Boolean = withContext(Dispatchers.IO) {
