@@ -44,6 +44,20 @@ class DeviceTest {
     }
 
     @Test
+    fun manualPortUpdatesPreserveDedicatedSecurityAuditEvidence() {
+        val device = Device(
+            ip = "192.168.1.10",
+            openPorts = listOf(22, 80),
+            auditedPorts = listOf(23)
+        )
+
+        val updated = device.withUpdatedPorts(listOf(443, 8080))
+
+        assertEquals(listOf(443, 8080), updated.openPorts)
+        assertEquals(listOf(23), updated.auditedPorts)
+    }
+
+    @Test
     fun deviceClassificationUsesKnownSignals() {
         assertEquals(DeviceType.ROUTER, Device.guessType(emptyList(), "", "", true))
         assertEquals(DeviceType.PRINTER, Device.guessType(listOf(9100), "", "", false))
