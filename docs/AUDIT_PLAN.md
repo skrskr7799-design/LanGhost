@@ -75,7 +75,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [ ] Verify contrast, touch targets, TalkBack semantics and localization.
 
 ### Phase 6 — Automated and device testing
-- [x] Add unit tests for pure network calculations, identity merging, scoring, diff, discovery orchestration, public-IP response validation/limits, CSV safety, retention bounds and evidence expiry (68 tests total on the current branch; CI confirmation pending).
+- [x] Add unit tests for pure network calculations, identity merging, scoring, diff, discovery orchestration, public-IP response validation/limits, CSV safety, retention bounds and evidence expiry (69 tests total on the current branch; CI confirmation pending).
 - [ ] Add repository/integration tests for persistence, scanning orchestration and failure cases.
 - [ ] Add Compose UI tests for critical flows and permission states.
 - [ ] Run Android Lint and dependency/security checks in CI.
@@ -166,7 +166,7 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 - Opening the public-IP screen no longer triggers a network request. The user must press the explicit lookup button after seeing a disclosure.
 - The primary ipapi.co endpoint receives the public IP and returns provider/approximate-location data. The fallback api.ipify.org endpoint is called only if the primary lookup fails and receives the same public source IP but returns only the address.
 - Both lookups use HTTPS, reject redirects/non-2xx responses, cap bodies at 16 KiB, disconnect connections in finally and propagate coroutine cancellation. Returned IP values are validated as IPv4/IPv6 literals without resolving hostnames.
-- CSV export escapes embedded quotes, neutralizes formula-like values after leading whitespace and preserves commas inside quoted cells. Reports and exports remain user-initiated share-sheet actions.
+- CSV export escapes embedded quotes, neutralizes formula-like values after BOM/leading whitespace and preserves commas inside quoted cells. Reports and exports remain user-initiated share-sheet actions.
 - FileProvider exposes only the dedicated cache/shared directory; old generated share artifacts are deleted after 24 hours.
 - New-device notifications contain no device name, IP or MAC and use private lock-screen visibility.
 
