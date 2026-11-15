@@ -16,31 +16,33 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.langhost.data.AppLockSettings
 import com.langhost.ui.theme.*
-import kotlinx.coroutines.flow.first
 
 @Composable
 fun LockGate(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val settings = remember { AppLockSettings(context) }
-    val enabled by settings.biometricEnabled.collectAsState(initial = false)
+    // Null means the persisted setting has not loaded yet. Never render protected
+    // content using a permissive default while DataStore is still being read.
+    val enabled by settings.biometricEnabled.collectAsState(initial = null as Boolean?)
     var unlocked by remember { mutableStateOf(false) }
-    var checked by remember { mutableStateOf(false) }
     var authError by remember { mutableStateOf<String?>(null) }
     val authenticators = BiometricManager.Authenticators.BIOMETRIC_WEAK or
         BiometricManager.Authenticators.DEVICE_CREDENTIAL
 
-    LaunchedEffect(Unit) {
-        settings.biometricEnabled.first()
-        checked = true
-    }
-
     LaunchedEffect(enabled) {
-        unlocked = !enabled
+        when (enabled) {
+            true -> unlocked = false
+            false -> {
+                unlocked = true
+                authError = null
+            }
+            null -> Unit
+        }
     }
 
     val activity = context as? FragmentActivity
     DisposableEffect(activity, enabled) {
-        if (activity == null || !enabled) {
+        if (activity == null || enabled != true) {
             onDispose { }
         } else {
             val observer = LifecycleEventObserver { _, event ->
@@ -54,16 +56,17 @@ fun LockGate(content: @Composable () -> Unit) {
         }
     }
 
-    if (!checked) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = Primary)
+    when {
+        enabled == null -> {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Primary)
+            }
+            return
         }
-        return
-    }
-
-    if (!enabled || unlocked) {
-        content()
-        return
+        enabled == false || unlocked -> {
+            content()
+            return
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
