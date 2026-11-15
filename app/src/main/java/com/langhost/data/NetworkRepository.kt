@@ -282,62 +282,62 @@ class NetworkRepository(context: Context) {
                 items = allIps.toList(),
                 maxConcurrency = DEVICE_ENRICHMENT_CONCURRENCY
             ) { ip ->
-                        val mac = arpDevices[ip] ?: ""
-                        val existingByIp = devicesCache.values.firstOrNull {
-                            it.ip == ip && it.networkScope == networkScope
-                        }
-                        val macFinal = mac.ifBlank { existingByIp?.mac ?: "" }
-                        val randomMac = Device.isRandomMacAddress(macFinal)
-                        val stableId = when {
-                            macFinal.isNotBlank() -> "${macFinal.uppercase()}@${networkScope}"
-                            else -> "ip:${networkScope}:$ip"
-                        }
-                        val legacyIds = buildList {
-                            if (macFinal.isNotBlank() && bssid.isNotBlank() && bssid != "—") {
-                                add("${macFinal.uppercase()}@${bssid.uppercase()}")
-                            }
-                            if (macFinal.isNotBlank()) add(macFinal.uppercase())
-                            add("ip:$ip")
-                        }
-                        val saved = devicePreferences.getCustomizationOnce(stableId, legacyIds)
-                        val existing = devicesCache[stableId] ?: existingByIp
-                        val firstSeen = when {
-                            saved.firstSeen > 0 -> saved.firstSeen
-                            existing != null && existing.firstSeen > 0 -> existing.firstSeen
-                            else -> now
-                        }
+                val mac = arpDevices[ip] ?: ""
+                val existingByIp = devicesCache.values.firstOrNull {
+                    it.ip == ip && it.networkScope == networkScope
+                }
+                val macFinal = mac.ifBlank { existingByIp?.mac ?: "" }
+                val randomMac = Device.isRandomMacAddress(macFinal)
+                val stableId = when {
+                    macFinal.isNotBlank() -> "${macFinal.uppercase()}@${networkScope}"
+                    else -> "ip:${networkScope}:$ip"
+                }
+                val legacyIds = buildList {
+                    if (macFinal.isNotBlank() && bssid.isNotBlank() && bssid != "—") {
+                        add("${macFinal.uppercase()}@${bssid.uppercase()}")
+                    }
+                    if (macFinal.isNotBlank()) add(macFinal.uppercase())
+                    add("ip:$ip")
+                }
+                val saved = devicePreferences.getCustomizationOnce(stableId, legacyIds)
+                val existing = devicesCache[stableId] ?: existingByIp
+                val firstSeen = when {
+                    saved.firstSeen > 0 -> saved.firstSeen
+                    existing != null && existing.firstSeen > 0 -> existing.firstSeen
+                    else -> now
+                }
 
-                        var hostname = withTimeoutOrNull(250L) { resolveHostname(ip) } ?: ""
-                        if (hostname.isBlank()) {
-                            hostname = DeviceProbe.netBiosName(ip).ifBlank { existing?.hostname ?: "" }
-                        }
+                var hostname = withTimeoutOrNull(250L) { resolveHostname(ip) } ?: ""
+                if (hostname.isBlank()) {
+                    hostname = DeviceProbe.netBiosName(ip).ifBlank { existing?.hostname ?: "" }
+                }
 
-                        val vendor = if (randomMac) "Random MAC" else lookupVendor(macFinal)
-                        val ports = existing?.openPorts ?: emptyList()
-                        val type = Device.guessType(ports, vendor, hostname, ip == gateway)
+                val vendor = if (randomMac) "Random MAC" else lookupVendor(macFinal)
+                val ports = existing?.openPorts ?: emptyList()
+                val type = Device.guessType(ports, vendor, hostname, ip == gateway)
 
-                        Device(
-                            ip = ip,
-                            mac = macFinal,
-                            hostname = hostname.ifBlank { existing?.hostname ?: "" },
-                            vendor = vendor.ifBlank { existing?.vendor ?: "" },
-                            isLocalDevice = ip == localIp,
-                            isGateway = ip == gateway,
-                            firstSeen = firstSeen,
-                            lastSeen = now,
-                            openPorts = ports,
-                            osGuess = existing?.osGuess ?: Device.guessOs(ports, vendor, hostname),
-                            nickname = saved.nickname.ifBlank { existing?.nickname ?: "" },
-                            notes = saved.notes.ifBlank { existing?.notes ?: "" },
-                            isFavorite = saved.isFavorite || (existing?.isFavorite == true),
-                            isWatched = saved.isWatched || (existing?.isWatched == true),
-                            networkBssid = bssid,
-                            networkScope = networkScope,
-                            deviceType = type,
-                            httpFingerprint = existing?.httpFingerprint ?: "",
-                            isRandomMac = randomMac,
-                            tags = existing?.tags ?: emptyList()
-                        ).also { devicesCache[it.stableId] = it }
+                Device(
+                    ip = ip,
+                    mac = macFinal,
+                    hostname = hostname.ifBlank { existing?.hostname ?: "" },
+                    vendor = vendor.ifBlank { existing?.vendor ?: "" },
+                    isLocalDevice = ip == localIp,
+                    isGateway = ip == gateway,
+                    firstSeen = firstSeen,
+                    lastSeen = now,
+                    openPorts = ports,
+                    osGuess = existing?.osGuess ?: Device.guessOs(ports, vendor, hostname),
+                    nickname = saved.nickname.ifBlank { existing?.nickname ?: "" },
+                    notes = saved.notes.ifBlank { existing?.notes ?: "" },
+                    isFavorite = saved.isFavorite || (existing?.isFavorite == true),
+                    isWatched = saved.isWatched || (existing?.isWatched == true),
+                    networkBssid = bssid,
+                    networkScope = networkScope,
+                    deviceType = type,
+                    httpFingerprint = existing?.httpFingerprint ?: "",
+                    isRandomMac = randomMac,
+                    tags = existing?.tags ?: emptyList()
+                ).also { devicesCache[it.stableId] = it }
             }
 
             val onlineIds = onlineDevices.map { it.stableId }.toSet()

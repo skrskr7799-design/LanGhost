@@ -111,4 +111,32 @@ class HostDiscoveryTest {
             // Expected.
         }
     }
+    @Test
+    fun mapBoundedPropagatesCancellation() = runBlocking {
+        val job = launch {
+            HostDiscovery.mapBounded((1..10).toList(), 2) {
+                delay(10_000)
+                it
+            }
+        }
+        delay(25)
+        job.cancelAndJoin()
+        assertTrue(job.isCancelled)
+    }
+
+    @Test
+    fun discoveryPassesClampedProbeBudget() = runBlocking {
+        var receivedBudget = 0
+        HostDiscovery.discover(
+            candidates = listOf("192.168.1.10"),
+            localIp = "192.168.1.1",
+            maxConcurrency = 1,
+            timeoutMs = 500
+        ) { _, budget ->
+            receivedBudget = budget
+            true
+        }
+        assertEquals(1000, receivedBudget)
+    }
+
 }
