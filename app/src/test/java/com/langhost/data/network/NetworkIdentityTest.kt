@@ -39,4 +39,9 @@ class NetworkIdentityTest {
         assertNotEquals(first, second)
     }
 
+    @Test
+    fun missingNetworkIdentifiersRemainUnknown() {
+        assertEquals("unknown", NetworkIdentity.scopeId("—", "0.0.0.0", "0.0.0.0", "0.0.0.0"))
+    }
+
 }
