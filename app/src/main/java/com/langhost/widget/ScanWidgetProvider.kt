@@ -6,31 +6,32 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
+import androidx.work.WorkManager
 import com.langhost.MainActivity
-import com.langhost.data.NetworkRepository
 import com.langhost.R
+import com.langhost.data.NetworkRepository
 
 class ScanWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        val count = try {
-            NetworkRepository.getInstance(context).devices.value.count { it.isOnline }
-        } catch (_: Exception) {
-            0
+        val repository = NetworkRepository.getInstance(context)
+        val count = if (repository.lastScanTime.value > 0L) {
+            repository.devices.value.count { it.isOnline }
+        } else {
+            null
         }
         appWidgetIds.forEach { id ->
             updateWidget(context, appWidgetManager, id, count)
         }
     }
 
-
     companion object {
         const val ACTION_SCAN = "com.langhost.widget.ACTION_SCAN"
 
-        fun updateWidget(context: Context, manager: AppWidgetManager, id: Int, onlineCount: Int) {
+        fun updateWidget(context: Context, manager: AppWidgetManager, id: Int, onlineCount: Int?) {
             val views = RemoteViews(context.packageName, R.layout.widget_scan)
-            views.setTextViewText(R.id.widget_count, onlineCount.toString())
-            views.setTextViewText(R.id.widget_label, "онлайн")
+            views.setTextViewText(R.id.widget_count, onlineCount?.toString() ?: "—")
+            views.setTextViewText(R.id.widget_label, if (onlineCount == null) "нет данных" else "онлайн")
 
             val open = PendingIntent.getActivity(
                 context, 0,
