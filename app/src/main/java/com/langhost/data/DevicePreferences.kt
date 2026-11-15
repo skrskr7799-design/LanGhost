@@ -27,7 +27,7 @@ data class DeviceCustomization(
 class DevicePreferences(private val context: Context) {
 
     /** Key by network-scoped stable device identity. */
-    private fun key(stableId: String) = stringPreferencesKey("dev_${stableId.replace(':', '_').replace('@', '_')}")
+    private fun key(stableId: String) = stringPreferencesKey(deviceCustomizationKeyName(stableId))
     private val KEY_KNOWN_IDS = stringPreferencesKey("known_stable_ids_json")
     private val LEGACY_KEY_KNOWN_IDS = stringSetPreferencesKey("known_stable_ids")
     private val MAX_KNOWN_IDS = 512
@@ -71,6 +71,7 @@ class DevicePreferences(private val context: Context) {
     }
 
     suspend fun saveCustomization(stableId: String, customization: DeviceCustomization) {
+        if (stableId.isBlank()) return
         context.deviceDataStore.edit { prefs ->
             val json = JSONObject().apply {
                 put("nickname", customization.nickname)
@@ -90,6 +91,16 @@ class DevicePreferences(private val context: Context) {
             val retained = retainKnownIds(ordered + legacy, ids, MAX_KNOWN_IDS)
             prefs[KEY_KNOWN_IDS] = JSONArray(retained).toString()
             prefs.remove(LEGACY_KEY_KNOWN_IDS)
+
+            // Keep customization records bounded by the same retained identity set.
+            // Without pruning, every device ever discovered would leave a permanent
+            // DataStore entry even though the known-ID history itself is capped.
+            val existingCustomizationKeys = prefs.asMap().keys
+                .map { it.name }
+                .filter { it.startsWith(DEVICE_CUSTOMIZATION_KEY_PREFIX) }
+                .toSet()
+            staleDeviceCustomizationKeys(existingCustomizationKeys, retained)
+                .forEach { prefs.remove(stringPreferencesKey(it)) }
         }
     }
 
@@ -117,6 +128,21 @@ class DevicePreferences(private val context: Context) {
         } catch (_: Exception) {
             emptyList()
         }
+    }
+}
+
+private const val DEVICE_CUSTOMIZATION_KEY_PREFIX = "dev_"
+
+internal fun deviceCustomizationKeyName(stableId: String): String =
+    "$DEVICE_CUSTOMIZATION_KEY_PREFIX${stableId.replace(':', '_').replace('@', '_')}"
+
+internal fun staleDeviceCustomizationKeys(
+    existingKeys: Set<String>,
+    retainedIds: List<String>
+): Set<String> {
+    val retainedKeys = retainedIds.mapTo(hashSetOf(), ::deviceCustomizationKeyName)
+    return existingKeys.filterTo(hashSetOf()) {
+        it.startsWith(DEVICE_CUSTOMIZATION_KEY_PREFIX) && it !in retainedKeys
     }
 }
 
