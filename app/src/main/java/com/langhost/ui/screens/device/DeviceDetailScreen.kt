@@ -22,7 +22,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.langhost.data.WakeOnLan
+import com.langhost.data.WolProfile
+import com.langhost.data.WolProfiles
+import com.langhost.data.model.DeviceType
 import com.langhost.ui.theme.*
+import com.langhost.ui.util.QuickActions
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -42,8 +46,8 @@ fun DeviceDetailScreen(
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 return DeviceDetailViewModel(
-                    application = context.applicationContext as android.app.Application,
-                    deviceIp = deviceIp
+                    context.applicationContext as android.app.Application,
+                    deviceIp
                 ) as T
             }
         }
@@ -61,8 +65,7 @@ fun DeviceDetailScreen(
 
     fun formatTime(timestamp: Long): String {
         if (timestamp == 0L) return "—"
-        val sdf = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale("ru"))
-        return sdf.format(Date(timestamp))
+        return SimpleDateFormat("dd MMM yyyy, HH:mm", Locale("ru")).format(Date(timestamp))
     }
 
     Scaffold(
@@ -70,11 +73,7 @@ fun DeviceDetailScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = device?.displayName ?: deviceIp,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text(device?.displayName ?: deviceIp, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -83,18 +82,10 @@ fun DeviceDetailScreen(
                 },
                 actions = {
                     IconButton(onClick = { viewModel.toggleFavorite() }) {
-                        Icon(
-                            imageVector = if (state.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
-                            contentDescription = "Избранное",
-                            tint = if (state.isFavorite) Secondary else TextPrimary
-                        )
+                        Icon(if (state.isFavorite) Icons.Default.Star else Icons.Default.StarBorder, "Избранное", tint = if (state.isFavorite) Secondary else TextPrimary)
                     }
                     IconButton(onClick = { viewModel.toggleWatched() }) {
-                        Icon(
-                            imageVector = if (state.isWatched) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = "Наблюдение",
-                            tint = if (state.isWatched) Primary else TextPrimary
-                        )
+                        Icon(if (state.isWatched) Icons.Default.Visibility else Icons.Default.VisibilityOff, "Наблюдение", tint = if (state.isWatched) Primary else TextPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Background, titleContentColor = TextPrimary)
@@ -110,64 +101,67 @@ fun DeviceDetailScreen(
         }
 
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Main info
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Surface),
-                shape = RoundedCornerShape(12.dp)
-            ) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Информация об устройстве", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                     HorizontalDivider(color = Divider)
-
                     CopyableInfoRow("IP-адрес", device.ip) { copyToClipboard("IP", device.ip) }
                     CopyableInfoRow("MAC-адрес", device.mac.ifBlank { "—" }) {
                         if (device.mac.isNotBlank()) copyToClipboard("MAC", device.mac)
                     }
-
                     InfoRow("Имя хоста", device.hostname.ifBlank { "—" })
                     InfoRow("Производитель", device.vendor.ifBlank { "Неизвестно" })
+                    InfoRow("Тип", typeLabel(device.deviceType))
                     InfoRow("ОС (предположение)", device.osGuess.ifBlank { "Неизвестно" })
                     InfoRow("Статус", if (device.isOnline) "Онлайн" else "Оффлайн")
-
+                    if (device.isRandomMac) InfoRow("MAC", "Рандомизированный")
+                    if (device.httpFingerprint.isNotBlank()) InfoRow("HTTP", device.httpFingerprint)
                     when {
                         device.isGateway -> InfoRow("Роль", "Шлюз / Роутер")
                         device.isLocalDevice -> InfoRow("Роль", "Это устройство")
                     }
-
                     HorizontalDivider(color = Divider)
                     InfoRow("Впервые замечен", formatTime(device.firstSeen))
                     InfoRow("Последний раз", formatTime(device.lastSeen))
                 }
             }
 
-            // Actions: WoL
+            // Quick actions
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Быстрые действия", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = { QuickActions.openHttpAdmin(context, device) }, modifier = Modifier.weight(1f)) {
+                            Text("Админка")
+                        }
+                        if (22 in device.openPorts || device.openPorts.isEmpty()) {
+                            OutlinedButton(onClick = { QuickActions.openSsh(context, device) }, modifier = Modifier.weight(1f)) {
+                                Text("SSH")
+                            }
+                        }
+                        if (3389 in device.openPorts || device.openPorts.isEmpty()) {
+                            OutlinedButton(onClick = { QuickActions.openRdp(context, device) }, modifier = Modifier.weight(1f)) {
+                                Text("RDP")
+                            }
+                        }
+                    }
+                }
+            }
+
             if (device.mac.isNotBlank() && !device.isLocalDevice) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Surface),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Действия", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                        Text("Wake-on-LAN", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                         Button(
                             onClick = {
                                 scope.launch {
                                     wolSending = true
                                     val ok = WakeOnLan.send(device.mac)
                                     wolSending = false
-                                    Toast.makeText(
-                                        context,
-                                        if (ok) "Magic packet отправлен" else "Не удалось отправить",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                    Toast.makeText(context, if (ok) "Magic packet отправлен" else "Не удалось отправить", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             enabled = !wolSending,
@@ -178,112 +172,66 @@ fun DeviceDetailScreen(
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = OnPrimary)
                                 Spacer(Modifier.width(8.dp))
                             }
-                            Icon(Icons.Default.Power, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Power, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text(if (wolSending) "Отправка..." else "Wake-on-LAN")
+                            Text(if (wolSending) "Отправка..." else "Разбудить сейчас")
                         }
-                        Text(
-                            text = "Отправляет magic packet для включения устройства (если поддерживается)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextTertiary
-                        )
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    WolProfiles(context).add(
+                                        WolProfile(
+                                            id = UUID.randomUUID().toString(),
+                                            name = device.displayName,
+                                            mac = device.mac
+                                        )
+                                    )
+                                    Toast.makeText(context, "Профиль WoL сохранён", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Сохранить в профили WoL")
+                        }
                     }
                 }
             }
 
-            // Port Scanner
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Surface),
-                shape = RoundedCornerShape(12.dp)
-            ) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Сканер портов", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                        Button(
-                            onClick = { viewModel.scanPorts() },
-                            enabled = !state.isScanningPorts,
-                            colors = ButtonDefaults.buttonColors(containerColor = Primary)
-                        ) {
+                        Button(onClick = { viewModel.scanPorts() }, enabled = !state.isScanningPorts, colors = ButtonDefaults.buttonColors(containerColor = Primary)) {
                             if (state.isScanningPorts) {
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = OnPrimary)
                                 Spacer(Modifier.width(8.dp))
-                                Text("Сканирование...")
-                            } else {
-                                Text("Сканировать")
-                            }
+                                Text("...")
+                            } else Text("Сканировать")
                         }
                     }
-
                     if (state.openPorts.isNotEmpty()) {
                         Text("Открытые порты (${state.openPorts.size}):", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                        Text(
-                            text = state.openPorts.joinToString(", "),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = Success,
-                            fontWeight = FontWeight.Medium
-                        )
-                        val serviceHints = state.openPorts.mapNotNull { port ->
-                            val name = when (port) {
-                                21 -> "FTP"; 22 -> "SSH"; 23 -> "Telnet"; 25 -> "SMTP"; 53 -> "DNS"
-                                80 -> "HTTP"; 110 -> "POP3"; 135 -> "RPC"; 139, 445 -> "SMB"; 143 -> "IMAP"
-                                443 -> "HTTPS"; 548 -> "AFP"; 993 -> "IMAPS"; 995 -> "POP3S"
-                                1723 -> "PPTP"; 3306 -> "MySQL"; 3389 -> "RDP"; 5900 -> "VNC"
-                                8080, 8443 -> "HTTP-Alt"; 9100 -> "Принтер"; else -> null
-                            }
-                            name?.let { "$port ($it)" }
-                        }
-                        if (serviceHints.isNotEmpty()) {
-                            Text(serviceHints.joinToString("  •  "), style = MaterialTheme.typography.bodySmall, color = TextTertiary)
-                        }
+                        Text(state.openPorts.joinToString(", "), style = MaterialTheme.typography.bodyLarge, color = Success, fontWeight = FontWeight.Medium)
                     } else if (!state.isScanningPorts) {
-                        Text("Открытых портов не найдено или сканирование не выполнялось", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
+                        Text("Сканирование не выполнялось", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
                     }
                 }
             }
 
-            // Customization
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Surface),
-                shape = RoundedCornerShape(12.dp)
-            ) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Персонализация", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-
                     OutlinedTextField(
-                        value = state.nickname,
-                        onValueChange = { viewModel.updateNickname(it) },
-                        label = { Text("Кличка") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Primary, unfocusedBorderColor = Border,
-                            focusedLabelColor = Primary, cursorColor = Primary
-                        )
+                        value = state.nickname, onValueChange = { viewModel.updateNickname(it) },
+                        label = { Text("Кличка") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary, unfocusedBorderColor = Border, focusedLabelColor = Primary, cursorColor = Primary)
                     )
-
                     OutlinedTextField(
-                        value = state.notes,
-                        onValueChange = { viewModel.updateNotes(it) },
-                        label = { Text("Заметки") },
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Primary, unfocusedBorderColor = Border,
-                            focusedLabelColor = Primary, cursorColor = Primary
-                        )
+                        value = state.notes, onValueChange = { viewModel.updateNotes(it) },
+                        label = { Text("Заметки") }, modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary, unfocusedBorderColor = Border, focusedLabelColor = Primary, cursorColor = Primary)
                     )
-
-                    Button(
-                        onClick = { viewModel.saveCustomization() },
-                        enabled = !state.isSaving,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Primary)
-                    ) {
+                    Button(onClick = { viewModel.saveCustomization() }, enabled = !state.isSaving, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Primary)) {
                         Text(if (state.isSaving) "Сохранение..." else "Сохранить")
                     }
                 }
@@ -292,27 +240,38 @@ fun DeviceDetailScreen(
     }
 }
 
+private fun typeLabel(type: DeviceType) = when (type) {
+    DeviceType.PHONE -> "Телефон"
+    DeviceType.TABLET -> "Планшет"
+    DeviceType.TV -> "ТВ"
+    DeviceType.PC -> "ПК"
+    DeviceType.LAPTOP -> "Ноутбук"
+    DeviceType.ROUTER -> "Роутер"
+    DeviceType.PRINTER -> "Принтер"
+    DeviceType.NAS -> "NAS"
+    DeviceType.CAMERA -> "Камера"
+    DeviceType.IOT -> "IoT"
+    DeviceType.SERVER -> "Сервер"
+    DeviceType.UNKNOWN -> "Неизвестно"
+}
+
 @Composable
 private fun InfoRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-        Text(text = value, style = MaterialTheme.typography.bodyMedium, color = TextPrimary, fontWeight = FontWeight.Medium)
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+        Text(value, style = MaterialTheme.typography.bodyMedium, color = TextPrimary, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
 private fun CopyableInfoRow(label: String, value: String, onCopy: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = value, style = MaterialTheme.typography.bodyMedium, color = TextPrimary, fontWeight = FontWeight.Medium)
+            Text(value, style = MaterialTheme.typography.bodyMedium, color = TextPrimary, fontWeight = FontWeight.Medium)
             if (value != "—") {
                 IconButton(onClick = onCopy, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = "Копировать", tint = TextTertiary, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.ContentCopy, "Копировать", tint = TextTertiary, modifier = Modifier.size(16.dp))
                 }
             }
         }

@@ -23,7 +23,9 @@ import com.langhost.ui.screens.devices.DevicesScreen
 import com.langhost.ui.screens.security.SecurityScreen
 import com.langhost.ui.screens.settings.SettingsScreen
 import com.langhost.ui.screens.tools.UtilitiesScreen
+import com.langhost.ui.screens.topology.TopologyScreen
 import com.langhost.ui.screens.wifi.NearbyNetworksScreen
+import com.langhost.ui.screens.wol.WolProfilesScreen
 import com.langhost.ui.theme.Divider
 
 object Routes {
@@ -34,6 +36,8 @@ object Routes {
     const val NEARBY_WIFI = "nearby_wifi"
     const val SECURITY = "security"
     const val UTILITIES = "utilities"
+    const val TOPOLOGY = "topology"
+    const val WOL = "wol"
 
     fun deviceDetail(ip: String) = "device/${ip.replace('.', '_')}"
     fun decodeIp(encoded: String) = encoded.replace('_', '.')
@@ -55,7 +59,9 @@ private fun PhoneNavHost() {
                 onNavigateToSettings = { navController.navigate(Routes.SETTINGS) },
                 onNavigateToNearbyWifi = { navController.navigate(Routes.NEARBY_WIFI) },
                 onNavigateToSecurity = { navController.navigate(Routes.SECURITY) },
-                onNavigateToUtilities = { navController.navigate(Routes.UTILITIES) }
+                onNavigateToUtilities = { navController.navigate(Routes.UTILITIES) },
+                onNavigateToTopology = { navController.navigate(Routes.TOPOLOGY) },
+                onNavigateToWol = { navController.navigate(Routes.WOL) }
             )
         }
         composable(Routes.DEVICES) {
@@ -67,14 +73,21 @@ private fun PhoneNavHost() {
         composable(
             route = Routes.DEVICE_DETAIL,
             arguments = listOf(navArgument("deviceIp") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val ip = Routes.decodeIp(backStackEntry.arguments?.getString("deviceIp") ?: "")
+        ) { entry ->
+            val ip = Routes.decodeIp(entry.arguments?.getString("deviceIp") ?: "")
             DeviceDetailScreen(deviceIp = ip, onBack = { navController.popBackStack() })
         }
         composable(Routes.SETTINGS) { SettingsScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.NEARBY_WIFI) { NearbyNetworksScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.SECURITY) { SecurityScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.UTILITIES) { UtilitiesScreen(onBack = { navController.popBackStack() }) }
+        composable(Routes.TOPOLOGY) {
+            TopologyScreen(
+                onBack = { navController.popBackStack() },
+                onDeviceClick = { ip -> navController.navigate(Routes.deviceDetail(ip)) }
+            )
+        }
+        composable(Routes.WOL) { WolProfilesScreen(onBack = { navController.popBackStack() }) }
     }
 }
 
@@ -84,28 +97,27 @@ private fun TabletNavHost() {
     var selectedDeviceIp by rememberSaveable { mutableStateOf<String?>(null) }
 
     Row(modifier = Modifier.fillMaxSize()) {
-        NavHost(
-            navController = navController,
-            startDestination = Routes.DEVICES,
-            modifier = Modifier.weight(0.4f)
-        ) {
+        NavHost(navController = navController, startDestination = Routes.DEVICES, modifier = Modifier.weight(0.4f)) {
             composable(Routes.DEVICES) {
-                DevicesScreen(
-                    onBack = { selectedDeviceIp = null },
-                    onDeviceClick = { ip -> selectedDeviceIp = ip }
-                )
+                DevicesScreen(onBack = { selectedDeviceIp = null }, onDeviceClick = { selectedDeviceIp = it })
             }
             composable(Routes.SETTINGS) { SettingsScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.NEARBY_WIFI) { NearbyNetworksScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.SECURITY) { SecurityScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.UTILITIES) { UtilitiesScreen(onBack = { navController.popBackStack() }) }
+            composable(Routes.TOPOLOGY) {
+                TopologyScreen(onBack = { navController.popBackStack() }, onDeviceClick = { selectedDeviceIp = it })
+            }
+            composable(Routes.WOL) { WolProfilesScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.DASHBOARD) {
                 DashboardScreen(
-                    onNavigateToDevices = { navController.navigate(Routes.DEVICES) { popUpTo(Routes.DASHBOARD) { inclusive = true } } },
+                    onNavigateToDevices = { navController.navigate(Routes.DEVICES) },
                     onNavigateToSettings = { navController.navigate(Routes.SETTINGS) },
                     onNavigateToNearbyWifi = { navController.navigate(Routes.NEARBY_WIFI) },
                     onNavigateToSecurity = { navController.navigate(Routes.SECURITY) },
-                    onNavigateToUtilities = { navController.navigate(Routes.UTILITIES) }
+                    onNavigateToUtilities = { navController.navigate(Routes.UTILITIES) },
+                    onNavigateToTopology = { navController.navigate(Routes.TOPOLOGY) },
+                    onNavigateToWol = { navController.navigate(Routes.WOL) }
                 )
             }
         }
@@ -123,6 +135,8 @@ private fun TabletNavHost() {
                 onNavigateToNearbyWifi = { navController.navigate(Routes.NEARBY_WIFI) },
                 onNavigateToSecurity = { navController.navigate(Routes.SECURITY) },
                 onNavigateToUtilities = { navController.navigate(Routes.UTILITIES) },
+                onNavigateToTopology = { navController.navigate(Routes.TOPOLOGY) },
+                onNavigateToWol = { navController.navigate(Routes.WOL) },
                 modifier = Modifier.weight(0.6f)
             )
         }
