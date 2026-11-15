@@ -28,7 +28,7 @@ class ExportHelperTest {
 
     @Test
     fun csvCellNeutralizesFormulaAfterUtf8Bom() {
-        assertEquals("\"'\\uFEFF=1+1\"", ExportHelper.escapeCsvCell("\uFEFF=1+1"))
+        assertEquals("\"'\uFEFF=1+1\"", ExportHelper.escapeCsvCell("\uFEFF=1+1"))
     }
 
     @Test
