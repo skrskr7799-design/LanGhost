@@ -2,6 +2,9 @@ package com.langhost.data
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
 import com.langhost.data.model.Device
@@ -28,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap
 class NetworkRepository(context: Context) {
 
     private val appContext = context.applicationContext
+    private val connectivityManager = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
     private val devicePreferences = DevicePreferences(appContext)
     private val appSettings = AppSettings(appContext)
@@ -52,32 +56,91 @@ class NetworkRepository(context: Context) {
     @SuppressLint("MissingPermission", "HardwareIds")
     fun refreshNetworkInfo() {
         try {
-            val wifiInfo = wifiManager.connectionInfo
-            val dhcpInfo = wifiManager.dhcpInfo
-            val ssid = wifiInfo.ssid?.removeSurrounding("\"")
-                ?.takeIf { it.isNotBlank() && it != "<unknown ssid>" } ?: "—"
-            val bssid = wifiInfo.bssid ?: "—"
-            val frequency = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) wifiInfo.frequency else 0
-            val ip = intToIp(wifiInfo.ipAddress)
+            val network = connectivityManager.activeNetwork
+            if (network == null) {
+                _networkInfo.value = NetworkInfo()
+                return
+            }
+
+            val capabilities = connectivityManager.getNetworkCapabilities(network)
+            val linkProperties = connectivityManager.getLinkProperties(network)
+            if (capabilities == null || linkProperties == null) {
+                _networkInfo.value = NetworkInfo()
+                return
+            }
+
+            val localAddress = linkProperties.linkAddresses
+                .asSequence()
+                .mapNotNull { it.address as? java.net.Inet4Address }
+                .firstOrNull { !it.isLoopbackAddress && !it.isLinkLocalAddress }
+
+            val gateway = linkProperties.routes
+                .asSequence()
+                .filter { it.isDefaultRoute }
+                .mapNotNull { it.gateway as? java.net.Inet4Address }
+                .firstOrNull()
+
+            val dnsServers = linkProperties.dnsServers
+                .filterIsInstance<java.net.Inet4Address>()
+                .mapNotNull { it.hostAddress }
+
+            val wifiInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                capabilities.transportInfo as? WifiInfo
+            } else if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                @Suppress("DEPRECATION")
+                wifiManager.connectionInfo
+            } else {
+                null
+            }
+
+            val ssid = wifiInfo?.ssid
+                ?.removeSurrounding("\"")
+                ?.takeIf { it.isNotBlank() && it != WifiInfo.UNKNOWN_SSID && it != "<unknown ssid>" }
+                ?: "—"
+            val bssid = wifiInfo?.bssid
+                ?.takeIf { it.isNotBlank() && it != "02:00:00:00:00:00" }
+                ?: "—"
+            val frequency = wifiInfo?.frequency?.takeIf { it > 0 } ?: 0
+            val prefixLength = linkProperties.linkAddresses
+                .firstOrNull { it.address is java.net.Inet4Address && it.address == localAddress }
+                ?.prefixLength
+            val netmask = prefixLength?.let(::prefixToNetmask) ?: "0.0.0.0"
+            val ip = localAddress?.hostAddress ?: "0.0.0.0"
+            val isWifi = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+
             _networkInfo.value = NetworkInfo(
                 ssid = ssid,
                 bssid = bssid,
-                signalDbm = wifiInfo.rssi,
+                signalDbm = wifiInfo?.rssi?.takeIf { it in -127..0 } ?: 0,
                 frequencyMhz = frequency,
-                linkSpeedMbps = wifiInfo.linkSpeed,
+                linkSpeedMbps = wifiInfo?.linkSpeed?.takeIf { it > 0 } ?: 0,
                 channel = frequencyToChannel(frequency),
-                security = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) "WPA2/WPA3" else "WPA/WPA2",
+                // Do not infer encryption from Android version; exact security type is not
+                // consistently exposed on every supported platform/API level.
+                security = "—",
                 ipAddress = ip,
-                gateway = intToIp(dhcpInfo.gateway),
-                netmask = intToIp(dhcpInfo.netmask),
-                dns1 = intToIp(dhcpInfo.dns1),
-                dns2 = intToIp(dhcpInfo.dns2),
-                networkId = wifiInfo.networkId,
-                isConnected = wifiInfo.networkId != -1 && ip != "0.0.0.0"
+                gateway = gateway?.hostAddress ?: "0.0.0.0",
+                netmask = netmask,
+                dns1 = dnsServers.getOrNull(0) ?: "0.0.0.0",
+                dns2 = dnsServers.getOrNull(1) ?: "0.0.0.0",
+                networkId = wifiInfo?.networkId ?: -1,
+                isConnected = localAddress != null && (isWifi ||
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
             )
         } catch (_: Exception) {
             _networkInfo.value = NetworkInfo()
         }
+    }
+
+    private fun prefixToNetmask(prefixLength: Int): String {
+        if (prefixLength !in 0..32) return "0.0.0.0"
+        val mask = if (prefixLength == 0) 0L else (0xFFFF_FFFFL shl (32 - prefixLength)) and 0xFFFF_FFFFL
+        return listOf(
+            (mask shr 24) and 0xFF,
+            (mask shr 16) and 0xFF,
+            (mask shr 8) and 0xFF,
+            mask and 0xFF
+        ).joinToString(".")
     }
 
     private fun frequencyToChannel(freq: Int): Int = when {
