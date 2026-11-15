@@ -20,7 +20,9 @@ import androidx.navigation.navArgument
 import com.langhost.ui.screens.dashboard.DashboardScreen
 import com.langhost.ui.screens.device.DeviceDetailScreen
 import com.langhost.ui.screens.devices.DevicesScreen
+import com.langhost.ui.screens.security.SecurityScreen
 import com.langhost.ui.screens.settings.SettingsScreen
+import com.langhost.ui.screens.tools.UtilitiesScreen
 import com.langhost.ui.screens.wifi.NearbyNetworksScreen
 import com.langhost.ui.theme.Divider
 
@@ -30,37 +32,30 @@ object Routes {
     const val DEVICE_DETAIL = "device/{deviceIp}"
     const val SETTINGS = "settings"
     const val NEARBY_WIFI = "nearby_wifi"
+    const val SECURITY = "security"
+    const val UTILITIES = "utilities"
 
     fun deviceDetail(ip: String) = "device/${ip.replace('.', '_')}"
     fun decodeIp(encoded: String) = encoded.replace('_', '.')
 }
 
 @Composable
-fun LanGhostNavHost(
-    windowSizeClass: WindowSizeClass? = null
-) {
+fun LanGhostNavHost(windowSizeClass: WindowSizeClass? = null) {
     val isExpanded = windowSizeClass?.widthSizeClass == WindowWidthSizeClass.Expanded
-
-    if (isExpanded) {
-        TabletNavHost()
-    } else {
-        PhoneNavHost()
-    }
+    if (isExpanded) TabletNavHost() else PhoneNavHost()
 }
 
 @Composable
 private fun PhoneNavHost() {
     val navController = rememberNavController()
-
-    NavHost(
-        navController = navController,
-        startDestination = Routes.DASHBOARD
-    ) {
+    NavHost(navController = navController, startDestination = Routes.DASHBOARD) {
         composable(Routes.DASHBOARD) {
             DashboardScreen(
                 onNavigateToDevices = { navController.navigate(Routes.DEVICES) },
                 onNavigateToSettings = { navController.navigate(Routes.SETTINGS) },
-                onNavigateToNearbyWifi = { navController.navigate(Routes.NEARBY_WIFI) }
+                onNavigateToNearbyWifi = { navController.navigate(Routes.NEARBY_WIFI) },
+                onNavigateToSecurity = { navController.navigate(Routes.SECURITY) },
+                onNavigateToUtilities = { navController.navigate(Routes.UTILITIES) }
             )
         }
         composable(Routes.DEVICES) {
@@ -73,19 +68,13 @@ private fun PhoneNavHost() {
             route = Routes.DEVICE_DETAIL,
             arguments = listOf(navArgument("deviceIp") { type = NavType.StringType })
         ) { backStackEntry ->
-            val encodedIp = backStackEntry.arguments?.getString("deviceIp") ?: ""
-            val ip = Routes.decodeIp(encodedIp)
-            DeviceDetailScreen(
-                deviceIp = ip,
-                onBack = { navController.popBackStack() }
-            )
+            val ip = Routes.decodeIp(backStackEntry.arguments?.getString("deviceIp") ?: "")
+            DeviceDetailScreen(deviceIp = ip, onBack = { navController.popBackStack() })
         }
-        composable(Routes.SETTINGS) {
-            SettingsScreen(onBack = { navController.popBackStack() })
-        }
-        composable(Routes.NEARBY_WIFI) {
-            NearbyNetworksScreen(onBack = { navController.popBackStack() })
-        }
+        composable(Routes.SETTINGS) { SettingsScreen(onBack = { navController.popBackStack() }) }
+        composable(Routes.NEARBY_WIFI) { NearbyNetworksScreen(onBack = { navController.popBackStack() }) }
+        composable(Routes.SECURITY) { SecurityScreen(onBack = { navController.popBackStack() }) }
+        composable(Routes.UTILITIES) { UtilitiesScreen(onBack = { navController.popBackStack() }) }
     }
 }
 
@@ -95,7 +84,6 @@ private fun TabletNavHost() {
     var selectedDeviceIp by rememberSaveable { mutableStateOf<String?>(null) }
 
     Row(modifier = Modifier.fillMaxSize()) {
-        // Left: secondary nav via NavHost for settings/wifi, or devices list
         NavHost(
             navController = navController,
             startDestination = Routes.DEVICES,
@@ -107,27 +95,21 @@ private fun TabletNavHost() {
                     onDeviceClick = { ip -> selectedDeviceIp = ip }
                 )
             }
-            composable(Routes.SETTINGS) {
-                SettingsScreen(onBack = { navController.popBackStack() })
-            }
-            composable(Routes.NEARBY_WIFI) {
-                NearbyNetworksScreen(onBack = { navController.popBackStack() })
-            }
+            composable(Routes.SETTINGS) { SettingsScreen(onBack = { navController.popBackStack() }) }
+            composable(Routes.NEARBY_WIFI) { NearbyNetworksScreen(onBack = { navController.popBackStack() }) }
+            composable(Routes.SECURITY) { SecurityScreen(onBack = { navController.popBackStack() }) }
+            composable(Routes.UTILITIES) { UtilitiesScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.DASHBOARD) {
                 DashboardScreen(
-                    onNavigateToDevices = {
-                        navController.navigate(Routes.DEVICES) {
-                            popUpTo(Routes.DASHBOARD) { inclusive = true }
-                        }
-                    },
+                    onNavigateToDevices = { navController.navigate(Routes.DEVICES) { popUpTo(Routes.DASHBOARD) { inclusive = true } } },
                     onNavigateToSettings = { navController.navigate(Routes.SETTINGS) },
-                    onNavigateToNearbyWifi = { navController.navigate(Routes.NEARBY_WIFI) }
+                    onNavigateToNearbyWifi = { navController.navigate(Routes.NEARBY_WIFI) },
+                    onNavigateToSecurity = { navController.navigate(Routes.SECURITY) },
+                    onNavigateToUtilities = { navController.navigate(Routes.UTILITIES) }
                 )
             }
         }
-
         VerticalDivider(color = Divider, thickness = 1.dp)
-
         if (selectedDeviceIp != null) {
             DeviceDetailScreen(
                 deviceIp = selectedDeviceIp!!,
@@ -136,11 +118,11 @@ private fun TabletNavHost() {
             )
         } else {
             DashboardScreen(
-                onNavigateToDevices = {
-                    navController.navigate(Routes.DEVICES)
-                },
+                onNavigateToDevices = { navController.navigate(Routes.DEVICES) },
                 onNavigateToSettings = { navController.navigate(Routes.SETTINGS) },
                 onNavigateToNearbyWifi = { navController.navigate(Routes.NEARBY_WIFI) },
+                onNavigateToSecurity = { navController.navigate(Routes.SECURITY) },
+                onNavigateToUtilities = { navController.navigate(Routes.UTILITIES) },
                 modifier = Modifier.weight(0.6f)
             )
         }

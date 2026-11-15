@@ -29,25 +29,21 @@ fun DashboardScreen(
     onNavigateToDevices: () -> Unit,
     onNavigateToSettings: () -> Unit = {},
     onNavigateToNearbyWifi: () -> Unit = {},
+    onNavigateToSecurity: () -> Unit = {},
+    onNavigateToUtilities: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: DashboardViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
     val network = state.networkInfo
 
-    // FINE is preferred; COARSE alone is acceptable on Android 12+
     val permissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.NEARBY_WIFI_DEVICES)
         }
     }
-
     val permissionState = rememberMultiplePermissionsState(permissions)
-    // Consider granted if FINE or (on older) we at least asked
-    val hasLocation = permissionState.permissions.any {
-        it.permission == Manifest.permission.ACCESS_FINE_LOCATION && it.status.toString().contains("Granted", ignoreCase = true)
-    } || permissionState.allPermissionsGranted
 
     LaunchedEffect(Unit) {
         if (!permissionState.allPermissionsGranted) {
@@ -60,11 +56,7 @@ fun DashboardScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = "LanGhost",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("LanGhost", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 },
                 actions = {
                     IconButton(onClick = { viewModel.refreshNetworkInfo() }) {
@@ -74,10 +66,7 @@ fun DashboardScreen(
                         Icon(Icons.Default.Settings, contentDescription = "Настройки", tint = TextPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Background,
-                    titleContentColor = TextPrimary
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Background, titleContentColor = TextPrimary)
             )
         },
         containerColor = Background
@@ -105,7 +94,7 @@ fun DashboardScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Нужны разрешения", color = TextPrimary, fontWeight = FontWeight.Medium)
                             Text(
-                                "Для SSID и сканирования нужна точная геолокация (или Nearby Wi-Fi на Android 13+).",
+                                "Для SSID и сканирования нужна точная геолокация.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary
                             )
@@ -119,10 +108,7 @@ fun DashboardScreen(
 
             NetworkStatusCard(network)
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 StatCard(
                     title = "Онлайн",
                     value = state.devices.count { it.isOnline }.let { if (state.devices.isNotEmpty()) it.toString() else "—" },
@@ -148,88 +134,47 @@ fun DashboardScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = Primary
-                        )
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Primary)
                         Text("Сканирование сети...", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
                     }
                 }
             }
 
-            Text(
-                text = "Действия",
-                style = MaterialTheme.typography.titleMedium,
-                color = TextSecondary,
-                modifier = Modifier.padding(top = 8.dp)
-            )
+            Text("Действия", style = MaterialTheme.typography.titleMedium, color = TextSecondary, modifier = Modifier.padding(top = 8.dp))
 
-            ActionButton(
-                title = "Сканировать сеть",
-                subtitle = if (state.lastScanTime > 0) "Последнее сканирование завершено" else "Найти все устройства",
-                icon = Icons.Default.Radar,
-                onClick = { viewModel.startScan() },
-                enabled = !state.isScanning
-            )
+            ActionButton("Сканировать сеть",
+                if (state.lastScanTime > 0) "Последнее сканирование завершено" else "Найти все устройства",
+                Icons.Default.Radar, { viewModel.startScan() }, !state.isScanning)
 
-            ActionButton(
-                title = "Устройства",
-                subtitle = if (state.devices.isNotEmpty()) {
+            ActionButton("Устройства",
+                if (state.devices.isNotEmpty()) {
                     val online = state.devices.count { it.isOnline }
                     "$online онлайн / ${state.devices.size} всего"
                 } else "Список обнаруженных устройств",
-                icon = Icons.Default.Devices,
-                onClick = onNavigateToDevices
-            )
+                Icons.Default.Devices, onNavigateToDevices)
 
-            ActionButton(
-                title = "Соседние сети",
-                subtitle = "Анализ Wi-Fi вокруг вас",
-                icon = Icons.Default.WifiFind,
-                onClick = onNavigateToNearbyWifi
-            )
-
-            ActionButton(
-                title = "Настройки",
-                subtitle = "Параметры приложения",
-                icon = Icons.Default.Settings,
-                onClick = onNavigateToSettings
-            )
+            ActionButton("Аудит безопасности", "Оценка сети, evil twin, открытые порты", Icons.Default.Shield, onNavigateToSecurity)
+            ActionButton("Соседние сети", "Анализ Wi-Fi вокруг вас", Icons.Default.WifiFind, onNavigateToNearbyWifi)
+            ActionButton("Утилиты", "Ping, DNS lookup", Icons.Default.Build, onNavigateToUtilities)
+            ActionButton("Настройки", "Параметры приложения", Icons.Default.Settings, onNavigateToSettings)
         }
     }
 }
 
 @Composable
 private fun NetworkStatusCard(network: com.langhost.data.model.NetworkInfo) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Wifi,
-                    contentDescription = null,
-                    tint = if (network.isConnected) Primary else TextTertiary
-                )
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.Wifi, null, tint = if (network.isConnected) Primary else TextTertiary)
                 Text(
-                    text = if (network.isConnected) network.ssid else "Нет подключения",
+                    if (network.isConnected) network.ssid else "Нет подключения",
                     style = MaterialTheme.typography.titleMedium,
                     color = TextPrimary,
                     fontWeight = FontWeight.SemiBold
                 )
             }
-
             HorizontalDivider(color = Divider)
-
             InfoRow("BSSID", network.bssid)
             InfoRow("Сигнал", if (network.signalDbm != 0) "${network.signalDbm} dBm (${network.frequencyBand})" else "—")
             InfoRow("Канал", if (network.channel > 0) network.channel.toString() else "—")
@@ -245,38 +190,25 @@ private fun NetworkStatusCard(network: com.langhost.data.model.NetworkInfo) {
 
 @Composable
 private fun InfoRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-        Text(text = value, style = MaterialTheme.typography.bodyMedium, color = TextPrimary, fontWeight = FontWeight.Medium)
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+        Text(value, style = MaterialTheme.typography.bodyMedium, color = TextPrimary, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
 private fun StatCard(title: String, value: String, icon: ImageVector, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(12.dp)
-    ) {
+    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(imageVector = icon, contentDescription = null, tint = Primary, modifier = Modifier.size(20.dp))
-            Text(text = value, style = MaterialTheme.typography.headlineMedium, color = TextPrimary, fontWeight = FontWeight.Bold)
-            Text(text = title, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            Icon(icon, null, tint = Primary, modifier = Modifier.size(20.dp))
+            Text(value, style = MaterialTheme.typography.headlineMedium, color = TextPrimary, fontWeight = FontWeight.Bold)
+            Text(title, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
         }
     }
 }
 
 @Composable
-private fun ActionButton(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
-    enabled: Boolean = true
-) {
+private fun ActionButton(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit, enabled: Boolean = true) {
     Card(
         onClick = onClick,
         enabled = enabled,
@@ -292,14 +224,12 @@ private fun ActionButton(
             Box(
                 modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(Primary.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
-            ) {
-                Icon(imageVector = icon, contentDescription = null, tint = Primary)
-            }
+            ) { Icon(icon, null, tint = Primary) }
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                Text(title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
             }
-            Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = TextTertiary)
+            Icon(Icons.Default.ChevronRight, null, tint = TextTertiary)
         }
     }
 }
