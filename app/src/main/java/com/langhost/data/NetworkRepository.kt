@@ -241,6 +241,19 @@ class NetworkRepository(context: Context) {
 
     private fun currentNetworkScope(): String? = networkScope(_networkInfo.value)
 
+    /**
+     * Refreshes the active Android network before each bounded scan batch.
+     * A network switch cancels the operation instead of probing the old subnet
+     * or attaching old-network results to a new device with the same IP.
+     */
+    private suspend fun ensureCurrentNetworkScope(expectedScope: String) {
+        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+        refreshNetworkInfo()
+        if (currentNetworkScope() != expectedScope) {
+            throw CancellationException("Active network changed during scan")
+        }
+    }
+
     private fun publishNetworkInfo(next: NetworkInfo) {
         val previousScope = networkScope(_networkInfo.value)
         val nextScope = networkScope(next)
@@ -424,7 +437,8 @@ class NetworkRepository(context: Context) {
                 candidates = candidates,
                 localIp = localIp,
                 maxConcurrency = MAX_CONCURRENT_HOST_PROBES,
-                timeoutMs = timeoutMs
+                timeoutMs = timeoutMs,
+                beforeBatch = { ensureCurrentNetworkScope(networkScope) }
             ) { ip, budgetMs -> probeHost(ip, budgetMs) }
             val allIps = (arpDevices.keys + discoveredIps + setOf(localIp, gateway).filter {
                 it != "0.0.0.0" && it != "—" && it.isNotBlank()
@@ -441,7 +455,8 @@ class NetworkRepository(context: Context) {
             )
             val onlineDevices = HostDiscovery.mapBounded(
                 items = allIps.toList(),
-                maxConcurrency = DEVICE_ENRICHMENT_CONCURRENCY
+                maxConcurrency = DEVICE_ENRICHMENT_CONCURRENCY,
+                beforeBatch = { ensureCurrentNetworkScope(networkScope) }
             ) { ip ->
                 val mac = arpDevices[ip] ?: ""
                 val existingByIp = devicesCache.values.firstOrNull {
@@ -625,9 +640,10 @@ class NetworkRepository(context: Context) {
             }
             val scanned = HostDiscovery.mapBounded(
                 items = targets,
-                maxConcurrency = SECURITY_HOST_SCAN_CONCURRENCY
+                maxConcurrency = SECURITY_HOST_SCAN_CONCURRENCY,
+                beforeBatch = { ensureCurrentNetworkScope(scanScope) }
             ) { device ->
-                val ports = scanPorts(device.ip, SECURITY_AUDIT_PORTS)
+                val ports = scanPorts(device.ip, SECURITY_AUDIT_PORTS, scanScope)
                 device.withUpdatedPorts(ports)
             }
 
@@ -647,10 +663,36 @@ class NetworkRepository(context: Context) {
         }
     }
 
-    suspend fun scanPorts(ip: String, ports: List<Int> = COMMON_PORTS): List<Int> = withContext(Dispatchers.IO) {
+    /**
+     * Scans only a device snapshot that still belongs to the active logical network.
+     * Returns null when the device became stale or the network changed during the scan.
+     */
+    suspend fun scanDevicePorts(device: Device): List<Int>? = withContext(Dispatchers.IO) {
+        refreshNetworkInfo()
+        val expectedScope = currentNetworkScope() ?: return@withContext null
+        if (device.networkScope != expectedScope) return@withContext null
+        val currentDevice = _devices.value.firstOrNull {
+            it.stableId == device.stableId && it.networkScope == expectedScope
+        } ?: return@withContext null
+
+        val ports = scanPorts(currentDevice.ip, COMMON_PORTS, expectedScope)
+        ensureCurrentNetworkScope(expectedScope)
+        updateDevicePorts(currentDevice.stableId, expectedScope, ports)
+        ports
+    }
+
+    private suspend fun scanPorts(
+        ip: String,
+        ports: List<Int>,
+        expectedNetworkScope: String
+    ): List<Int> = withContext(Dispatchers.IO) {
         val timeoutMs = (appSettings.getOnce().scanTimeoutMs * 2).coerceIn(100, 800)
         val validPorts = ports.distinct().filter { it in 1..65535 }
-        HostDiscovery.mapBounded(validPorts, PORT_SCAN_CONCURRENCY) { port ->
+        HostDiscovery.mapBounded(
+            items = validPorts,
+            maxConcurrency = PORT_SCAN_CONCURRENCY,
+            beforeBatch = { ensureCurrentNetworkScope(expectedNetworkScope) }
+        ) { port ->
             kotlinx.coroutines.currentCoroutineContext().ensureActive()
             try {
                 Socket().use { socket ->
@@ -665,32 +707,40 @@ class NetworkRepository(context: Context) {
         }.filterNotNull().sorted()
     }
 
-    /** After port scan: HTTP fingerprint + refresh type */
-    suspend fun enrichDevice(ip: String) {
-        val device = getDevice(ip) ?: return
-        val (nb, http) = DeviceProbe.enrichHostnamesAndFingerprint(ip, device.openPorts)
-        val hostname = device.hostname.ifBlank { nb }
-        val updated = device.copy(
-            hostname = hostname,
-            httpFingerprint = http.ifBlank { device.httpFingerprint },
-            osGuess = Device.guessOs(device.openPorts, device.vendor, hostname),
-            deviceType = Device.guessType(device.openPorts, device.vendor, hostname, device.isGateway)
-        )
+    private suspend fun updateDevicePorts(stableId: String, expectedScope: String, ports: List<Int>) {
+        ensureCurrentNetworkScope(expectedScope)
+        val current = _devices.value.firstOrNull {
+            it.stableId == stableId && it.networkScope == expectedScope
+        } ?: return
+        val updated = current.withUpdatedPorts(ports)
         devicesCache[updated.stableId] = updated
-        _devices.update { list -> list.map { if (it.ip == ip) updated else it } }
+        _devices.update { list ->
+            list.map { if (it.stableId == stableId && it.networkScope == expectedScope) updated else it }
+        }
+        enrichDevice(updated)
     }
 
-    suspend fun updateDevicePorts(ip: String, ports: List<Int>) {
+    /** Enrichment results are committed only if the originating network/device is still current. */
+    private suspend fun enrichDevice(device: Device) {
+        ensureCurrentNetworkScope(device.networkScope)
+        val (nb, http) = DeviceProbe.enrichHostnamesAndFingerprint(device.ip, device.openPorts)
+        ensureCurrentNetworkScope(device.networkScope)
+        val current = _devices.value.firstOrNull {
+            it.stableId == device.stableId && it.networkScope == device.networkScope
+        } ?: return
+        val hostname = current.hostname.ifBlank { nb }
+        val updated = current.copy(
+            hostname = hostname,
+            httpFingerprint = http.ifBlank { current.httpFingerprint },
+            osGuess = Device.guessOs(current.openPorts, current.vendor, hostname),
+            deviceType = Device.guessType(current.openPorts, current.vendor, hostname, current.isGateway)
+        )
+        devicesCache[updated.stableId] = updated
         _devices.update { list ->
-            list.map { device ->
-                if (device.ip == ip) {
-                    val updated = device.withUpdatedPorts(ports)
-                    devicesCache[updated.stableId] = updated
-                    updated
-                } else device
+            list.map {
+                if (it.stableId == device.stableId && it.networkScope == device.networkScope) updated else it
             }
         }
-        enrichDevice(ip)
     }
 
     suspend fun updateDeviceCustomization(stableId: String, customization: DeviceCustomization) {
@@ -709,8 +759,11 @@ class NetworkRepository(context: Context) {
         }
     }
 
-    fun getDevice(ip: String): Device? =
-        _devices.value.find { it.ip == ip } ?: devicesCache.values.find { it.ip == ip }
+    fun getDevice(ip: String): Device? {
+        val scope = currentNetworkScope() ?: return null
+        return _devices.value.firstOrNull { it.ip == ip && it.networkScope == scope }
+            ?: devicesCache.values.firstOrNull { it.ip == ip && it.networkScope == scope }
+    }
 
     suspend fun getKnownIds(): Set<String> = devicePreferences.getKnownIds()
 
