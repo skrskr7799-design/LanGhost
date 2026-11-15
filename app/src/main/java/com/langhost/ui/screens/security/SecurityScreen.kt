@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.langhost.data.NetworkRepository
 import com.langhost.data.SecurityAudit
 import com.langhost.data.SecurityFinding
+import com.langhost.data.network.NetworkIdentity
 import com.langhost.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
@@ -33,6 +34,7 @@ fun SecurityScreen(
     val context = LocalContext.current
     val repo = remember { NetworkRepository.getInstance(context) }
     val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { repo.refreshNetworkInfo() }
     var isWifiScanning by remember { mutableStateOf(false) }
     val wifiPermissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -44,6 +46,13 @@ fun SecurityScreen(
     val wifiPermissionState = rememberMultiplePermissionsState(wifiPermissions)
     val devices by repo.devices.collectAsState()
     val network by repo.networkInfo.collectAsState()
+    val currentNetworkScope = remember(network) {
+        if (network.isConnected) {
+            NetworkIdentity.scopeId(network.ssid, network.gateway, network.ipAddress, network.netmask)
+        } else {
+            ""
+        }
+    }
     val diff by repo.lastDiff.collectAsState()
     val scanCoverage by repo.scanCoverage.collectAsState()
     val nearbyNetworks by repo.nearbyNetworks.collectAsState()
@@ -52,7 +61,7 @@ fun SecurityScreen(
     val serviceScanCompleted by repo.securityPortsScanCompleted.collectAsState()
     val isSecurityScanning by repo.isSecurityScanning.collectAsState()
     val isDeviceScanning by repo.isScanning.collectAsState()
-    val report = remember(devices, network, nearbyNetworks, nearbyScanCompleted, scanCoverage, serviceScanCompleted) {
+    val report = remember(devices, network, currentNetworkScope, nearbyNetworks, nearbyScanCompleted, scanCoverage, serviceScanCompleted) {
         SecurityAudit.analyze(
             devices = devices,
             currentSsid = network.ssid,
@@ -61,7 +70,8 @@ fun SecurityScreen(
             currentSecurity = network.security,
             scanCoverage = scanCoverage,
             nearbyScanCompleted = nearbyScanCompleted,
-            serviceScanCompleted = serviceScanCompleted
+            serviceScanCompleted = serviceScanCompleted,
+            currentNetworkScope = currentNetworkScope
         )
     }
     val score = report.score
