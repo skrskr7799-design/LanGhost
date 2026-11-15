@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -31,13 +32,15 @@ class AppSettings(private val context: Context) {
         AppSettingsData(
             watchModeEnabled = prefs[KEY_WATCH_MODE] ?: false,
             notifyNewDevices = prefs[KEY_NOTIFY_NEW] ?: true,
-            scanTimeoutMs = prefs[KEY_SCAN_TIMEOUT] ?: 150,
+            scanTimeoutMs = (prefs[KEY_SCAN_TIMEOUT] ?: 150).coerceIn(50, 500),
             autoScanOnOpen = prefs[KEY_AUTO_SCAN] ?: false
         )
     }
 
     suspend fun getOnce(): AppSettingsData = try {
         settingsFlow.first()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
     } catch (_: Exception) {
         AppSettingsData()
     }
