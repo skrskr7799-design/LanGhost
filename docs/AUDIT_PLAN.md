@@ -270,3 +270,8 @@ Regression tests cover evidence merging and subnet isolation, candidate limits a
 ## Phase 4 — Device enrichment extraction
 
 Device snapshot construction has been moved into the platform-independent `DeviceEnrichmentEngine`. It receives injected customization loading, hostname resolution and vendor lookup; the repository remains responsible for choosing the current-scope cached endpoint and stable-ID snapshot, bounding concurrency, and committing results atomically. The engine preserves network-scoped stable IDs, legacy customization lookup order, randomized-MAC handling, first-seen timestamps, cached hostname/vendor fallback, device classification, user labels and notes, tags, port inventory, security audit evidence and HTTP fingerprint. Unit tests cover customization restoration and evidence preservation, randomized MAC behavior and cached fallback, and scope-key isolation. CI validation pending.
+
+
+## Phase 4 — Device enrichment validation checkpoint — 2026-11-15
+
+The `DeviceEnrichmentEngine` extraction and its network-scoped customization migration tests passed full CI run [#43710316789](https://github.com/skrskr7799-design/LanGhost/actions/runs/43710316789) on commit `653d4995485039640ed05ed1a52036370ae47005`. Android Lint, unit tests, Debug APK, Release APK and APK artifact upload all succeeded. Customization migration is restricted to the previous network-scoped key format; unscoped MAC/IP/BSSID fallbacks are deliberately excluded to prevent preferences from leaking between unrelated networks. The next Phase 4 boundary is the pure device lifecycle/reconciliation logic currently embedded in `NetworkRepository.scanDevices()`.
