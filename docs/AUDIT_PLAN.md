@@ -56,7 +56,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 ### Phase 4 — Architecture, data and background work
 - [ ] Review repository boundaries, state ownership, ViewModels and dependency construction.
 - [ ] Define durable models and persistence for devices, scan history, ping history and profiles.
-- [ ] Bound history/cache growth and define retention/cleanup behavior.
+- [ ] Define full retention/cleanup for per-device customization keys. The known-device index is now capped at 512 entries and ping histories at 64 IP keys, pruning the least recently sampled histories.
 - [x] Fix WorkManager cancellation propagation and request notification permission only when the notification feature is enabled. Scheduling constraints, battery impact and device validation remain open.
 - [ ] Verify widget refresh and asynchronous broadcast lifecycle.
 - [ ] Review error handling, offline behavior, concurrency safety and process-death recovery.
@@ -74,7 +74,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [ ] Verify contrast, touch targets, TalkBack semantics and localization.
 
 ### Phase 6 — Automated and device testing
-- [x] Add initial unit tests for pure network calculations, identity merging, scoring, diff and discovery orchestration (35 tests passed in CI on 1df8efe; 8 Wi-Fi security classifier tests and three security-score/transition regressions added afterward and await CI).
+- [x] Add unit tests for pure network calculations, identity merging, scoring, diff, discovery orchestration, public-IP response limits, CSV safety and retention bounds (63 tests total on the current branch; CI confirmation pending).
 - [ ] Add repository/integration tests for persistence, scanning orchestration and failure cases.
 - [ ] Add Compose UI tests for critical flows and permission states.
 - [ ] Run Android Lint and dependency/security checks in CI.
@@ -119,7 +119,7 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | BUILD-001 | Build | Baseline Kotlin compilation failed on invalid Compose named arguments | Blocker | Baseline Actions run #33; corrected LockGate.kt and SecurityScreen.kt; validation runs #2 and #3 succeeded | Resolved on audit branch; verify again after later code changes |
 | BUILD-002 | Build | Gradle Wrapper scripts/JAR absent from reviewed repository tree | High | Recursive tree at baseline commit; official Wrapper files and Gradle 8.9 distribution checksum added and verified in CI | Resolved on working branch; main unchanged |
 | BUILD-003 | CI | Legacy build workflow grants contents:write to the whole job and publishes a prerelease on every successful main push | Medium | Replaced with branch/PR build workflow and tag-only release workflow; verify permissions and release behavior during final CI review | Resolved on working branch; main unchanged |
-| TEST-001 | Testing | No unit or instrumentation test source files are present in the repository tree | High | Added 53 JUnit tests authored across Device, NetworkInfo, ChannelAnalyzer, SecurityAudit, ScanDiff, ScanCoverage, HostDiscovery, Ipv4Subnet, NetworkIdentity, WifiChannel and WifiSecurity; 35 passed in CI on commit 1df8efe; 18 later tests await latest CI | Partially resolved on working branch; CI confirmation pending |
+| TEST-001 | Testing | No unit or instrumentation test source files are present in the repository tree | High | Added 63 JUnit tests authored across network calculations, discovery, security, identity, export, public-IP response bounds and data-retention policies; 35 passed in CI on commit 1df8efe; the latest 26 additions are awaiting CI confirmation | Partially resolved on working branch; CI confirmation pending |
 | NET-001 | Discovery | IPv4 scan built a /24-style prefix from the first three octets | High | Ipv4Subnet validates masks and handles unsigned IPv4, /31, /32 and bounded enumeration | Implemented; physical-network validation pending |
 | NET-002 | Discovery | Host probes were launched without explicit concurrency limit and had no total per-host time budget | Medium | Candidate cap 1,024, bounded batches of 32, per-host TCP budget, bounded device enrichment and port scanning (16), cancellation propagation, bounded HTTP fingerprint response | Implemented on branch; CI/device validation pending |
 | NET-003 | Network info | Wi-Fi connection data used deprecated WifiManager.connectionInfo and inferred security from Android version | Medium | Migrated to ConnectivityManager/LinkProperties and WifiInfo.currentSecurityType where available, with location-aware callback on API 31+ | Implemented on branch; physical-device validation pending |
@@ -140,11 +140,17 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | UI-002 | Design | Dashboard is a long stack of action rows; theme is dark-only and screens mostly use repeated generic cards | Medium | DashboardScreen.kt, Theme.kt and screen implementations | Open |
 | SEC-003 | Security heuristics | Same SSID on another BSSID was treated as Evil Twin | High | Replaced with known-security-family mismatch signal; explicitly not proof of attack | Implemented on branch; device validation pending |
 | SEC-004 | Security scoring | Current Wi-Fi encryption was not included in security findings | High | Current security mode now flags Open, WEP and legacy WPA where Android exposes enough evidence; generic PSK remains unknown rather than guessed | Implemented on branch; device validation pending |
-| DATA-005 | Persistence | Known device IDs are only ever added to a DataStore set and are never pruned | Medium | Still accumulates; retention/pruning policy remains open | Open |
-| DATA-006 | Persistence | Ping history is capped per IP, but old per-IP DataStore keys have no retention/cleanup policy | Low | PingHistoryStore.addSample() caps sample count but never removes unused keys | Open |
+| DATA-005 | Persistence | Known device IDs were only ever added to an unbounded DataStore set | Medium | DevicePreferences.saveKnownIds() previously unioned every ID forever | Resolved on working branch: ordered index is migrated from the legacy set and capped at 512 recently seen IDs; customization records are intentionally retained pending a separate user-data retention policy |
+| DATA-006 | Persistence | Ping history was capped per IP, but per-IP DataStore keys had no retention/cleanup policy | Low | PingHistoryStore.addSample() capped samples but never removed unused IP keys | Resolved on working branch: retain the 64 most recently sampled IP histories and prune older DataStore keys on each write |
 | MODEL-001 | Classification | Randomized/local MAC detection missed locally administered addresses whose low nibble is odd | Low | Device.isRandomMacAddress() now tests the IEEE U/L bit directly | Resolved on branch; tests added |
-| UI-003 | Lock UX | Biometric lock could be enabled without checking authenticator availability; LockGate failed open if Activity was unavailable | Medium | SettingsScreen toggled the setting directly; LockGate set unlocked=true when context was not FragmentActivity | Partially resolved on working branch: settings checks biometric/PIN availability; LockGate now fails closed and surfaces prompt errors; lifecycle re-lock and physical-device validation remain open |
+| UI-003 | Lock UX | Biometric lock could be enabled without checking authenticator availability; LockGate failed open if Activity was unavailable and did not re-lock on background | Medium | SettingsScreen toggled the setting directly; LockGate set unlocked=true when context was not FragmentActivity and kept unlocked state in memory | Implemented on working branch: settings checks biometric/PIN availability; LockGate fails closed, reports prompt errors, observes the setting and re-locks on Activity ON_STOP; physical-device validation remains open |
 | DOC-001 | Docs | README feature list and roadmap are stale relative to source tree | Low | Compare README with current modules/screens | Open |
+
+## Persistence and app-lock notes
+
+- Known-device ID history is migrated from the legacy set to an ordered JSON index capped at 512 entries. Old per-device customization records are not automatically deleted, to avoid silently losing favorites, notes or names.
+- Ping history retains at most 100 samples per IP and 64 IP histories; older per-IP DataStore keys are pruned when a new sample is saved.
+- App lock checks authenticator availability before enabling, fails closed if the host Activity or prompt is unavailable, reacts to setting changes and re-locks when the Activity stops. Device credential / biometric lifecycle behavior still needs physical-device validation.
 
 ## External network and export privacy notes
 
