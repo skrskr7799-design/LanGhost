@@ -11,7 +11,7 @@ object WifiSecurity {
         val isEap = value.contains("EAP")
         val isWpa3 = isSae
         val isWpa2 = value.contains("WPA2") ||
-            (value.contains("RSN") && (isPsk || isEap) && !isWpa3)
+            (value.contains("RSN") && (isPsk || isEap))
         val isWpa = value.contains("WPA")
 
         return when {
