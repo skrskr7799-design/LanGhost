@@ -127,6 +127,10 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | DATA-002 | Change tracking | ScanDiff keeps one process-global previous map, not persisted or scoped to a network | Medium | ScanDiff.previous | Open |
 | DATA-003 | Widget | Widget scan starts a coroutine from BroadcastReceiver without goAsync() or a durable work handoff | Medium | ScanWidgetProvider.onReceive() | Open |
 | DATA-004 | Export | CSV fields are quoted but embedded double quotes are not escaped | Medium | ExportHelper.exportDevicesAsCsv() | Open |
+| NET-004 | Wi-Fi scan | Nearby-network and channel scans can suspend indefinitely if startScan succeeds but the results broadcast never arrives | High | scanNearbyNetworks() and scanWifi() use suspendCancellableCoroutine without a timeout around the broadcast wait | Open |
+| WIFI-001 | Channel analysis | Channel analysis omits 6 GHz and most DFS channels; 5 GHz scoring only counts exact-channel APs and ignores channel width/overlap | Medium | ChannelAnalyzer.analyze() fixed common5 list and frequency filters | Open |
+| UI-001 | Topology | Canvas writes Compose state during drawing and renders inferred gateway-to-every-device edges as if they were topology | Medium | TopologyCanvas() mutates positions in Canvas draw scope and connects every ring node to gateway | Open |
+| UI-002 | Design | Dashboard is a long stack of action rows; theme is dark-only and screens mostly use repeated generic cards | Medium | DashboardScreen.kt, Theme.kt and screen implementations | Open |
 | DOC-001 | Docs | README feature list and roadmap are stale relative to source tree | Low | Compare README with current modules/screens | Open |
 
 ## Definition of done
