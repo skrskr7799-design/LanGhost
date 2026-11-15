@@ -229,7 +229,7 @@ class NetworkRepository(context: Context) {
                     capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
             ), network)
         } catch (_: Exception) {
-            publishNetworkInfo(NetworkInfo())
+            publishNetworkInfo(NetworkInfo(), null)
         }
     }
 
