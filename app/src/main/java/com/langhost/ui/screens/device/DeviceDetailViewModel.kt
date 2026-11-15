@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.langhost.data.DeviceCustomization
 import com.langhost.data.NetworkRepository
 import com.langhost.data.model.Device
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -54,20 +55,23 @@ class DeviceDetailViewModel(
     fun scanPorts() {
         if (_uiState.value.isScanningPorts) return
 
+        val scanTarget = _uiState.value.device ?: return
         viewModelScope.launch {
             _uiState.update { it.copy(isScanningPorts = true) }
             try {
-                val ports = repository.scanPorts(deviceIp)
-                repository.updateDevicePorts(deviceIp, ports)
+                val ports = repository.scanDevicePorts(scanTarget)
                 val updatedDevice = repository.getDevice(deviceIp)
                 _uiState.update {
                     it.copy(
-                        isScanningPorts = false,
-                        openPorts = ports,
+                        openPorts = ports ?: updatedDevice?.openPorts.orEmpty(),
                         device = updatedDevice
                     )
                 }
-            } catch (e: Exception) {
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Keep the last known result; the UI must not turn a failed scan into "no open ports".
+            } finally {
                 _uiState.update { it.copy(isScanningPorts = false) }
             }
         }
