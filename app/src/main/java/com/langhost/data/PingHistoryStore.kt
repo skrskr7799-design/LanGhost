@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
 import org.json.JSONObject
@@ -15,7 +16,7 @@ private val Context.pingDataStore: DataStore<Preferences> by preferencesDataStor
 
 data class PingSample(
     val timestamp: Long,
-    val latencyMs: Long?, // null = timeout/loss
+    val latencyMs: Long?
 )
 
 data class PingStats(
@@ -39,7 +40,6 @@ class PingHistoryStore(private val context: Context) {
         context.pingDataStore.edit { prefs ->
             val current = parse(prefs[key(ip)]).toMutableList()
             current.add(PingSample(System.currentTimeMillis(), latencyMs))
-            // Keep last 100 samples
             val trimmed = if (current.size > 100) current.takeLast(100) else current
             val arr = JSONArray()
             trimmed.forEach { s ->
@@ -54,11 +54,7 @@ class PingHistoryStore(private val context: Context) {
 
     suspend fun getStats(ip: String): PingStats {
         val samples = try {
-            historyFlow(ip).map { it }.let { flow ->
-                var result = emptyList<PingSample>()
-                flow.collect { result = it }
-                result
-            }
+            historyFlow(ip).first()
         } catch (_: Exception) {
             emptyList()
         }
