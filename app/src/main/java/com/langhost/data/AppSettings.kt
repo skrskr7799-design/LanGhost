@@ -37,14 +37,10 @@ class AppSettings(private val context: Context) {
         )
     }
 
-    suspend fun getOnce(): AppSettingsData = try {
-        settingsFlow.first()
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (_: Exception) {
-        AppLog.warning(AppLog.Component.APP_SETTINGS, AppLog.Event.SETTINGS_READ_FALLBACK)
-        AppSettingsData()
-    }
+    suspend fun getOnce(): AppSettingsData =
+        firstOrDefaultOnFailure(settingsFlow, AppSettingsData()) {
+            AppLog.warning(AppLog.Component.APP_SETTINGS, AppLog.Event.SETTINGS_READ_FALLBACK)
+        }
 
     suspend fun setWatchMode(enabled: Boolean) {
         context.settingsDataStore.edit { it[KEY_WATCH_MODE] = enabled }
@@ -61,4 +57,17 @@ class AppSettings(private val context: Context) {
     suspend fun setAutoScanOnOpen(enabled: Boolean) {
         context.settingsDataStore.edit { it[KEY_AUTO_SCAN] = enabled }
     }
+}
+
+internal suspend fun <T> firstOrDefaultOnFailure(
+    flow: Flow<T>,
+    fallback: T,
+    onFailure: () -> Unit = {}
+): T = try {
+    flow.first()
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (_: Exception) {
+    onFailure()
+    fallback
 }
