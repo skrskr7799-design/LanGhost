@@ -23,6 +23,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import java.io.BufferedReader
 import java.io.FileReader
+import java.util.concurrent.ConcurrentHashMap
 
 class NetworkRepository(context: Context) {
 
