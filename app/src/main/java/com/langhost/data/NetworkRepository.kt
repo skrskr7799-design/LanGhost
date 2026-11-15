@@ -49,15 +49,6 @@ class NetworkRepository(context: Context) {
     private val wifiNetworkCallback = createWifiNetworkCallback()
     private val devicePreferences = DevicePreferences(appContext)
 
-    init {
-        runCatching {
-            val request = NetworkRequest.Builder()
-                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-                .build()
-            connectivityManager.registerNetworkCallback(request, wifiNetworkCallback)
-        }
-    }
-
     private fun createWifiNetworkCallback(): ConnectivityManager.NetworkCallback {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             object : ConnectivityManager.NetworkCallback(
@@ -144,6 +135,16 @@ class NetworkRepository(context: Context) {
 
     private val _isSecurityScanning = MutableStateFlow(false)
     val isSecurityScanning: StateFlow<Boolean> = _isSecurityScanning.asStateFlow()
+
+    // Register callbacks only after every StateFlow used by refreshNetworkInfo() is initialized.
+    init {
+        runCatching {
+            val request = NetworkRequest.Builder()
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .build()
+            connectivityManager.registerNetworkCallback(request, wifiNetworkCallback)
+        }
+    }
 
     @SuppressLint("MissingPermission", "HardwareIds")
     fun refreshNetworkInfo() {
