@@ -6,14 +6,15 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.atomic.AtomicInteger
 
 class NetworkDiscoveryEngineTest {
     @Test
     fun mergesPositiveProbeArpLocalAndGatewayEvidenceWithinSubnet() = runBlocking {
-        val probed = mutableListOf<String>()
+        val probeCount = AtomicInteger(0)
         val engine = NetworkDiscoveryEngine(
             probeHost = { ip, _ ->
-                probed += ip
+                probeCount.incrementAndGet()
                 ip == "192.168.10.3"
             },
             ensureCurrentNetworkScope = {}
@@ -38,7 +39,7 @@ class NetworkDiscoveryEngineTest {
             result.ips
         )
         assertEquals(mapOf("192.168.10.4" to "AA:BB:CC:DD:EE:04"), result.arpAddresses)
-        assertTrue(probed.isNotEmpty())
+        assertTrue(probeCount.get() > 0)
         assertEquals("192.168.10.0/29", result.coverage.subnetCidr)
         assertEquals(6, result.coverage.checkedAddresses)
         assertEquals(6L, result.coverage.totalUsableAddresses)
@@ -48,10 +49,10 @@ class NetworkDiscoveryEngineTest {
 
     @Test
     fun candidateLimitIsReflectedInCoverageWithoutUnboundedExpansion() = runBlocking {
-        var probeCount = 0
+        val probeCount = AtomicInteger(0)
         val result = NetworkDiscoveryEngine(
             probeHost = { _, _ ->
-                probeCount++
+                probeCount.incrementAndGet()
                 false
             },
             ensureCurrentNetworkScope = {}
@@ -66,7 +67,7 @@ class NetworkDiscoveryEngineTest {
             maxConcurrency = 3
         )
 
-        assertEquals(11, probeCount)
+        assertEquals(11, probeCount.get())
         assertEquals(12, result.coverage.checkedAddresses)
         assertEquals(65_534L, result.coverage.totalUsableAddresses)
         assertTrue(result.coverage.truncated)
