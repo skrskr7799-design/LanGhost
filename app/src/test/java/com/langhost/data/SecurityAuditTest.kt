@@ -3,6 +3,8 @@ package com.langhost.data
 import com.langhost.data.model.Device
 import com.langhost.data.model.ScanCoverage
 import com.langhost.data.model.WifiNetwork
+import com.langhost.data.model.PortAuditResult
+import com.langhost.data.model.PortAuditStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
