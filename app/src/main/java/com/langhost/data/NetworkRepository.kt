@@ -14,6 +14,8 @@ import android.os.Build
 import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
 import com.langhost.data.model.NetworkInfo
+import com.langhost.data.model.PortAuditResult
+import com.langhost.data.model.PortAuditStatus
 import com.langhost.data.model.ScanCoverage
 import com.langhost.data.model.WifiNetwork
 import com.langhost.data.network.Ipv4Subnet
@@ -685,10 +687,12 @@ class NetworkRepository(context: Context) {
                 maxConcurrency = SECURITY_HOST_SCAN_CONCURRENCY,
                 beforeBatch = { ensureCurrentNetworkScope(scanScope) }
             ) { device ->
-                val ports = scanPorts(device.ip, SECURITY_AUDIT_PORTS, scanScope)
-                // Keep the focused security evidence separate: this smaller port set must not
-                // overwrite the broader manual/device-detail port inventory.
-                device.copy(auditedPorts = ports)
+                val evidence = scanSecurityPortEvidence(device.ip, SECURITY_AUDIT_PORTS, scanScope)
+                // Keep focused security evidence separate from the broader device-detail inventory.
+                device.copy(
+                    auditedPorts = evidence.filter { it.status == PortAuditStatus.OPEN }.map { it.port },
+                    auditedPortResults = evidence
+                )
             }
 
             // A network switch during the port scan invalidates its results.
@@ -767,6 +771,48 @@ class NetworkRepository(context: Context) {
                 }
             }
         }.filterNotNull().sorted()
+    }
+
+    /**
+     * Records every attempted port, not just successful connections. Refused connections are
+     * CLOSED; connect timeouts are FILTERED/NO RESPONSE; routing and other IO failures are UNKNOWN.
+     */
+    private suspend fun scanSecurityPortEvidence(
+        ip: String,
+        ports: List<Int>,
+        expectedNetworkScope: String
+    ): List<PortAuditResult> = withContext(Dispatchers.IO) {
+        val timeoutMs = (appSettings.getOnce().scanTimeoutMs * 2).coerceIn(100, 800)
+        val validPorts = ports.distinct().filter { it in 1..65535 }
+        HostDiscovery.mapBounded(
+            items = validPorts,
+            maxConcurrency = PORT_SCAN_CONCURRENCY,
+            beforeBatch = { ensureCurrentNetworkScope(expectedNetworkScope) }
+        ) { port ->
+            portProbeSemaphore.withPermit {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                ensureCurrentNetworkScope(expectedNetworkScope)
+                val startedAt = System.nanoTime()
+                try {
+                    Socket().use { socket ->
+                        socket.connect(InetSocketAddress(ip, port), timeoutMs)
+                    }
+                    PortAuditResult(
+                        port = port,
+                        status = PortAuditStatus.OPEN,
+                        latencyMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
+                    )
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    PortAuditResult.fromFailure(
+                        port = port,
+                        error = error,
+                        latencyMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
+                    )
+                }
+            }
+        }.sortedBy { it.port }
     }
 
     private suspend fun updateDevicePorts(
