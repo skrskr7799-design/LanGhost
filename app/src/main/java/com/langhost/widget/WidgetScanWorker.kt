@@ -34,6 +34,10 @@ class WidgetScanWorker(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
+            com.langhost.data.AppLog.warning(
+                com.langhost.data.AppLog.Component.WIDGET_WORKER,
+                com.langhost.data.AppLog.Event.WIDGET_SCAN_RETRY
+            )
             Result.retry()
         }
     }
