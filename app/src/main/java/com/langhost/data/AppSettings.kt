@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "app_settings")
@@ -15,7 +16,7 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
 data class AppSettingsData(
     val watchModeEnabled: Boolean = false,
     val notifyNewDevices: Boolean = true,
-    val scanTimeoutMs: Int = 180,
+    val scanTimeoutMs: Int = 150,
     val autoScanOnOpen: Boolean = false
 )
 
@@ -30,9 +31,15 @@ class AppSettings(private val context: Context) {
         AppSettingsData(
             watchModeEnabled = prefs[KEY_WATCH_MODE] ?: false,
             notifyNewDevices = prefs[KEY_NOTIFY_NEW] ?: true,
-            scanTimeoutMs = prefs[KEY_SCAN_TIMEOUT] ?: 180,
+            scanTimeoutMs = prefs[KEY_SCAN_TIMEOUT] ?: 150,
             autoScanOnOpen = prefs[KEY_AUTO_SCAN] ?: false
         )
+    }
+
+    suspend fun getOnce(): AppSettingsData = try {
+        settingsFlow.first()
+    } catch (_: Exception) {
+        AppSettingsData()
     }
 
     suspend fun setWatchMode(enabled: Boolean) {
@@ -44,7 +51,7 @@ class AppSettings(private val context: Context) {
     }
 
     suspend fun setScanTimeout(ms: Int) {
-        context.settingsDataStore.edit { it[KEY_SCAN_TIMEOUT] = ms }
+        context.settingsDataStore.edit { it[KEY_SCAN_TIMEOUT] = ms.coerceIn(50, 500) }
     }
 
     suspend fun setAutoScanOnOpen(enabled: Boolean) {
