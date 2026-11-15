@@ -16,7 +16,7 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
 
 data class AppSettingsData(
     val watchModeEnabled: Boolean = false,
-    val notifyNewDevices: Boolean = true,
+    val notifyNewDevices: Boolean = false,
     val scanTimeoutMs: Int = 150,
     val autoScanOnOpen: Boolean = false
 )
@@ -31,7 +31,7 @@ class AppSettings(private val context: Context) {
     val settingsFlow: Flow<AppSettingsData> = context.settingsDataStore.data.map { prefs ->
         AppSettingsData(
             watchModeEnabled = prefs[KEY_WATCH_MODE] ?: false,
-            notifyNewDevices = prefs[KEY_NOTIFY_NEW] ?: true,
+            notifyNewDevices = prefs[KEY_NOTIFY_NEW] ?: false,
             scanTimeoutMs = (prefs[KEY_SCAN_TIMEOUT] ?: 150).coerceIn(50, 500),
             autoScanOnOpen = prefs[KEY_AUTO_SCAN] ?: false
         )
