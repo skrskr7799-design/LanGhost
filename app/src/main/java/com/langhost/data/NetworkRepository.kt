@@ -14,7 +14,6 @@ import android.os.Build
 import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
 import com.langhost.data.model.NetworkInfo
-import com.langhost.data.model.PortAuditResult
 import com.langhost.data.model.SecurityPortAuditPolicy
 import com.langhost.data.model.PortAuditStatus
 import com.langhost.data.model.ScanCoverage
