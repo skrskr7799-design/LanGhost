@@ -30,6 +30,24 @@ class DataRetentionTest {
     }
 
     @Test
+    fun networkProfilesAreDeduplicatedAndBounded() {
+        val existing = listOf(
+            NetworkProfile("home", "Home"),
+            NetworkProfile("work", "Work")
+        )
+        val incoming = listOf(
+            NetworkProfile("home", "Primary home"),
+            NetworkProfile("cafe", "Cafe"),
+            NetworkProfile("invalid", " ")
+        )
+
+        assertEquals(
+            listOf(NetworkProfile("home", "Primary home"), NetworkProfile("cafe", "Cafe")),
+            retainNetworkProfiles(existing, incoming, maxProfiles = 2)
+        )
+    }
+
+    @Test
     fun pingHistoryRetentionKeepsMostRecentlyUpdatedIps() {
         assertEquals(
             setOf("ping_b", "ping_c"),
