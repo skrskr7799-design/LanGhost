@@ -275,19 +275,23 @@ class NetworkRepository(context: Context) {
                     async {
                         val mac = arpDevices[ip] ?: ""
                         val randomMac = Device.isRandomMacAddress(mac)
+                        val existingByIp = devicesCache.values.firstOrNull {
+                            it.ip == ip && it.networkScope == networkScope
+                        }
+                        val macFinal = mac.ifBlank { existingByIp?.mac ?: "" }
                         val stableId = when {
-                            mac.isNotBlank() -> "${mac.uppercase()}@${networkScope}"
+                            macFinal.isNotBlank() -> "${macFinal.uppercase()}@${networkScope}"
                             else -> "ip:${networkScope}:$ip"
                         }
                         val legacyIds = buildList {
-                            if (mac.isNotBlank() && bssid.isNotBlank() && bssid != "—") {
-                                add("${mac.uppercase()}@${bssid.uppercase()}")
+                            if (macFinal.isNotBlank() && bssid.isNotBlank() && bssid != "—") {
+                                add("${macFinal.uppercase()}@${bssid.uppercase()}")
                             }
-                            if (mac.isNotBlank()) add(mac.uppercase())
+                            if (macFinal.isNotBlank()) add(macFinal.uppercase())
                             add("ip:$ip")
                         }
                         val saved = devicePreferences.getCustomizationOnce(stableId, legacyIds)
-                        val existing = devicesCache[stableId]
+                        val existing = devicesCache[stableId] ?: existingByIp
                         val firstSeen = when {
                             saved.firstSeen > 0 -> saved.firstSeen
                             existing != null && existing.firstSeen > 0 -> existing.firstSeen
@@ -299,7 +303,6 @@ class NetworkRepository(context: Context) {
                             hostname = DeviceProbe.netBiosName(ip).ifBlank { existing?.hostname ?: "" }
                         }
 
-                        val macFinal = mac.ifBlank { existing?.mac ?: "" }
                         val vendor = if (randomMac) "Random MAC" else lookupVendor(macFinal)
                         val ports = existing?.openPorts ?: emptyList()
                         val type = Device.guessType(ports, vendor, hostname, ip == gateway)
@@ -315,10 +318,10 @@ class NetworkRepository(context: Context) {
                             lastSeen = now,
                             openPorts = ports,
                             osGuess = existing?.osGuess ?: Device.guessOs(ports, vendor, hostname),
-                            nickname = saved.nickname.ifBlank { savedMac.nickname.ifBlank { existing?.nickname ?: "" } },
-                            notes = saved.notes.ifBlank { savedMac.notes.ifBlank { existing?.notes ?: "" } },
-                            isFavorite = saved.isFavorite || savedMac.isFavorite || (existing?.isFavorite == true),
-                            isWatched = saved.isWatched || savedMac.isWatched || (existing?.isWatched == true),
+                            nickname = saved.nickname.ifBlank { existing?.nickname ?: "" },
+                            notes = saved.notes.ifBlank { existing?.notes ?: "" },
+                            isFavorite = saved.isFavorite || (existing?.isFavorite == true),
+                            isWatched = saved.isWatched || (existing?.isWatched == true),
                             networkBssid = bssid,
                             networkScope = networkScope,
                             deviceType = type,
