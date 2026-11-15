@@ -6,7 +6,12 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class DataRetentionTest {
+class DataRetentionTest {\n    @Test
+    fun newSettingsDoNotEnableNotificationsBeforeExplicitOptIn() {
+        assertEquals(false, AppSettingsData().notifyNewDevices)
+    }
+
+
     @Test(expected = CancellationException::class)
     fun settingsReadDoesNotConvertCancellationIntoDefaults(): Unit = runBlocking {
         firstOrDefaultOnFailure(
