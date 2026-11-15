@@ -505,6 +505,7 @@ class NetworkRepository(context: Context) {
                     .thenBy { it.ip }
             )
 
+            refreshNetworkInfo()
             if (currentNetworkScope() != networkScope) return@withContext
 
             _lastDiff.value = ScanDiff.updateAndDiff(result, networkScope)
@@ -525,6 +526,7 @@ class NetworkRepository(context: Context) {
                 )
             }
             // Cancelled or failed discovery must not be presented as completed security evidence.
+            refreshNetworkInfo()
             if (currentNetworkScope() == networkScope) {
                 _scanCoverage.value = completedCoverage
             }
@@ -612,6 +614,7 @@ class NetworkRepository(context: Context) {
             }
 
             // A network switch during the port scan invalidates its results.
+            refreshNetworkInfo()
             if (currentNetworkScope() != scanScope) return@withContext 0
 
             val updatedById = scanned.associateBy { it.stableId }
