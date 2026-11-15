@@ -27,6 +27,11 @@ class ExportHelperTest {
     }
 
     @Test
+    fun csvCellNeutralizesFormulaAfterUtf8Bom() {
+        assertEquals("\"'\\uFEFF=1+1\"", ExportHelper.escapeCsvCell("\uFEFF=1+1"))
+    }
+
+    @Test
     fun csvCellPreservesNegativeNumbers() {
         assertEquals("\"-42\"", ExportHelper.escapeCsvCell("-42"))
     }
