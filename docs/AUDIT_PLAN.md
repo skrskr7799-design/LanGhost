@@ -1,9 +1,9 @@
 # LanGhost — Engineering Roadmap & Audit Register
 
-> Status: Phase 1 and Phase 2 implementation complete; Phase 3 — Security Engine active
+> Status: Phases 1–3 implementation complete; Phase 4 — Data & Architecture active; physical-device validation remains open
 > Baseline branch: main  
 > Baseline commit reviewed: c8e13219461fd1488ccbb83b4fa5ab721ba3eb62  
-> Working branch: work/network-engine
+> Working branch: work/data-architecture
 
 ## Project direction
 
@@ -50,7 +50,7 @@ Network Engine implementation CI #43703234977 passed on commit `ea60152598f3180a
 
 The first source pass is complete; these are confirmed implementation characteristics and review targets, not yet defect declarations:
 
-- `NetworkRepository` currently owns connectivity callbacks, network snapshots, Wi-Fi scanning, host discovery orchestration, device enrichment, persistence coordination, service-port scans and multiple UI-facing StateFlows in one 756-line class. Evaluate boundaries and extract cohesive services without changing behavior prematurely.
+- `NetworkRepository` owns connectivity callbacks, network snapshots, Wi-Fi scanning, host discovery orchestration, device enrichment, persistence coordination and multiple UI-facing StateFlows. The first Phase 4 extraction moved bounded TCP probing into `NetworkProbeEngine`; continue separating cohesive responsibilities without changing externally visible behavior prematurely.
 - Host discovery is deliberately bounded: at most 1,024 IPv4 candidates, 32 concurrent host probes, 16 concurrent enrichment/port probes, and four concurrent hosts during security service scans. Coverage records the checked/total count and truncation. Batch-boundary network-scope checkpoints now stop scans after a detected network change; two regression tests cover checkpoint cadence and cancellation.
 - Discovery combines filtered `/proc/net/arp` entries with positive TCP-probe responses and the local/gateway addresses. A failed/filtered TCP probe is not proof that a host is offline; assess how the UI and history communicate uncertainty and disappearance.
 - `DeviceProbe` wraps blocking UDP/TCP/HTTP work in coroutine timeouts and also sets socket/connection timeouts. Review cancellation latency and ensure cancellation closes active sockets rather than merely waiting for their bounded timeout.
@@ -59,7 +59,7 @@ The first source pass is complete; these are confirmed implementation characteri
 - Manual device port scans now require a current device snapshot from the active logical network; result updates and enrichment are keyed by stable device identity and network scope. Device lookup no longer falls back to stale cached entries from another network.
 - Real-device tests remain necessary for ARP visibility, Android permission redaction, Wi-Fi scan throttling, VPN/multi-network behavior, mesh roaming and MAC randomization.
 
-Phase 2 implementation is complete on this branch. Keep the NetworkRepository service-boundary refactor in Phase 4; do not mix it into the Security Engine evidence work. Real-device validation (ARP visibility, permission redaction, Wi-Fi throttling, VPN/multi-network, mesh roaming and MAC randomization) remains open in Phase 6.
+Phase 2 implementation is complete. The NetworkRepository service-boundary refactor is now active in Phase 4. Real-device validation (ARP visibility, permission redaction, Wi-Fi throttling, VPN/multi-network, mesh roaming and MAC randomization) remains open in Phase 6.
 
 ### Phase 3 — Security, privacy and permissions
 - [x] Audit manifest permissions and request each permission only when needed. Fine and coarse location are requested together for Wi-Fi scan flows; notification permission is requested only when enabling it. API-level device validation remains in Phase 6.
@@ -75,6 +75,7 @@ Phase 2 implementation is complete on this branch. Keep the NetworkRepository se
 - [x] Document what is and is not detectable on stock Android; physical-device validation remains in Phase 6.
 
 ### Phase 4 — Architecture, data and background work
+- [x] Start the repository decomposition by extracting bounded TCP connect/probe mechanics into Android-independent `NetworkProbeEngine`; inject scan-timeout and network-scope validation policies rather than coupling the engine to Context or persistence. Regression tests cover open-port evidence, invalid/duplicate port filtering and cancellation on network-scope change.
 - [ ] Review repository boundaries, state ownership, ViewModels and dependency construction.
 - [ ] Define durable models and persistence for devices, scan history, ping history and profiles.
 - [ ] Define full retention/cleanup for per-device customization keys. The known-device index is capped at 512 entries; ping history retains 100 samples per IP, 64 IP keys and a 30-day window.
@@ -243,3 +244,10 @@ This is source-level and automated-test validation, not a substitute for Phase 6
 ## Security Engine completion checkpoint — 2026-11-15
 
 The prior evidence-hardening commit `4f4b92927bc7225ae5d3b362a1b619e0804b67d5` passed full CI run [#43705292774](https://github.com/skrskr7799-design/LanGhost/actions/runs/43705292774): Android Lint, unit tests, Debug APK, Release APK and artifact upload all succeeded. The run SHA matched `work/network-engine` HEAD at verification time. The protocol-identification boundary above is the final planned Security Engine source change; final phase completion remains conditional on the next full CI run.
+
+
+## Phase 3 completion and Phase 4 kickoff — 2026-11-15
+
+Security Engine implementation and automated validation are complete on the predecessor branch. Full CI run [#43705847175](https://github.com/skrskr7799-design/LanGhost/actions/runs/43705847175) passed on commit `5a2283d9aeda9ea97ba37bfe521164fdc01e94d5`: Android Lint, unit tests, Debug APK, Release APK and artifact upload all succeeded. The run SHA matched the `work/network-engine` branch HEAD at verification time. This is implementation/CI completion, not physical-device validation; router behavior, Android permission redaction, Wi-Fi throttling, VPN/multi-network and mesh roaming remain open for Phase 6.
+
+Phase 4 is now active on `work/data-architecture`, branched from that validated commit. The first extraction introduced `NetworkProbeEngine`, which owns bounded host TCP reachability probes, manual TCP port scans and structured security-port evidence scans. Scan timeout and active-network-scope checks are injected, preserving repository policy and cancellation boundaries while removing raw socket mechanics from `NetworkRepository`. Added focused local-loopback tests for positive open-port evidence, bounded/validated port input and scope-change cancellation. Continue with discovery orchestration and state/persistence boundaries only after this extraction's CI passes.
