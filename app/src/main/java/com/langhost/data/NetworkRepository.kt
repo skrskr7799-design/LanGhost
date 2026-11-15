@@ -1,13 +1,9 @@
 package com.langhost.data
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
-import android.os.Build
 import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
 import com.langhost.data.model.NetworkInfo
@@ -16,7 +12,6 @@ import com.langhost.data.model.PortAuditStatus
 import com.langhost.data.model.ScanCoverage
 import com.langhost.data.model.WifiNetwork
 import com.langhost.data.network.NetworkIdentity
-import com.langhost.data.network.WifiChannel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +23,6 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import java.io.BufferedReader
 import java.io.FileReader
-import java.util.concurrent.ConcurrentHashMap
 
 class NetworkRepository(context: Context) {
 
@@ -40,10 +34,11 @@ class NetworkRepository(context: Context) {
             _networkInfo.value.bssid.takeIf { it.isNotBlank() && it != "—" }
         }
     )
-    private val wifiInfoByNetwork = ConcurrentHashMap<Network, WifiInfo>()
     private val networkStateLock = Any()
     @Volatile private var publishedActiveNetwork: Network? = null
-    private val wifiNetworkCallback = createWifiNetworkCallback()
+    private val networkMonitor = AndroidNetworkMonitor(connectivityManager, wifiManager) {
+        refreshNetworkInfo()
+    }
     private val devicePreferences = DevicePreferences(appContext)
     private val deviceEnrichmentEngine = DeviceEnrichmentEngine(
         loadCustomization = { stableId, legacyIds ->
@@ -53,54 +48,6 @@ class NetworkRepository(context: Context) {
         lookupVendor = { mac -> lookupVendor(mac) }
     )
 
-    private fun createWifiNetworkCallback(): ConnectivityManager.NetworkCallback {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            object : ConnectivityManager.NetworkCallback(
-                ConnectivityManager.NetworkCallback.FLAG_INCLUDE_LOCATION_INFO
-            ) {
-                override fun onAvailable(network: Network) {
-                    if (connectivityManager.activeNetwork == network) refreshNetworkInfo()
-                }
-
-                override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                    cacheWifiInfo(network, capabilities)
-                    if (connectivityManager.activeNetwork == network) refreshNetworkInfo()
-                }
-
-                override fun onLost(network: Network) {
-                    wifiInfoByNetwork.remove(network)
-                    refreshNetworkInfo()
-                }
-            }
-        } else {
-            object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) {
-                    if (connectivityManager.activeNetwork == network) refreshNetworkInfo()
-                }
-
-                override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                    cacheWifiInfo(network, capabilities)
-                    if (connectivityManager.activeNetwork == network) refreshNetworkInfo()
-                }
-
-                override fun onLost(network: Network) {
-                    wifiInfoByNetwork.remove(network)
-                    refreshNetworkInfo()
-                }
-            }
-        }
-    }
-
-    private fun cacheWifiInfo(network: Network, capabilities: NetworkCapabilities) {
-        // NetworkCapabilities.transportInfo was added in API 29. Android 8–9 use
-        // WifiManager.connectionInfo in refreshNetworkInfo() instead.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
-        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
-            (capabilities.transportInfo as? WifiInfo)?.let { wifiInfoByNetwork[network] = it }
-        } else {
-            wifiInfoByNetwork.remove(network)
-        }
-    }
     private val appSettings = AppSettings(appContext)
 
     private val devicesCache = ConcurrentHashMap<String, Device>()
@@ -151,95 +98,14 @@ class NetworkRepository(context: Context) {
     private val _isSecurityScanning = MutableStateFlow(false)
     val isSecurityScanning: StateFlow<Boolean> = _isSecurityScanning.asStateFlow()
 
-    // Register callbacks only after every StateFlow used by refreshNetworkInfo() is initialized.
+    // Start Android callbacks only after every StateFlow is initialized.
     init {
-        runCatching {
-            // Observe the system default network across Wi-Fi, Ethernet, VPN and
-            // other transports; a Wi-Fi-only request misses default-route changes.
-            connectivityManager.registerDefaultNetworkCallback(wifiNetworkCallback)
-        }
+        networkMonitor.start()
     }
 
-    @SuppressLint("MissingPermission", "HardwareIds")
     fun refreshNetworkInfo() {
-        try {
-            val network = connectivityManager.activeNetwork
-            if (network == null) {
-                publishNetworkInfo(NetworkInfo(), null)
-                return
-            }
-
-            val capabilities = connectivityManager.getNetworkCapabilities(network)
-            val linkProperties = connectivityManager.getLinkProperties(network)
-            if (capabilities == null || linkProperties == null) {
-                publishNetworkInfo(NetworkInfo(), network)
-                return
-            }
-
-            val localAddress = linkProperties.linkAddresses
-                .asSequence()
-                .mapNotNull { it.address as? java.net.Inet4Address }
-                .firstOrNull { !it.isLoopbackAddress && !it.isLinkLocalAddress }
-
-            val gateway = linkProperties.routes
-                .asSequence()
-                .filter { it.isDefaultRoute }
-                .mapNotNull { it.gateway as? java.net.Inet4Address }
-                .firstOrNull()
-
-            val dnsServers = linkProperties.dnsServers
-                .filterIsInstance<java.net.Inet4Address>()
-                .mapNotNull { it.hostAddress }
-
-            val isWifi = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-            val wifiInfo = if (isWifi) {
-                wifiInfoByNetwork[network] ?: if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                    @Suppress("DEPRECATION")
-                    wifiManager.connectionInfo
-                } else {
-                    // getNetworkCapabilities() redacts location-sensitive WifiInfo fields on
-                    // Android 12+. The callback above opts in only when permissions allow it.
-                    capabilities.transportInfo as? WifiInfo
-                }
-            } else {
-                null
-            }
-
-            val ssid = wifiInfo?.ssid
-                ?.removeSurrounding("\"")
-                ?.takeIf { it.isNotBlank() && it != WifiManager.UNKNOWN_SSID && it != "<unknown ssid>" }
-                ?: "—"
-            val bssid = wifiInfo?.bssid
-                ?.takeIf { it.isNotBlank() && it != "02:00:00:00:00:00" }
-                ?: "—"
-            val frequency = wifiInfo?.frequency?.takeIf { it > 0 } ?: 0
-            val prefixLength = linkProperties.linkAddresses
-                .firstOrNull { it.address is java.net.Inet4Address && it.address == localAddress }
-                ?.prefixLength
-            val netmask = prefixLength?.let(::prefixToNetmask) ?: "0.0.0.0"
-            val ip = localAddress?.hostAddress ?: "0.0.0.0"
-
-            publishNetworkInfo(NetworkInfo(
-                ssid = ssid,
-                bssid = bssid,
-                signalDbm = wifiInfo?.rssi?.takeIf { it in -127..0 } ?: 0,
-                frequencyMhz = frequency,
-                linkSpeedMbps = wifiInfo?.linkSpeed?.takeIf { it > 0 } ?: 0,
-                channel = frequencyToChannel(frequency),
-                security = wifiSecurityType(wifiInfo),
-                ipAddress = ip,
-                gateway = gateway?.hostAddress ?: "0.0.0.0",
-                netmask = netmask,
-                dns1 = dnsServers.getOrNull(0) ?: "0.0.0.0",
-                dns2 = dnsServers.getOrNull(1) ?: "0.0.0.0",
-                networkId = wifiInfo?.networkId ?: -1,
-                interfaceName = linkProperties.interfaceName.orEmpty(),
-                isConnected = localAddress != null && (isWifi ||
-                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
-            ), network)
-        } catch (_: Exception) {
-            publishNetworkInfo(NetworkInfo(), connectivityManager.activeNetwork)
-        }
+        val snapshot = networkMonitor.readSnapshot()
+        publishNetworkInfo(snapshot.info, snapshot.activeNetwork)
     }
 
     private fun networkScope(info: NetworkInfo): String? {
@@ -328,43 +194,6 @@ class NetworkRepository(context: Context) {
             }
         } ?: false
         if (committed) batch.results else emptyList()
-    }
-
-    private fun wifiSecurityType(wifiInfo: WifiInfo?): String {
-        if (wifiInfo == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return "—"
-        return when (wifiInfo.currentSecurityType) {
-            WifiInfo.SECURITY_TYPE_OPEN -> "Open"
-            WifiInfo.SECURITY_TYPE_WEP -> "WEP"
-            WifiInfo.SECURITY_TYPE_PSK -> "WPA-PSK"
-            WifiInfo.SECURITY_TYPE_EAP -> "WPA-Enterprise"
-            WifiInfo.SECURITY_TYPE_SAE -> "WPA3-SAE"
-            WifiInfo.SECURITY_TYPE_OWE -> "OWE"
-            WifiInfo.SECURITY_TYPE_EAP_WPA3_ENTERPRISE -> "WPA3-Enterprise"
-            WifiInfo.SECURITY_TYPE_EAP_WPA3_ENTERPRISE_192_BIT -> "WPA3-Enterprise-192"
-            WifiInfo.SECURITY_TYPE_WAPI_PSK -> "WAPI-PSK"
-            WifiInfo.SECURITY_TYPE_WAPI_CERT -> "WAPI-CERT"
-            WifiInfo.SECURITY_TYPE_PASSPOINT_R1_R2 -> "Passpoint"
-            WifiInfo.SECURITY_TYPE_PASSPOINT_R3 -> "Passpoint R3"
-            else -> "Unknown"
-        }
-    }
-
-    private fun prefixToNetmask(prefixLength: Int): String {
-        if (prefixLength !in 0..32) return "0.0.0.0"
-        val mask = if (prefixLength == 0) 0L else (0xFFFF_FFFFL shl (32 - prefixLength)) and 0xFFFF_FFFFL
-        return listOf(
-            (mask shr 24) and 0xFF,
-            (mask shr 16) and 0xFF,
-            (mask shr 8) and 0xFF,
-            mask and 0xFF
-        ).joinToString(".")
-    }
-
-    private fun frequencyToChannel(freq: Int): Int = WifiChannel.fromFrequencyMhz(freq)
-
-    private fun intToIp(value: Int): String {
-        if (value == 0) return "0.0.0.0"
-        return String.format("%d.%d.%d.%d", value and 0xff, value shr 8 and 0xff, value shr 16 and 0xff, value shr 24 and 0xff)
     }
 
     suspend fun scanDevices() = withContext(Dispatchers.IO) {
