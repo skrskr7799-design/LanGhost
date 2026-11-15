@@ -14,6 +14,7 @@ import com.langhost.data.model.DeviceType
 import com.langhost.data.model.NetworkInfo
 import com.langhost.data.model.ScanCoverage
 import com.langhost.data.network.Ipv4Subnet
+import com.langhost.data.network.NetworkIdentity
 import com.langhost.data.network.WifiChannel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
