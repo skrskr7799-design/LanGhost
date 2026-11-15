@@ -102,6 +102,10 @@ class NetworkRepository(context: Context) {
         scanTimeoutMs = { appSettings.getOnce().scanTimeoutMs },
         ensureCurrentNetworkScope = { expectedScope -> ensureCurrentNetworkScope(expectedScope) }
     )
+    private val discoveryEngine = NetworkDiscoveryEngine(
+        probeHost = { ip, budgetMs -> probeEngine.probeHost(ip, budgetMs) },
+        ensureCurrentNetworkScope = { expectedScope -> ensureCurrentNetworkScope(expectedScope) }
+    )
 
     private val _networkInfo = MutableStateFlow(NetworkInfo())
     val networkInfo: StateFlow<NetworkInfo> = _networkInfo.asStateFlow()
