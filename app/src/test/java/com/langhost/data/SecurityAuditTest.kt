@@ -318,4 +318,118 @@ class SecurityAuditTest {
 
         assertTrue(report.securityMismatches.isEmpty())
     }
+
+    @Test
+    fun withholdsScoreWhenPortAuditContainsFilteredOrUnknownResults() {
+        val now = System.currentTimeMillis()
+        val results = listOf(
+            23 to PortAuditStatus.CLOSED,
+            80 to PortAuditStatus.CLOSED,
+            443 to PortAuditStatus.CLOSED,
+            139 to PortAuditStatus.CLOSED,
+            445 to PortAuditStatus.FILTERED,
+            3389 to PortAuditStatus.UNKNOWN
+        ).map { (port, status) -> PortAuditResult(port, status) }
+        val device = Device(
+            ip = "192.168.1.10",
+            lastSeen = now,
+            networkScope = "home-scope",
+            auditedPortResults = results
+        )
+        val report = SecurityAudit.analyze(
+            devices = listOf(device),
+            currentSsid = "Home",
+            currentBssid = "AA:AA:AA:AA:AA:AA",
+            nearby = emptyList(),
+            currentSecurity = "WPA2",
+            scanCoverage = ScanCoverage(
+                subnetCidr = "192.168.1.0/24",
+                checkedAddresses = 254,
+                totalUsableAddresses = 254,
+                scannedAt = now,
+                networkScope = "home-scope"
+            ),
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true,
+            currentNetworkScope = "home-scope",
+            nearbyScanTime = now,
+            serviceScanTime = now,
+            now = now
+        )
+
+        assertNull(report.score)
+        assertFalse(report.serviceEvidenceAdequate)
+        assertEquals(4, report.closedPortCount)
+        assertEquals(1, report.filteredPortCount)
+        assertEquals(1, report.unknownPortCount)
+        assertTrue(report.findings.any { it.title == "Часть результатов портов не подтверждена" })
+    }
+
+    @Test
+    fun withholdsScoreWhenSubnetCoverageWasTruncated() {
+        val now = System.currentTimeMillis()
+        val report = SecurityAudit.analyze(
+            devices = emptyList(),
+            currentSsid = "Home",
+            currentBssid = "AA:AA:AA:AA:AA:AA",
+            nearby = emptyList(),
+            currentSecurity = "WPA2",
+            scanCoverage = ScanCoverage(
+                subnetCidr = "10.0.0.0/8",
+                checkedAddresses = 1024,
+                totalUsableAddresses = 16777214,
+                truncated = true,
+                scannedAt = now,
+                networkScope = "home-scope"
+            ),
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true,
+            currentNetworkScope = "home-scope",
+            nearbyScanTime = now,
+            serviceScanTime = now,
+            now = now
+        )
+
+        assertNull(report.score)
+        assertFalse(report.serviceEvidenceAdequate)
+        assertTrue(report.findings.any { it.title == "Покрытие сети недостаточно для итоговой оценки" })
+    }
+
+    @Test
+    fun reportsCompletePortEvidenceAsAdequateWhenAllPortsRespondClosed() {
+        val now = System.currentTimeMillis()
+        val results = listOf(23, 80, 443, 139, 445, 3389)
+            .map { PortAuditResult(it, PortAuditStatus.CLOSED) }
+        val device = Device(
+            ip = "192.168.1.10",
+            lastSeen = now,
+            networkScope = "home-scope",
+            auditedPortResults = results
+        )
+        val report = SecurityAudit.analyze(
+            devices = listOf(device),
+            currentSsid = "Home",
+            currentBssid = "AA:AA:AA:AA:AA:AA",
+            nearby = emptyList(),
+            currentSecurity = "WPA2",
+            scanCoverage = ScanCoverage(
+                subnetCidr = "192.168.1.0/24",
+                checkedAddresses = 254,
+                totalUsableAddresses = 254,
+                scannedAt = now,
+                networkScope = "home-scope"
+            ),
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true,
+            currentNetworkScope = "home-scope",
+            nearbyScanTime = now,
+            serviceScanTime = now,
+            now = now
+        )
+
+        assertEquals(100, report.score)
+        assertTrue(report.serviceEvidenceAdequate)
+        assertEquals(6, report.closedPortCount)
+    }
+
 }
