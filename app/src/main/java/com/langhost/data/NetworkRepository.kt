@@ -3,7 +3,9 @@ package com.langhost.data
 import android.annotation.SuppressLint
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -33,7 +35,52 @@ class NetworkRepository(context: Context) {
     private val appContext = context.applicationContext
     private val connectivityManager = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+    private val wifiInfoByNetwork = ConcurrentHashMap<Network, WifiInfo>()
+    private val wifiNetworkCallback = createWifiNetworkCallback()
     private val devicePreferences = DevicePreferences(appContext)
+
+    init {
+        runCatching {
+            val request = NetworkRequest.Builder()
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .build()
+            connectivityManager.registerNetworkCallback(request, wifiNetworkCallback)
+        }
+    }
+
+    private fun createWifiNetworkCallback(): ConnectivityManager.NetworkCallback {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            object : ConnectivityManager.NetworkCallback(
+                ConnectivityManager.NetworkCallback.FLAG_INCLUDE_LOCATION_INFO
+            ) {
+                override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                    cacheWifiInfo(network, capabilities)
+                }
+
+                override fun onLost(network: Network) {
+                    wifiInfoByNetwork.remove(network)
+                }
+            }
+        } else {
+            object : ConnectivityManager.NetworkCallback() {
+                override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                    cacheWifiInfo(network, capabilities)
+                }
+
+                override fun onLost(network: Network) {
+                    wifiInfoByNetwork.remove(network)
+                }
+            }
+        }
+    }
+
+    private fun cacheWifiInfo(network: Network, capabilities: NetworkCapabilities) {
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+            (capabilities.transportInfo as? WifiInfo)?.let { wifiInfoByNetwork[network] = it }
+        } else {
+            wifiInfoByNetwork.remove(network)
+        }
+    }
     private val appSettings = AppSettings(appContext)
 
     private val devicesCache = ConcurrentHashMap<String, Device>()
@@ -84,11 +131,16 @@ class NetworkRepository(context: Context) {
                 .filterIsInstance<java.net.Inet4Address>()
                 .mapNotNull { it.hostAddress }
 
-            val wifiInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                capabilities.transportInfo as? WifiInfo
-            } else if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
-                @Suppress("DEPRECATION")
-                wifiManager.connectionInfo
+            val isWifi = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+            val wifiInfo = if (isWifi) {
+                wifiInfoByNetwork[network] ?: if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                    @Suppress("DEPRECATION")
+                    wifiManager.connectionInfo
+                } else {
+                    // getNetworkCapabilities() redacts location-sensitive WifiInfo fields on
+                    // Android 12+. The callback above opts in only when permissions allow it.
+                    capabilities.transportInfo as? WifiInfo
+                }
             } else {
                 null
             }
@@ -106,7 +158,6 @@ class NetworkRepository(context: Context) {
                 ?.prefixLength
             val netmask = prefixLength?.let(::prefixToNetmask) ?: "0.0.0.0"
             val ip = localAddress?.hostAddress ?: "0.0.0.0"
-            val isWifi = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
 
             _networkInfo.value = NetworkInfo(
                 ssid = ssid,
@@ -115,9 +166,7 @@ class NetworkRepository(context: Context) {
                 frequencyMhz = frequency,
                 linkSpeedMbps = wifiInfo?.linkSpeed?.takeIf { it > 0 } ?: 0,
                 channel = frequencyToChannel(frequency),
-                // Do not infer encryption from Android version; exact security type is not
-                // consistently exposed on every supported platform/API level.
-                security = "—",
+                security = wifiSecurityType(wifiInfo),
                 ipAddress = ip,
                 gateway = gateway?.hostAddress ?: "0.0.0.0",
                 netmask = netmask,
@@ -129,6 +178,25 @@ class NetworkRepository(context: Context) {
             )
         } catch (_: Exception) {
             _networkInfo.value = NetworkInfo()
+        }
+    }
+
+    private fun wifiSecurityType(wifiInfo: WifiInfo?): String {
+        if (wifiInfo == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return "—"
+        return when (wifiInfo.currentSecurityType) {
+            WifiInfo.SECURITY_TYPE_OPEN -> "Open"
+            WifiInfo.SECURITY_TYPE_WEP -> "WEP"
+            WifiInfo.SECURITY_TYPE_PSK -> "WPA-PSK"
+            WifiInfo.SECURITY_TYPE_EAP -> "WPA-Enterprise"
+            WifiInfo.SECURITY_TYPE_SAE -> "WPA3-SAE"
+            WifiInfo.SECURITY_TYPE_OWE -> "OWE"
+            WifiInfo.SECURITY_TYPE_EAP_WPA3_ENTERPRISE -> "WPA3-Enterprise"
+            WifiInfo.SECURITY_TYPE_EAP_WPA3_ENTERPRISE_192_BIT -> "WPA3-Enterprise-192"
+            WifiInfo.SECURITY_TYPE_WAPI_PSK -> "WAPI-PSK"
+            WifiInfo.SECURITY_TYPE_WAPI_CERT -> "WAPI-CERT"
+            WifiInfo.SECURITY_TYPE_PASSPOINT_R1_R2 -> "Passpoint"
+            WifiInfo.SECURITY_TYPE_PASSPOINT_R3 -> "Passpoint R3"
+            else -> "Unknown"
         }
     }
 
