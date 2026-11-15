@@ -36,6 +36,8 @@ fun ChannelAnalyzerScreen(onBack: () -> Unit) {
     val network by repo.networkInfo.collectAsState()
 
     val networks by repo.nearbyNetworks.collectAsState()
+    val nearbyScanCompleted by repo.nearbyScanCompleted.collectAsState()
+    val nearbyScanTime by repo.nearbyScanTime.collectAsState()
     var scanning by remember { mutableStateOf(false) }
 
     val permissions = buildList {
@@ -103,16 +105,33 @@ fun ChannelAnalyzerScreen(onBack: () -> Unit) {
                             style = MaterialTheme.typography.bodySmall,
                             color = TextTertiary
                         )
-                        if (networks.isEmpty()) {
-                            TextButton(onClick = { scan() }) { Text("Сканировать эфир") }
-                        } else {
-                            Text("${networks.size} обнаруженных сетей", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                        when {
+                            !nearbyScanCompleted -> {
+                                Text("Свежих данных пока нет. До сканирования пустые каналы не считаются свободными.", style = MaterialTheme.typography.bodySmall, color = Warning)
+                                TextButton(onClick = { scan() }) { Text("Сканировать эфир") }
+                            }
+                            networks.isEmpty() -> {
+                                Text("Сканирование завершено: соседние точки доступа не обнаружены.", style = MaterialTheme.typography.bodySmall, color = Success)
+                                TextButton(onClick = { scan() }) { Text("Обновить сканирование") }
+                            }
+                            else -> {
+                                Text("${networks.size} обнаруженных сетей", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                                if (nearbyScanTime > 0L) {
+                                    Text(
+                                        "Последнее сканирование: " +
+                                            java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                                                .format(java.util.Date(nearbyScanTime)),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextTertiary
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            if (advice.band24.isNotEmpty()) {
+            if (nearbyScanCompleted && advice.band24.isNotEmpty()) {
                 item { Text("2.4 ГГц", style = MaterialTheme.typography.titleMedium, color = TextSecondary) }
                 items(advice.band24.filter { it.networkCount > 0 || it.channel in listOf(1, 6, 11) }) { load ->
                     ChannelBar(load, advice.best24 == load.channel)
