@@ -131,6 +131,12 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | WIFI-001 | Channel analysis | Channel analysis omits 6 GHz and most DFS channels; 5 GHz scoring only counts exact-channel APs and ignores channel width/overlap | Medium | ChannelAnalyzer.analyze() fixed common5 list and frequency filters | Open |
 | UI-001 | Topology | Canvas writes Compose state during drawing and renders inferred gateway-to-every-device edges as if they were topology | Medium | TopologyCanvas() mutates positions in Canvas draw scope and connects every ring node to gateway | Open |
 | UI-002 | Design | Dashboard is a long stack of action rows; theme is dark-only and screens mostly use repeated generic cards | Medium | DashboardScreen.kt, Theme.kt and screen implementations | Open |
+| SEC-003 | Security heuristics | Same SSID on another BSSID is classified as an Evil Twin without considering mesh/roaming or matching security configuration | High | SecurityAudit.analyze() flags every different BSSID with the current SSID | Open |
+| SEC-004 | Security scoring | Current Wi-Fi encryption is not included in the security score/findings | High | SecurityAudit.analyze() receives SSID/BSSID and nearby list, but not the current network security mode | Open |
+| DATA-005 | Persistence | Known device IDs are only ever added to a DataStore set and are never pruned | Medium | DevicePreferences.saveKnownIds() unions new IDs with all previous IDs | Open |
+| DATA-006 | Persistence | Ping history is capped per IP, but old per-IP DataStore keys have no retention/cleanup policy | Low | PingHistoryStore.addSample() caps sample count but never removes unused keys | Open |
+| MODEL-001 | Classification | Randomized/local MAC detection misses locally administered addresses whose low nibble is odd | Low | Device.isRandomMacAddress() checks only 2, 6, A, E rather than testing bit 1 | Open |
+| UI-003 | Lock UX | Biometric lock can be enabled without checking authenticator availability or handling prompt errors/cancellation with a recovery path | Medium | SettingsScreen toggles boolean directly; LockGate callback only handles success | Open |
 | DOC-001 | Docs | README feature list and roadmap are stale relative to source tree | Low | Compare README with current modules/screens | Open |
 
 ## Definition of done
