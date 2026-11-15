@@ -56,7 +56,7 @@ data class Device(
             if (mac.length < 2) return false
             val firstOctet = mac.take(2).toIntOrNull(16) ?: return false
             // IEEE 802 MAC U/L bit (bit 1 of the first octet) marks locally administered addresses.
-            return firstOctet and 0x02 != 0
+            return (firstOctet and 0x02) != 0
         }
 
         fun guessOs(ports: List<Int>, vendor: String, hostname: String): String {
