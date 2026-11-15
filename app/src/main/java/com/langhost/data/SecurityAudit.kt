@@ -2,6 +2,7 @@ package com.langhost.data
 
 import com.langhost.data.model.Device
 import com.langhost.data.model.ScanCoverage
+import com.langhost.data.model.PortAuditStatus
 import com.langhost.data.model.WifiNetwork
 
 data class SecurityFinding(
@@ -20,7 +21,12 @@ data class SecurityReport(
     val securityMismatches: List<WifiNetwork>,
     val coveragePercent: Int,
     val deviceScanCompleted: Boolean,
-    val serviceScanCompleted: Boolean
+    val serviceScanCompleted: Boolean,
+    val serviceEvidenceAdequate: Boolean,
+    val openPortCount: Int,
+    val closedPortCount: Int,
+    val filteredPortCount: Int,
+    val unknownPortCount: Int
 )
 
 object SecurityAudit {
@@ -51,6 +57,28 @@ object SecurityAudit {
             (!requiresFreshness || isFresh(serviceScanTime, now))
         val effectiveNearbyScanCompleted = nearbyScanCompleted &&
             (!requiresFreshness || isFresh(nearbyScanTime, now))
+
+        // Production callers require a complete per-port result for every discovered remote host.
+        // Legacy pure callers without a network scope retain their historical fixture contract.
+        val auditedTargets = devices.filter {
+            it.isOnline && !it.isLocalDevice &&
+                (!requiresFreshness || it.networkScope == currentNetworkScope)
+        }
+        val portEvidence = auditedTargets.flatMap { it.auditedPortResults }
+        val openPortCount = portEvidence.count { it.status == PortAuditStatus.OPEN }
+        val closedPortCount = portEvidence.count { it.status == PortAuditStatus.CLOSED }
+        val filteredPortCount = portEvidence.count { it.status == PortAuditStatus.FILTERED }
+        val unknownPortCount = portEvidence.count { it.status == PortAuditStatus.UNKNOWN }
+        val expectedPortCount = auditedTargets.size * 6 // SECURITY_AUDIT_PORTS
+        val portEvidenceComplete = !requiresFreshness ||
+            (portEvidence.size == expectedPortCount &&
+                auditedTargets.all { device ->
+                    device.auditedPortResults.map { it.port }.distinct().size == 6
+                })
+        val serviceEvidenceAdequate = effectiveServiceScanCompleted && portEvidenceComplete &&
+            filteredPortCount == 0 && unknownPortCount == 0
+        val networkCoverageAdequate = !requiresFreshness ||
+            (!scanCoverage.truncated && scanCoverage.coveragePercent == 100)
 
         val findings = mutableListOf<SecurityFinding>()
         val currentSecurityFamilies = securityFamilies(currentSecurity)
@@ -151,8 +179,8 @@ object SecurityAudit {
                 "Запустите сканирование локальной сети. Пока проверены только доступные сведения о текущем Wi-Fi подключении."
             )
         } else if (
-            currentSecurityKnown && effectiveServiceScanCompleted && effectiveNearbyScanCompleted &&
-            findings.none { it.severity != SecurityFinding.Severity.INFO }
+            currentSecurityKnown && serviceEvidenceAdequate && networkCoverageAdequate &&
+            effectiveNearbyScanCompleted && findings.none { it.severity != SecurityFinding.Severity.INFO }
         ) {
             findings += SecurityFinding(
                 SecurityFinding.Severity.INFO,
@@ -166,6 +194,20 @@ object SecurityAudit {
                 SecurityFinding.Severity.INFO,
                 "Проверена не вся подсеть",
                 "Проверено ${scanCoverage.checkedAddresses} из ${scanCoverage.totalUsableAddresses} доступных адресов. Часть устройств могла остаться вне проверки."
+            )
+        }
+        if (deviceScanCompleted && requiresFreshness && !networkCoverageAdequate) {
+            findings += SecurityFinding(
+                SecurityFinding.Severity.INFO,
+                "Покрытие сети недостаточно для итоговой оценки",
+                "Общая оценка недоступна, пока не будет проверена вся доступная IPv4-подсеть."
+            )
+        }
+        if (effectiveServiceScanCompleted && requiresFreshness && !serviceEvidenceAdequate) {
+            findings += SecurityFinding(
+                SecurityFinding.Severity.INFO,
+                "Часть результатов портов не подтверждена",
+                "Открыто: ${openPortCount}, закрыто: ${closedPortCount}, фильтрация/таймаут: ${filteredPortCount}, неизвестно: ${unknownPortCount}. Таймаут или ошибка маршрута не считаются закрытым портом; итоговая оценка скрыта."
             )
         }
         if (deviceScanCompleted && !effectiveServiceScanCompleted) {
@@ -198,7 +240,12 @@ object SecurityAudit {
             securityMismatches = securityMismatches,
             coveragePercent = scanCoverage.coveragePercent,
             deviceScanCompleted = deviceScanCompleted,
-            serviceScanCompleted = effectiveServiceScanCompleted
+            serviceScanCompleted = effectiveServiceScanCompleted,
+            serviceEvidenceAdequate = serviceEvidenceAdequate && networkCoverageAdequate,
+            openPortCount = openPortCount,
+            closedPortCount = closedPortCount,
+            filteredPortCount = filteredPortCount,
+            unknownPortCount = unknownPortCount
         )
     }
 
