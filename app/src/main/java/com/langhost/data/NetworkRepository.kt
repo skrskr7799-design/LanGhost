@@ -132,6 +132,8 @@ class NetworkRepository(context: Context) {
     private val securityPortsScanMutex = Mutex()
     private val _securityPortsScanCompleted = MutableStateFlow(false)
     val securityPortsScanCompleted: StateFlow<Boolean> = _securityPortsScanCompleted.asStateFlow()
+    private val _securityPortsScanTime = MutableStateFlow(0L)
+    val securityPortsScanTime: StateFlow<Long> = _securityPortsScanTime.asStateFlow()
 
     private val _isSecurityScanning = MutableStateFlow(false)
     val isSecurityScanning: StateFlow<Boolean> = _isSecurityScanning.asStateFlow()
@@ -249,6 +251,7 @@ class NetworkRepository(context: Context) {
             _lastScanTime.value = 0L
             _scanCoverage.value = ScanCoverage()
             _securityPortsScanCompleted.value = false
+            _securityPortsScanTime.value = 0L
             _nearbyNetworks.value = emptyList()
             _nearbyScanCompleted.value = false
             _nearbyScanTime.value = 0L
@@ -384,6 +387,7 @@ class NetworkRepository(context: Context) {
         _isScanning.value = true
         _scanCoverage.value = ScanCoverage()
         _securityPortsScanCompleted.value = false
+        _securityPortsScanTime.value = 0L
         try {
             refreshNetworkInfo()
             val networkInfo = _networkInfo.value
@@ -597,6 +601,7 @@ class NetworkRepository(context: Context) {
         if (_isScanning.value || !securityPortsScanMutex.tryLock()) return@withContext 0
         _isSecurityScanning.value = true
         _securityPortsScanCompleted.value = false
+        _securityPortsScanTime.value = 0L
         try {
             refreshNetworkInfo()
             val scanScope = currentNetworkScope() ?: return@withContext 0
@@ -622,6 +627,7 @@ class NetworkRepository(context: Context) {
             scanned.forEach { devicesCache[it.stableId] = it }
             _devices.update { current -> current.map { updatedById[it.stableId] ?: it } }
             _securityPortsScanCompleted.value = true
+            _securityPortsScanTime.value = System.currentTimeMillis()
             scanned.sumOf { it.openPorts.size }
         } finally {
             _isSecurityScanning.value = false
