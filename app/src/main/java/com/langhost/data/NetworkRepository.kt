@@ -233,7 +233,8 @@ class NetworkRepository(context: Context) {
                 receiver = object : BroadcastReceiver() {
                     override fun onReceive(context: Context?, intent: Intent?) {
                         val updated = intent?.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false) == true
-                        finish(wifiManager.scanResults ?: emptyList(), updated)
+                        val results = runCatching { wifiManager.scanResults ?: emptyList() }.getOrDefault(emptyList())
+                        finish(results, updated)
                     }
                 }
 
@@ -250,7 +251,13 @@ class NetworkRepository(context: Context) {
                 }
 
                 @Suppress("DEPRECATION")
-                val started = wifiManager.startScan()
+                val started = try {
+                    wifiManager.startScan()
+                } catch (error: Throwable) {
+                    finished.set(true)
+                    unregister()
+                    throw error
+                }
                 if (!started) {
                     @Suppress("DEPRECATION")
                     finish(wifiManager.scanResults ?: emptyList(), false)

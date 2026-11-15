@@ -23,7 +23,6 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.langhost.data.ChannelAnalyzer
 import com.langhost.data.ChannelLoad
 import com.langhost.data.NetworkRepository
-import com.langhost.data.model.WifiNetwork
 import com.langhost.ui.theme.*
 import kotlinx.coroutines.launch
 
