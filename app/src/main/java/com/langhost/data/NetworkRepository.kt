@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.wifi.WifiManager
 import android.os.Build
 import com.langhost.data.model.Device
+import com.langhost.data.model.DeviceType
 import com.langhost.data.model.NetworkInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -30,7 +31,7 @@ class NetworkRepository(context: Context) {
     private val devicePreferences = DevicePreferences(appContext)
     private val appSettings = AppSettings(appContext)
 
-    private val devicesCache = ConcurrentHashMap<String, Device>() // key = stableId
+    private val devicesCache = ConcurrentHashMap<String, Device>()
 
     private val _networkInfo = MutableStateFlow(NetworkInfo())
     val networkInfo: StateFlow<NetworkInfo> = _networkInfo.asStateFlow()
@@ -44,59 +45,37 @@ class NetworkRepository(context: Context) {
     private val _lastScanTime = MutableStateFlow(0L)
     val lastScanTime: StateFlow<Long> = _lastScanTime.asStateFlow()
 
+    private val _lastDiff = MutableStateFlow<ScanDiffResult?>(null)
+    val lastDiff: StateFlow<ScanDiffResult?> = _lastDiff.asStateFlow()
+
     @SuppressLint("MissingPermission", "HardwareIds")
     fun refreshNetworkInfo() {
         try {
             val wifiInfo = wifiManager.connectionInfo
             val dhcpInfo = wifiManager.dhcpInfo
-
-            val ssid = wifiInfo.ssid
-                ?.removeSurrounding("\"")
+            val ssid = wifiInfo.ssid?.removeSurrounding("\"")
                 ?.takeIf { it.isNotBlank() && it != "<unknown ssid>" } ?: "—"
-
             val bssid = wifiInfo.bssid ?: "—"
-            val signalDbm = wifiInfo.rssi
             val frequency = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) wifiInfo.frequency else 0
-            val linkSpeed = wifiInfo.linkSpeed
-            val channel = frequencyToChannel(frequency)
-
             val ip = intToIp(wifiInfo.ipAddress)
-            val gateway = intToIp(dhcpInfo.gateway)
-            val netmask = intToIp(dhcpInfo.netmask)
-            val dns1 = intToIp(dhcpInfo.dns1)
-            val dns2 = intToIp(dhcpInfo.dns2)
-
             _networkInfo.value = NetworkInfo(
                 ssid = ssid,
                 bssid = bssid,
-                signalDbm = signalDbm,
+                signalDbm = wifiInfo.rssi,
                 frequencyMhz = frequency,
-                linkSpeedMbps = linkSpeed,
-                channel = channel,
-                security = detectCurrentSecurity(),
+                linkSpeedMbps = wifiInfo.linkSpeed,
+                channel = frequencyToChannel(frequency),
+                security = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) "WPA2/WPA3" else "WPA/WPA2",
                 ipAddress = ip,
-                gateway = gateway,
-                netmask = netmask,
-                dns1 = dns1,
-                dns2 = dns2,
+                gateway = intToIp(dhcpInfo.gateway),
+                netmask = intToIp(dhcpInfo.netmask),
+                dns1 = intToIp(dhcpInfo.dns1),
+                dns2 = intToIp(dhcpInfo.dns2),
                 networkId = wifiInfo.networkId,
                 isConnected = wifiInfo.networkId != -1 && ip != "0.0.0.0"
             )
         } catch (_: Exception) {
             _networkInfo.value = NetworkInfo()
-        }
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun detectCurrentSecurity(): String {
-        return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                "WPA2/WPA3"
-            } else {
-                "WPA/WPA2"
-            }
-        } catch (_: Exception) {
-            "Unknown"
         }
     }
 
@@ -108,28 +87,18 @@ class NetworkRepository(context: Context) {
 
     private fun intToIp(value: Int): String {
         if (value == 0) return "0.0.0.0"
-        return String.format(
-            "%d.%d.%d.%d",
-            value and 0xff,
-            value shr 8 and 0xff,
-            value shr 16 and 0xff,
-            value shr 24 and 0xff
-        )
+        return String.format("%d.%d.%d.%d", value and 0xff, value shr 8 and 0xff, value shr 16 and 0xff, value shr 24 and 0xff)
     }
 
-    /** Parse netmask to host count. Returns max host index (e.g. 254 for /24). */
     private fun hostRangeFromNetmask(netmask: String): IntRange {
         return try {
             val parts = netmask.split(".").map { it.toInt() }
             if (parts.size != 4) return 1..254
             var bits = 0
-            for (p in parts) {
-                bits += Integer.bitCount(p and 0xFF)
-            }
+            for (p in parts) bits += Integer.bitCount(p and 0xFF)
             val hostBits = 32 - bits
-            if (hostBits <= 0 || hostBits > 16) return 1..254 // safety: don't scan huge ranges
-            val maxHost = (1 shl hostBits) - 2
-            1..maxHost.coerceAtMost(254)
+            if (hostBits <= 0 || hostBits > 16) return 1..254
+            1..(1 shl hostBits).minus(2).coerceAtMost(254)
         } catch (_: Exception) {
             1..254
         }
@@ -137,20 +106,16 @@ class NetworkRepository(context: Context) {
 
     suspend fun scanDevices() = withContext(Dispatchers.IO) {
         if (_isScanning.value) return@withContext
-
         _isScanning.value = true
         try {
             refreshNetworkInfo()
             val networkInfo = _networkInfo.value
-
             if (!networkInfo.isConnected || networkInfo.ipAddress == "—" || networkInfo.ipAddress == "0.0.0.0") {
-                // Keep previously known offline devices
                 return@withContext
             }
 
             val settings = appSettings.getOnce()
             val timeoutMs = settings.scanTimeoutMs
-
             val localIp = networkInfo.ipAddress
             val gateway = networkInfo.gateway
             val bssid = networkInfo.bssid
@@ -159,7 +124,6 @@ class NetworkRepository(context: Context) {
 
             val arpDevices = readArpTable()
             val discoveredIps = discoverHosts(prefix, localIp, range, timeoutMs)
-
             val allIps = (arpDevices.keys + discoveredIps + setOf(localIp, gateway).filter {
                 it != "0.0.0.0" && it != "—" && it.isNotBlank()
             }).toSet()
@@ -169,57 +133,62 @@ class NetworkRepository(context: Context) {
                 allIps.map { ip ->
                     async {
                         val mac = arpDevices[ip] ?: ""
+                        val randomMac = Device.isRandomMacAddress(mac)
                         val tempId = when {
                             mac.isNotBlank() && bssid.isNotBlank() && bssid != "—" ->
                                 "${mac.uppercase()}@${bssid.uppercase()}"
                             mac.isNotBlank() -> mac.uppercase()
                             else -> "ip:$ip"
                         }
-
                         val saved = devicePreferences.getCustomizationOnce(tempId)
-                        // Also try MAC-only key for migration
-                        val savedMac = if (mac.isNotBlank()) {
-                            devicePreferences.getCustomizationOnce(mac.uppercase())
-                        } else DeviceCustomization()
-
+                        val savedMac = if (mac.isNotBlank()) devicePreferences.getCustomizationOnce(mac.uppercase()) else DeviceCustomization()
                         val existing = devicesCache[tempId]
                         val firstSeen = when {
                             saved.firstSeen > 0 -> saved.firstSeen
-                            existing?.firstSeen != null && existing.firstSeen > 0 -> existing.firstSeen
+                            existing != null && existing.firstSeen > 0 -> existing.firstSeen
                             else -> now
                         }
 
-                        val hostname = withTimeoutOrNull(300L) {
-                            resolveHostname(ip)
-                        } ?: existing?.hostname ?: ""
+                        var hostname = withTimeoutOrNull(250L) { resolveHostname(ip) } ?: ""
+                        if (hostname.isBlank()) {
+                            hostname = DeviceProbe.netBiosName(ip).ifBlank { existing?.hostname ?: "" }
+                        }
+
+                        val macFinal = mac.ifBlank { existing?.mac ?: "" }
+                        val vendor = if (randomMac) "Random MAC" else lookupVendor(macFinal)
+                        val ports = existing?.openPorts ?: emptyList()
+                        val type = Device.guessType(ports, vendor, hostname, ip == gateway)
 
                         Device(
                             ip = ip,
-                            mac = mac.ifBlank { existing?.mac ?: "" },
+                            mac = macFinal,
                             hostname = hostname.ifBlank { existing?.hostname ?: "" },
-                            vendor = lookupVendor(mac.ifBlank { existing?.mac ?: "" }),
+                            vendor = vendor.ifBlank { existing?.vendor ?: "" },
                             isLocalDevice = ip == localIp,
                             isGateway = ip == gateway,
                             firstSeen = firstSeen,
                             lastSeen = now,
-                            openPorts = existing?.openPorts ?: emptyList(),
-                            osGuess = existing?.osGuess ?: "",
+                            openPorts = ports,
+                            osGuess = existing?.osGuess ?: Device.guessOs(ports, vendor, hostname),
                             nickname = saved.nickname.ifBlank { savedMac.nickname.ifBlank { existing?.nickname ?: "" } },
                             notes = saved.notes.ifBlank { savedMac.notes.ifBlank { existing?.notes ?: "" } },
                             isFavorite = saved.isFavorite || savedMac.isFavorite || (existing?.isFavorite == true),
                             isWatched = saved.isWatched || savedMac.isWatched || (existing?.isWatched == true),
-                            networkBssid = bssid
+                            networkBssid = bssid,
+                            deviceType = type,
+                            httpFingerprint = existing?.httpFingerprint ?: "",
+                            isRandomMac = randomMac,
+                            tags = existing?.tags ?: emptyList()
                         ).also { devicesCache[it.stableId] = it }
                     }
                 }.awaitAll()
             }
 
-            // Merge offline devices that were seen before on this network
             val onlineIds = onlineDevices.map { it.stableId }.toSet()
             val offlineKept = devicesCache.values.filter { dev ->
                 dev.stableId !in onlineIds &&
                     (dev.networkBssid == bssid || dev.networkBssid.isBlank()) &&
-                    (now - dev.lastSeen) < 24 * 60 * 60 * 1000 // keep 24h
+                    (now - dev.lastSeen) < 24 * 60 * 60 * 1000
             }
 
             val result = (onlineDevices + offlineKept).sortedWith(
@@ -230,26 +199,22 @@ class NetworkRepository(context: Context) {
                     .thenBy { it.ip }
             )
 
+            _lastDiff.value = ScanDiff.updateAndDiff(result)
             _devices.value = result
             _lastScanTime.value = now
-
             devicePreferences.saveKnownIds(onlineDevices.map { it.stableId })
 
-            // Persist firstSeen for each
             onlineDevices.forEach { d ->
-                val c = devicePreferences.getCustomizationOnce(d.stableId)
-                if (c.firstSeen == 0L || c.nickname != d.nickname) {
-                    devicePreferences.saveCustomization(
-                        d.stableId,
-                        DeviceCustomization(
-                            nickname = d.nickname,
-                            notes = d.notes,
-                            isFavorite = d.isFavorite,
-                            isWatched = d.isWatched,
-                            firstSeen = d.firstSeen
-                        )
+                devicePreferences.saveCustomization(
+                    d.stableId,
+                    DeviceCustomization(
+                        nickname = d.nickname,
+                        notes = d.notes,
+                        isFavorite = d.isFavorite,
+                        isWatched = d.isWatched,
+                        firstSeen = d.firstSeen
                     )
-                }
+                )
             }
         } finally {
             _isScanning.value = false
@@ -274,89 +239,81 @@ class NetworkRepository(context: Context) {
                 }
             }
         } catch (_: Exception) {
-            // Restricted on Android 10+
         }
         return result
     }
 
-    private suspend fun discoverHosts(
-        prefix: String,
-        localIp: String,
-        range: IntRange,
-        timeoutMs: Int
-    ): Set<String> = coroutineScope {
-        val alive = ConcurrentHashMap.newKeySet<String>()
-        val portsToTry = listOf(80, 443, 8080, 22, 135, 445, 139, 53, 3389)
-        val t = timeoutMs.coerceIn(50, 500)
-
-        range.map { i ->
-            async(Dispatchers.IO) {
-                val ip = "$prefix.$i"
-                if (ip == localIp) {
-                    alive.add(ip)
-                    return@async
-                }
-                try {
-                    val address = InetAddress.getByName(ip)
-                    if (address.isReachable(t)) {
+    private suspend fun discoverHosts(prefix: String, localIp: String, range: IntRange, timeoutMs: Int): Set<String> =
+        coroutineScope {
+            val alive = ConcurrentHashMap.newKeySet<String>()
+            val portsToTry = listOf(80, 443, 8080, 22, 135, 445, 139, 53, 3389)
+            val t = timeoutMs.coerceIn(50, 500)
+            range.map { i ->
+                async(Dispatchers.IO) {
+                    val ip = "$prefix.$i"
+                    if (ip == localIp) {
                         alive.add(ip)
                         return@async
                     }
-                    for (port in portsToTry) {
-                        try {
-                            Socket().use { socket ->
-                                socket.connect(InetSocketAddress(ip, port), t)
-                                alive.add(ip)
-                                return@async
-                            }
-                        } catch (_: Exception) {
+                    try {
+                        if (InetAddress.getByName(ip).isReachable(t)) {
+                            alive.add(ip)
+                            return@async
                         }
+                        for (port in portsToTry) {
+                            try {
+                                Socket().use { it.connect(InetSocketAddress(ip, port), t); alive.add(ip); return@async }
+                            } catch (_: Exception) {
+                            }
+                        }
+                    } catch (_: Exception) {
                     }
-                } catch (_: Exception) {
                 }
-            }
-        }.awaitAll()
-        alive
-    }
-
-    private fun resolveHostname(ip: String): String {
-        return try {
-            val address = InetAddress.getByName(ip)
-            val host = address.canonicalHostName
-            if (host != null && host != ip && !host.matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+"))) host else ""
-        } catch (_: Exception) {
-            ""
+            }.awaitAll()
+            alive
         }
+
+    private fun resolveHostname(ip: String): String = try {
+        val host = InetAddress.getByName(ip).canonicalHostName
+        if (host != null && host != ip && !host.matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+"))) host else ""
+    } catch (_: Exception) {
+        ""
     }
 
     private fun lookupVendor(mac: String): String {
         if (mac.isBlank() || mac.length < 8) return ""
-        // Random MAC (Android/iOS privacy): second hex digit is 2,6,A,E
-        val second = mac.getOrNull(1)?.uppercaseChar()
-        if (second == '2' || second == '6' || second == 'A' || second == 'E') {
-            return "Random MAC"
-        }
-        val oui = mac.take(8).uppercase()
-        return OUI_MAP[oui] ?: OUI_MAP[mac.take(5).uppercase()] ?: ""
+        if (Device.isRandomMacAddress(mac)) return "Random MAC"
+        return OUI_MAP[mac.take(8).uppercase()] ?: ""
     }
 
     suspend fun scanPorts(ip: String, ports: List<Int> = COMMON_PORTS): List<Int> = withContext(Dispatchers.IO) {
-        val settings = appSettings.getOnce()
-        val t = (settings.scanTimeoutMs * 2).coerceIn(100, 800)
+        val t = (appSettings.getOnce().scanTimeoutMs * 2).coerceIn(100, 800)
         coroutineScope {
             ports.map { port ->
                 async {
                     try {
-                        Socket().use { socket ->
-                            socket.connect(InetSocketAddress(ip, port), t)
-                            port
-                        }
+                        Socket().use { it.connect(InetSocketAddress(ip, port), t); port }
                     } catch (_: Exception) {
                         null
                     }
                 }
             }.awaitAll().filterNotNull().sorted()
         }
+    }
+
+    /** After port scan: HTTP fingerprint + refresh type */
+    suspend fun enrichDevice(ip: String) {
+        val device = getDevice(ip) ?: return
+        val (nb, http) = DeviceProbe.enrichHostnamesAndFingerprint(ip, device.openPorts)
+        val hostname = device.hostname.ifBlank { nb }
+        val updated = device.copy(
+            hostname = hostname,
+            httpFingerprint = http.ifBlank { device.httpFingerprint },
+            osGuess = Device.guessOs(device.openPorts, device.vendor, hostname),
+            deviceType = Device.guessType(device.openPorts, device.vendor, hostname, device.isGateway)
+        )
+        devicesCache[updated.stableId] = updated
+        _devices.update { list -> list.map { if (it.ip == ip) updated else it } }
     }
 
     suspend fun updateDevicePorts(ip: String, ports: List<Int>) {
@@ -369,6 +326,7 @@ class NetworkRepository(context: Context) {
                 } else device
             }
         }
+        enrichDevice(ip)
     }
 
     suspend fun updateDeviceCustomization(stableId: String, customization: DeviceCustomization) {
@@ -390,22 +348,17 @@ class NetworkRepository(context: Context) {
     fun getDevice(ip: String): Device? =
         _devices.value.find { it.ip == ip } ?: devicesCache.values.find { it.ip == ip }
 
-    fun getDeviceByStableId(id: String): Device? =
-        devicesCache[id] ?: _devices.value.find { it.stableId == id }
-
     suspend fun getKnownIds(): Set<String> = devicePreferences.getKnownIds()
 
     companion object {
         val COMMON_PORTS = listOf(
             21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143,
-            443, 445, 548, 993, 995, 1723, 3306, 3389, 5900, 8080, 8443, 9100
+            443, 445, 548, 993, 995, 1723, 3306, 3389, 5900, 8008, 8009, 8080, 8443, 9100
         )
 
-        // Corrected partial OUI map (prefix XX:XX:XX)
         private val OUI_MAP = mapOf(
             "00:50:56" to "VMware", "00:0C:29" to "VMware", "00:05:69" to "VMware",
             "B8:27:EB" to "Raspberry Pi", "DC:A6:32" to "Raspberry Pi", "E4:5F:01" to "Raspberry Pi",
-            "00:1A:2B" to "Ayecom", "00:1E:06" to "Wipro Infotech",
             "00:1B:63" to "Apple", "00:25:00" to "Apple", "F0:18:98" to "Apple",
             "AC:BC:32" to "Apple", "00:17:F2" to "Apple", "00:1C:B3" to "Apple",
             "00:1A:11" to "Google", "3C:5A:B4" to "Google", "F4:F5:D8" to "Google",
@@ -414,14 +367,9 @@ class NetworkRepository(context: Context) {
             "00:1E:10" to "Huawei", "28:6C:07" to "Xiaomi",
             "50:C7:BF" to "TP-Link", "00:27:19" to "TP-Link",
             "2C:4D:54" to "ASUS", "00:1D:0F" to "ASUS",
-            "00:18:F3" to "ASUS", "00:22:6B" to "Linksys",
-            "00:1D:7E" to "Cisco-Linksys", "00:25:9C" to "Cisco",
-            "00:24:01" to "D-Link", "00:1E:8C" to "ASUS",
-            "04:92:26" to "Nokia"
-        ).flatMap { (k, v) ->
-            // store both 8-char "00:50:56" style used by take(8) on "00:50:56:XX:XX:XX"
-            listOf(k to v)
-        }.toMap()
+            "00:22:6B" to "Linksys", "00:1D:7E" to "Cisco-Linksys", "00:25:9C" to "Cisco",
+            "00:24:01" to "D-Link", "04:92:26" to "Nokia"
+        )
 
         @Volatile
         private var INSTANCE: NetworkRepository? = null
