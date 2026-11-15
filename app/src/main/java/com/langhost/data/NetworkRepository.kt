@@ -305,7 +305,10 @@ class NetworkRepository(context: Context) {
                     else -> now
                 }
 
-                // Avoid reverse-DNS lookups in the scan hot path: platform name resolution can\n                // block beyond coroutine timeouts. Use bounded NetBIOS discovery and cached data.\n                val hostname = DeviceProbe.netBiosName(ip).ifBlank { existing?.hostname ?: "" }\n
+                // Avoid reverse-DNS lookups in the scan hot path: platform name resolution can
+                // block beyond coroutine timeouts. Use bounded NetBIOS discovery and cached data.
+                val hostname = DeviceProbe.netBiosName(ip).ifBlank { existing?.hostname ?: "" }
+
                 val vendor = if (randomMac) "Random MAC" else lookupVendor(macFinal)
                 val ports = existing?.openPorts ?: emptyList()
                 val type = Device.guessType(ports, vendor, hostname, ip == gateway)
