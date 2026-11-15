@@ -1,22 +1,25 @@
-name: Build APK
+name: Android CI
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - "work/**"
+      - "audit/**"
+  pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: android-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build and Release APK
+  verify:
+    name: Verify Android project
     runs-on: ubuntu-latest
-
-    env:
-      ANDROID_HOME: ${{ github.workspace }}/android-sdk
-      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,64 +28,39 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
-      - name: Install Android commandlinetools
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
         run: |
-          mkdir -p $ANDROID_HOME/cmdline-tools
-          cd /tmp
-          curl -fsSL -o cmdtools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          unzip -q cmdtools.zip
-          rm -rf $ANDROID_HOME/cmdline-tools/latest
-          mkdir -p $ANDROID_HOME/cmdline-tools/latest
-          mv cmdline-tools/* $ANDROID_HOME/cmdline-tools/latest/
-          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
-      - name: Install SDK packages
-        run: |
-          yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses >/dev/null || true
-          sdkmanager --sdk_root=$ANDROID_HOME \
-            "platforms;android-35" \
-            "build-tools;35.0.0" \
-            "platform-tools"
-
-      - name: local.properties
-        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
-
-      - name: Setup Gradle 8.9
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
+
+      - name: Verify Gradle Wrapper
+        run: ./gradlew --version
+
+      - name: Run Android Lint
+        run: ./gradlew --no-daemon --stacktrace :app:lintDebug
+
+      - name: Run unit tests
+        run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest
 
       - name: Build Debug APK
-        run: gradle :app:assembleDebug --stacktrace --no-daemon
+        run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
 
-      - name: Find APK
-        id: apk
-        run: |
-          APK=$(find app/build/outputs/apk -name "*.apk" -type f | head -n 1)
-          echo "APK=$APK"
-          test -n "$APK" && test -f "$APK"
-          echo "path=$APK" >> $GITHUB_OUTPUT
-          ls -la "$APK"
+      - name: Build Release APK
+        run: ./gradlew --no-daemon --stacktrace :app:assembleRelease
 
-      - name: Upload artifact
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: LanGhost-debug
-          path: ${{ steps.apk.outputs.path }}
-          retention-days: 30
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v0.4.${{ github.run_number }}
-          name: LanGhost v0.4.${{ github.run_number }}
-          body: |
-            Debug APK (автосборка).
-            Скачай APK → установи с разрешением неизвестных источников.
-          files: ${{ steps.apk.outputs.path }}
-          prerelease: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: langhost-apks
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 14
