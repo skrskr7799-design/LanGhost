@@ -19,12 +19,14 @@ internal object HostDiscovery {
     suspend fun <T, R> mapBounded(
         items: List<T>,
         maxConcurrency: Int,
+        beforeBatch: suspend () -> Unit = {},
         transform: suspend (T) -> R
     ): List<R> {
         require(maxConcurrency > 0) { "maxConcurrency must be positive" }
         if (items.isEmpty()) return emptyList()
         return coroutineScope {
             items.chunked(maxConcurrency).flatMap { batch ->
+                beforeBatch()
                 batch.map { item -> async { transform(item) } }.awaitAll()
             }
         }
@@ -35,6 +37,7 @@ internal object HostDiscovery {
         localIp: String,
         maxConcurrency: Int,
         timeoutMs: Int,
+        beforeBatch: suspend () -> Unit = {},
         probe: suspend (ip: String, budgetMs: Int) -> Boolean
     ): Set<String> {
         require(maxConcurrency > 0) { "maxConcurrency must be positive" }
@@ -44,6 +47,7 @@ internal object HostDiscovery {
         return coroutineScope {
             val alive = LinkedHashSet<String>()
             for (batch in uniqueCandidates.chunked(maxConcurrency)) {
+                beforeBatch()
                 val results = batch.map { ip ->
                     async(Dispatchers.IO) {
                         if (ip == localIp) return@async ip
