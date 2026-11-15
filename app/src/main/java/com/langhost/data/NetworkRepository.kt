@@ -707,7 +707,10 @@ class NetworkRepository(context: Context) {
                     current.map { device ->
                         val scannedDevice = scannedById[device.stableId]
                         if (scannedDevice != null && device.hasSameEndpointAs(scannedDevice)) {
-                            device.copy(auditedPorts = scannedDevice.auditedPorts)
+                            device.copy(
+                                auditedPorts = scannedDevice.auditedPorts,
+                                auditedPortResults = scannedDevice.auditedPortResults
+                            )
                         } else device
                     }
                 }
