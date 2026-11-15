@@ -143,6 +143,67 @@ class SecurityAuditTest {
     }
 
     @Test
+    fun expiresDeviceScanEvidenceAfterFiveMinutes() {
+        val now = 1_000_000L
+        val report = SecurityAudit.analyze(
+            devices = listOf(Device(ip = "192.168.1.10", openPorts = listOf(23), lastSeen = now)),
+            currentSsid = "Home",
+            currentBssid = "AA:AA:AA:AA:AA:AA",
+            nearby = emptyList(),
+            currentSecurity = "WPA2",
+            scanCoverage = ScanCoverage(
+                subnetCidr = "192.168.1.0/24",
+                checkedAddresses = 254,
+                totalUsableAddresses = 254,
+                scannedAt = now - 6 * 60 * 1000L,
+                networkScope = "home-scope"
+            ),
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true,
+            currentNetworkScope = "home-scope",
+            nearbyScanTime = now,
+            serviceScanTime = now,
+            now = now
+        )
+
+        assertNull(report.score)
+        assertFalse(report.deviceScanCompleted)
+        assertFalse(report.serviceScanCompleted)
+        assertFalse(report.findings.any { it.title == "Доступен Telnet" })
+    }
+
+    @Test
+    fun hidesPortAndNearbyFindingsWhenTheirEvidenceIsStale() {
+        val now = 1_000_000L
+        val report = SecurityAudit.analyze(
+            devices = listOf(Device(ip = "192.168.1.10", openPorts = listOf(23), lastSeen = now)),
+            currentSsid = "Home",
+            currentBssid = "AA:AA:AA:AA:AA:AA",
+            nearby = listOf(WifiNetwork("Home", "BB:BB:BB:BB:BB:BB", -45, 2412, 1, "Open")),
+            currentSecurity = "WPA3-SAE",
+            scanCoverage = ScanCoverage(
+                subnetCidr = "192.168.1.0/24",
+                checkedAddresses = 254,
+                totalUsableAddresses = 254,
+                scannedAt = now,
+                networkScope = "home-scope"
+            ),
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true,
+            currentNetworkScope = "home-scope",
+            nearbyScanTime = now - 6 * 60 * 1000L,
+            serviceScanTime = now - 6 * 60 * 1000L,
+            now = now
+        )
+
+        assertNull(report.score)
+        assertTrue(report.deviceScanCompleted)
+        assertFalse(report.serviceScanCompleted)
+        assertTrue(report.securityMismatches.isEmpty())
+        assertFalse(report.findings.any { it.title == "Доступен Telnet" })
+    }
+
+    @Test
     fun doesNotCalculateScoreUntilServiceScanCompletes() {
         val report = SecurityAudit.analyze(
             devices = emptyList(),
