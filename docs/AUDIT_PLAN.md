@@ -4,7 +4,7 @@
 > Baseline branch: main  
 > Baseline commit reviewed: c8e13219461fd1488ccbb83b4fa5ab721ba3eb62  
 > Working branch: work/foundation-stabilization
-> Latest implementation commit: 1085a7653e219d820b9695b4fd5fa7b7fc0eeedd
+> Latest implementation commit: pending Discovery Engine validation
 
 ## Project direction
 
@@ -32,13 +32,13 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [x] Correct the confirmed baseline compile errors.
 - [x] Replace the legacy workflow with branch/PR validation and tagged-release workflows; install Android command-line tools explicitly and upload Debug/Release APK artifacts.
 - [x] Separate pull-request/branch validation from tagged release publication.
-- [ ] Confirm Debug and Release APK builds both pass on the latest working-branch commit; signing remains a release-readiness task.
+- [x] Confirm Debug and Release APK builds both pass on the latest validated working-branch commit; signing remains a release-readiness task.
 - [x] Add baseline Android Lint and JUnit test tasks.
 
 ### Phase 2 — Network engine
 - [x] Implement IPv4 CIDR calculation, contiguous-mask validation, /31 and /32 handling, bounded host enumeration; IPv6 strategy remains open.
-- [ ] Review discovery methods (ARP, ICMP, TCP/UDP probes), timeouts, cancellation and false negatives.
-- [x] Bound discovery candidates to 1,024 and concurrent host probes to 32; cancellation/retry/socket lifecycle review remains open.
+- [ ] Review discovery methods (ARP, ICMP, TCP/UDP probes), timeouts, cancellation and false negatives. Initial bounded/cancellable TCP-probe orchestration is implemented; device validation and result semantics remain open.
+- [x] Bound discovery candidates to 1,024 and concurrent host probes to 32; add per-host time budget and explicit cancellation propagation. Socket-level cancellation remains bounded by connect timeout.
 - [x] Scope device identities to a hashed logical network key (SSID + gateway + subnet), not BSSID; preserve legacy customizations and isolate scan diffs by network. Random-MAC rotation still cannot be correlated reliably.
 - [ ] Validate port scanning, service identification and banner/fingerprint handling.
 - [x] Show checked/total IPv4 addresses, subnet and truncation warning; physical-device validation remains open.
@@ -75,7 +75,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [ ] Verify contrast, touch targets, TalkBack semantics and localization.
 
 ### Phase 6 — Automated and device testing
-- [x] Add initial unit tests for pure network calculations, identity merging, scoring and diff logic (26+ tests authored across model, CIDR, scan coverage, Wi-Fi channel and network identity; latest CI confirmation pending).
+- [x] Add initial unit tests for pure network calculations, identity merging, scoring, diff and discovery orchestration (latest CI-confirmed suite passed; new Discovery Engine regression tests await CI).
 - [ ] Add repository/integration tests for persistence, scanning orchestration and failure cases.
 - [ ] Add Compose UI tests for critical flows and permission states.
 - [ ] Run Android Lint and dependency/security checks in CI.
@@ -122,7 +122,7 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | BUILD-003 | CI | Legacy build workflow grants contents:write to the whole job and publishes a prerelease on every successful main push | Medium | Replaced with branch/PR build workflow and tag-only release workflow; verify permissions and release behavior during final CI review | Resolved on working branch; main unchanged |
 | TEST-001 | Testing | No unit or instrumentation test source files are present in the repository tree | High | Added 19 JUnit tests across Device, NetworkInfo, ChannelAnalyzer, SecurityAudit, ScanDiff and Ipv4Subnet; 13 passed in the preceding CI run, 6 new CIDR tests await latest CI | Partially resolved on working branch; CI confirmation pending |
 | NET-001 | Discovery | IPv4 scan built a /24-style prefix from the first three octets | High | Ipv4Subnet validates masks and handles unsigned IPv4, /31, /32 and bounded enumeration | Implemented; physical-network validation pending |
-| NET-002 | Discovery | Host probes were launched without explicit concurrency limit | Medium | Candidate cap 1,024 and batches of 32 concurrent probes | Implemented; device validation pending |
+| NET-002 | Discovery | Host probes were launched without explicit concurrency limit and had no total per-host time budget | Medium | Candidate cap 1,024, bounded batches, injectable discovery orchestration and bounded TCP probe budget | Implemented on branch; device validation pending |
 | NET-003 | Network info | Wi-Fi connection data used deprecated WifiManager.connectionInfo and inferred security from Android version | Medium | Migrated to ConnectivityManager/LinkProperties and WifiInfo.currentSecurityType where available, with location-aware callback on API 31+ | Implemented on branch; physical-device validation pending |
 | SEC-001 | Security audit | SecurityScreen receives an empty nearby Wi-Fi list from current navigation, so same-SSID BSSID analysis has no input | High | SecurityScreen default nearbyNetworks = emptyList(); NavHost invokes SecurityScreen without argument | Open |
 | SEC-002 | Security score | A clean score can be shown without proving that device port checks or Wi-Fi checks were completed | High | SecurityAudit.analyze() derives score only from findings and does not model scan coverage | Open |

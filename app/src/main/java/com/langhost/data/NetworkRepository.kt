@@ -16,6 +16,7 @@ import com.langhost.data.model.ScanCoverage
 import com.langhost.data.network.Ipv4Subnet
 import com.langhost.data.network.NetworkIdentity
 import com.langhost.data.network.WifiChannel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -31,6 +32,7 @@ import java.io.FileReader
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.ConcurrentHashMap
 
 class NetworkRepository(context: Context) {
@@ -258,7 +260,12 @@ class NetworkRepository(context: Context) {
                 readArpTable().filterKeys(currentSubnet::contains)
             }.orEmpty()
             val candidates = subnet?.hostAddresses(MAX_DISCOVERY_TARGETS, localIp).orEmpty()
-            val discoveredIps = discoverHosts(candidates, localIp, timeoutMs)
+            val discoveredIps = HostDiscovery.discover(
+                candidates = candidates,
+                localIp = localIp,
+                maxConcurrency = MAX_CONCURRENT_HOST_PROBES,
+                timeoutMs = timeoutMs
+            ) { ip, budgetMs -> probeHost(ip, budgetMs) }
             val allIps = (arpDevices.keys + discoveredIps + setOf(localIp, gateway).filter {
                 it != "0.0.0.0" && it != "—" && it.isNotBlank()
             }).toSet()
@@ -275,11 +282,11 @@ class NetworkRepository(context: Context) {
                 allIps.map { ip ->
                     async {
                         val mac = arpDevices[ip] ?: ""
-                        val randomMac = Device.isRandomMacAddress(mac)
                         val existingByIp = devicesCache.values.firstOrNull {
                             it.ip == ip && it.networkScope == networkScope
                         }
                         val macFinal = mac.ifBlank { existingByIp?.mac ?: "" }
+                        val randomMac = Device.isRandomMacAddress(macFinal)
                         val stableId = when {
                             macFinal.isNotBlank() -> "${macFinal.uppercase()}@${networkScope}"
                             else -> "ip:${networkScope}:$ip"
