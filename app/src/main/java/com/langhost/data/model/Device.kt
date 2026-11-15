@@ -14,6 +14,8 @@ data class Device(
     val firstSeen: Long = System.currentTimeMillis(),
     val lastSeen: Long = System.currentTimeMillis(),
     val openPorts: List<Int> = emptyList(),
+    /** Ports confirmed by the dedicated security-service scan, kept separate from general discovery. */
+    val auditedPorts: List<Int> = emptyList(),
     val osGuess: String = "",
     val nickname: String = "",
     val notes: String = "",
