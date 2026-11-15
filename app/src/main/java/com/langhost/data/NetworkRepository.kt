@@ -430,6 +430,12 @@ class NetworkRepository(context: Context) {
                 ipAddress = localIp,
                 netmask = networkInfo.netmask
             )
+            val legacyNetworkScope = NetworkIdentity.legacyScopeId(
+                ssid = networkInfo.ssid,
+                gateway = gateway,
+                ipAddress = localIp,
+                netmask = networkInfo.netmask
+            )
             val subnet = runCatching {
                 Ipv4Subnet.fromAddressAndNetmask(localIp, networkInfo.netmask)
             }.getOrNull()
@@ -475,6 +481,11 @@ class NetworkRepository(context: Context) {
                     else -> "ip:${networkScope}:$ip"
                 }
                 val legacyIds = buildList {
+                    if (macFinal.isNotBlank() && legacyNetworkScope != networkScope) {
+                        add("${macFinal.uppercase()}@${legacyNetworkScope}")
+                    } else if (macFinal.isBlank() && legacyNetworkScope != networkScope) {
+                        add("ip:${legacyNetworkScope}:$ip")
+                    }
                     if (macFinal.isNotBlank() && bssid.isNotBlank() && bssid != "—") {
                         add("${macFinal.uppercase()}@${bssid.uppercase()}")
                     }
