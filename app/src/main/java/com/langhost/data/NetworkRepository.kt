@@ -686,7 +686,7 @@ class NetworkRepository(context: Context) {
             }
             _securityPortsScanCompleted.value = true
             _securityPortsScanTime.value = System.currentTimeMillis()
-            scanned.sumOf { it.openPorts.size }
+            scanned.sumOf { it.auditedPorts.size }
         } finally {
             _isSecurityScanning.value = false
             securityPortsScanMutex.unlock()
@@ -778,10 +778,26 @@ class NetworkRepository(context: Context) {
     }
 
     suspend fun updateDeviceCustomization(stableId: String, customization: DeviceCustomization) {
+        if (stableId.isBlank()) return
+
+        refreshNetworkInfo()
+        val expectedScope = currentNetworkScope()
+        val target = expectedScope?.let { scope ->
+            _devices.value.firstOrNull { it.stableId == stableId && it.networkScope == scope }
+        }
+
+        // Persist by stable identity even if the detail screen became stale, but never apply
+        // that old screen's edits to a different device that now owns the same IP address.
         devicePreferences.saveCustomization(stableId, customization)
+        if (target == null || expectedScope == null) return
+
+        refreshNetworkInfo()
+        if (currentNetworkScope() != expectedScope) return
         _devices.update { list ->
             list.map { device ->
-                if (device.stableId == stableId || device.ip == stableId.removePrefix("ip:")) {
+                if (device.stableId == stableId && device.networkScope == expectedScope &&
+                    currentNetworkScope() == expectedScope
+                ) {
                     device.copy(
                         nickname = customization.nickname,
                         notes = customization.notes,
