@@ -4,7 +4,7 @@
 > Baseline branch: main  
 > Baseline commit reviewed: c8e13219461fd1488ccbb83b4fa5ab721ba3eb62  
 > Working branch: work/foundation-stabilization
-> Latest implementation commit: ff2044461599e707ce5efb84e5ed16a5b59269d4
+> Latest implementation commit: 1488022f8540389dcc2511a0cbf02b0f3ddb962b
 
 ## Project direction
 
@@ -37,7 +37,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 
 ### Phase 2 — Network engine
 - [x] Implement IPv4 CIDR calculation, contiguous-mask validation, /31 and /32 handling, bounded host enumeration; IPv6 strategy remains open.
-- [ ] Review discovery methods (ARP, TCP probes), timeouts, cancellation, false negatives, DNS/NetBIOS fan-out and port-scan concurrency. Bounded orchestration and cancellation handling implemented; real-device validation remains open. Bounded/cancellable TCP-probe orchestration, bounded device enrichment and bounded port scanning are implemented; 35 unit tests authored, latest CI/device validation pending.
+- [ ] Review discovery methods (ARP, TCP probes), timeouts, cancellation, false negatives, DNS/NetBIOS fan-out and port-scan concurrency. Bounded orchestration and cancellation handling implemented; real-device validation remains open. Bounded/cancellable TCP-probe orchestration, bounded device enrichment and bounded port scanning are implemented; 35 tests passed in CI on commit 1df8efe. Shared Wi-Fi scan integration and 7 classifier tests are now on the branch and await their own CI run.
 - [x] Bound discovery candidates to 1,024 and concurrent host probes to 32; add per-host time budget and explicit cancellation propagation. Socket-level cancellation remains bounded by connect timeout.
 - [x] Scope device identities to a hashed logical network key (SSID + gateway + subnet), not BSSID; preserve legacy customizations and isolate scan diffs by network. Random-MAC rotation still cannot be correlated reliably.
 - [ ] Validate port scanning, service identification and banner/fingerprint handling.
@@ -50,8 +50,8 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [ ] Audit local data storage, backup/export paths, logs and sensitive identifiers.
 - [ ] Verify biometric/app-lock behavior across lifecycle, process recreation and unavailable hardware.
 - [ ] Review widget/receiver exposure and exported component requirements.
-- [ ] Reassess security scoring and threat heuristics; avoid false certainty and misleading scores.
-- [ ] Verify Wi-Fi threat detection against mesh networks, repeated SSIDs, roaming and legitimate configurations.
+- [x] Reassess security scoring and threat heuristics; scores are withheld until a device scan has coverage evidence, and current Wi-Fi security is included. Further calibration remains open.
+- [x] Remove the assumption that a repeated SSID on another BSSID is an Evil Twin; compare only known, clearly different security families and label the result as a low-confidence configuration signal. Real-world mesh validation remains open.
 - [ ] Document what is and is not detectable on stock Android.
 
 ### Phase 4 — Architecture, data and background work
@@ -75,7 +75,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [ ] Verify contrast, touch targets, TalkBack semantics and localization.
 
 ### Phase 6 — Automated and device testing
-- [x] Add initial unit tests for pure network calculations, identity merging, scoring, diff and discovery orchestration (latest CI-confirmed suite passed; new Discovery Engine regression tests await CI).
+- [x] Add initial unit tests for pure network calculations, identity merging, scoring, diff and discovery orchestration (35 tests passed in CI on 1df8efe; 7 Wi-Fi security classifier tests added afterward and await CI).
 - [ ] Add repository/integration tests for persistence, scanning orchestration and failure cases.
 - [ ] Add Compose UI tests for critical flows and permission states.
 - [ ] Run Android Lint and dependency/security checks in CI.
@@ -120,27 +120,36 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | BUILD-001 | Build | Baseline Kotlin compilation failed on invalid Compose named arguments | Blocker | Baseline Actions run #33; corrected LockGate.kt and SecurityScreen.kt; validation runs #2 and #3 succeeded | Resolved on audit branch; verify again after later code changes |
 | BUILD-002 | Build | Gradle Wrapper scripts/JAR absent from reviewed repository tree | High | Recursive tree at baseline commit; official Wrapper files and Gradle 8.9 distribution checksum added and verified in CI | Resolved on working branch; main unchanged |
 | BUILD-003 | CI | Legacy build workflow grants contents:write to the whole job and publishes a prerelease on every successful main push | Medium | Replaced with branch/PR build workflow and tag-only release workflow; verify permissions and release behavior during final CI review | Resolved on working branch; main unchanged |
-| TEST-001 | Testing | No unit or instrumentation test source files are present in the repository tree | High | Added 35 JUnit tests across Device, NetworkInfo, ChannelAnalyzer, SecurityAudit, ScanDiff, ScanCoverage, HostDiscovery, Ipv4Subnet, NetworkIdentity and WifiChannel; latest Discovery Engine CI run pending | Partially resolved on working branch; CI confirmation pending |
+| TEST-001 | Testing | No unit or instrumentation test source files are present in the repository tree | High | Added 42 JUnit tests authored across Device, NetworkInfo, ChannelAnalyzer, SecurityAudit, ScanDiff, ScanCoverage, HostDiscovery, Ipv4Subnet, NetworkIdentity, WifiChannel and WifiSecurity; 35 passed in CI, latest 7 await CI | Partially resolved on working branch; CI confirmation pending |
 | NET-001 | Discovery | IPv4 scan built a /24-style prefix from the first three octets | High | Ipv4Subnet validates masks and handles unsigned IPv4, /31, /32 and bounded enumeration | Implemented; physical-network validation pending |
 | NET-002 | Discovery | Host probes were launched without explicit concurrency limit and had no total per-host time budget | Medium | Candidate cap 1,024, bounded batches of 32, per-host TCP budget, bounded device enrichment and port scanning (16), cancellation propagation, bounded HTTP fingerprint response | Implemented on branch; CI/device validation pending |
 | NET-003 | Network info | Wi-Fi connection data used deprecated WifiManager.connectionInfo and inferred security from Android version | Medium | Migrated to ConnectivityManager/LinkProperties and WifiInfo.currentSecurityType where available, with location-aware callback on API 31+ | Implemented on branch; physical-device validation pending |
-| SEC-001 | Security audit | SecurityScreen receives an empty nearby Wi-Fi list from current navigation, so same-SSID BSSID analysis has no input | High | SecurityScreen default nearbyNetworks = emptyList(); NavHost invokes SecurityScreen without argument | Open |
-| SEC-002 | Security score | A clean score can be shown without proving that device port checks or Wi-Fi checks were completed | High | SecurityAudit.analyze() derives score only from findings and does not model scan coverage | Open |
-| DATA-001 | Fingerprinting | HTTP response body is read fully before extracting the title, without a byte limit | Medium | DeviceProbe.httpFingerprint() uses readText() | Open |
+| SEC-001 | Security audit | SecurityScreen received no nearby Wi-Fi list from navigation | High | Shared NetworkRepository StateFlow now supplies the same scan results to both nearby-network and security screens; SecurityScreen can initiate the scan itself | Implemented on branch; CI/device validation pending |
+| SEC-002 | Security score | A clean score could be shown without scan evidence | High | Score is now null until device-scan coverage exists; current Wi-Fi security findings are included; missing Wi-Fi scan is explicitly disclosed | Implemented on branch; scoring calibration remains open |
+| DATA-001 | Fingerprinting | HTTP response body was read without a byte limit | Medium | HTTP fingerprint now reads at most 32 KB, uses bounded timeouts, disables redirects/cache and disconnects in finally | Implemented on branch; CI/device validation pending |
 | DATA-002 | Change tracking | ScanDiff kept one process-global previous map, not scoped to a network | Medium | ScanDiff now stores bounded per-network snapshots; switching networks no longer emits false disappearance events | Implemented on branch; regression tests added |
 | DATA-003 | Widget | Widget scan starts a coroutine from BroadcastReceiver without goAsync() or a durable work handoff | Medium | ScanWidgetProvider.onReceive() | Open |
 | DATA-004 | Export | CSV fields are quoted but embedded double quotes are not escaped | Medium | ExportHelper.exportDevicesAsCsv() | Open |
-| NET-004 | Wi-Fi scan | Nearby-network and channel scans can suspend indefinitely if startScan succeeds but the results broadcast never arrives | High | scanNearbyNetworks() and scanWifi() use suspendCancellableCoroutine without a timeout around the broadcast wait | Open |
+| NET-004 | Wi-Fi scan | Nearby-network scan could wait indefinitely for the results broadcast | High | Shared repository scanner now has a 10-second timeout, unregisters its receiver on completion/cancellation and distinguishes fresh results from cached results. Channel analyzer path still needs separate review | Partially resolved on branch |
 | WIFI-001 | Channel analysis | Channel analysis omits 6 GHz and most DFS channels; 5 GHz scoring only counts exact-channel APs and ignores channel width/overlap | Medium | ChannelAnalyzer.analyze() fixed common5 list and frequency filters | Open |
 | UI-001 | Topology | Canvas writes Compose state during drawing and renders inferred gateway-to-every-device edges as if they were topology | Medium | TopologyCanvas() mutates positions in Canvas draw scope and connects every ring node to gateway | Open |
 | UI-002 | Design | Dashboard is a long stack of action rows; theme is dark-only and screens mostly use repeated generic cards | Medium | DashboardScreen.kt, Theme.kt and screen implementations | Open |
-| SEC-003 | Security heuristics | Same SSID on another BSSID is classified as an Evil Twin without considering mesh/roaming or matching security configuration | High | SecurityAudit.analyze() flags every different BSSID with the current SSID | Open |
-| SEC-004 | Security scoring | Current Wi-Fi encryption is not included in the security score/findings | High | SecurityAudit.analyze() receives SSID/BSSID and nearby list, but not the current network security mode | Open |
+| SEC-003 | Security heuristics | Same SSID on another BSSID was treated as Evil Twin | High | Replaced with known-security-family mismatch signal; explicitly not proof of attack | Implemented on branch; device validation pending |
+| SEC-004 | Security scoring | Current Wi-Fi encryption was not included in security findings | High | Current security mode now flags Open, WEP and legacy WPA where Android exposes enough evidence; generic PSK remains unknown rather than guessed | Implemented on branch; device validation pending |
 | DATA-005 | Persistence | Known device IDs are only ever added to a DataStore set and are never pruned | Medium | Still accumulates; retention/pruning policy remains open | Open |
 | DATA-006 | Persistence | Ping history is capped per IP, but old per-IP DataStore keys have no retention/cleanup policy | Low | PingHistoryStore.addSample() caps sample count but never removes unused keys | Open |
 | MODEL-001 | Classification | Randomized/local MAC detection missed locally administered addresses whose low nibble is odd | Low | Device.isRandomMacAddress() now tests the IEEE U/L bit directly | Resolved on branch; tests added |
 | UI-003 | Lock UX | Biometric lock can be enabled without checking authenticator availability or handling prompt errors/cancellation with a recovery path | Medium | SettingsScreen toggles boolean directly; LockGate callback only handles success | Open |
 | DOC-001 | Docs | README feature list and roadmap are stale relative to source tree | Low | Compare README with current modules/screens | Open |
+
+## Latest Wi-Fi integration notes
+
+- Nearby Wi-Fi scan results, completion state and last fresh-scan timestamp are owned by `NetworkRepository` and shared through StateFlow.
+- A 10-second timeout and cancellation cleanup prevent a missing scan-results broadcast from leaving the UI waiting forever.
+- Android cached scan results may be displayed, but only `EXTRA_RESULTS_UPDATED=true` advances the fresh-scan timestamp. A previous fresh scan is considered usable for five minutes.
+- Security screen can request the necessary Wi-Fi permissions and launch the same repository scan without navigating away.
+- Wi-Fi capability parsing distinguishes Open, WEP, WPA, WPA2, WPA3, WPA2/WPA3 transition and OWE; unknown capability strings are not assumed to be Open.
+- Stock Android may throttle scans and redact identifiers; physical-device validation across API levels remains required.
 
 ## Definition of done
 
