@@ -1,9 +1,9 @@
 # LanGhost — Engineering Roadmap & Audit Register
 
-> Status: Phase 1 complete; Phase 2 — Network Engine active  
+ > Status: Phase 1 and Phase 2 implementation complete; Phase 3 — Security Engine active
 > Baseline branch: main  
 > Baseline commit reviewed: c8e13219461fd1488ccbb83b4fa5ab721ba3eb62  
-> Working branch: work/foundation-stabilization
+> Working branch: work/network-engine
 
 ## Project direction
 
@@ -36,16 +36,16 @@ There are no artificial constraints requiring us to preserve the current impleme
 
 ### Phase 2 — Network engine
 - [x] Implement IPv4 CIDR calculation, contiguous-mask validation, /31 and /32 handling, bounded host enumeration; IPv6 strategy remains open.
-- [ ] Review discovery methods (ARP, TCP probes), timeouts, cancellation, false negatives, DNS/NetBIOS fan-out and port-scan concurrency. Bounded orchestration and cancellation handling implemented; real-device validation remains open. Bounded/cancellable TCP-probe orchestration, bounded device enrichment and bounded port scanning are implemented; 35 tests passed in CI on commit 1df8efe. Shared Wi-Fi scan integration and Wi-Fi classifier tests are included in the validated 70-test CI run on commit 8db7f710.
+- [x] Review discovery methods (ARP, TCP probes), timeouts, cancellation, false negatives, DNS/NetBIOS fan-out and port-scan concurrency at source level. Bounded orchestration, per-batch network-scope checkpoints, cancellation propagation and explicit coverage are implemented; physical-device validation remains open.
 - [x] Bound discovery candidates to 1,024 and concurrent host probes to 32; add per-host time budget and explicit cancellation propagation. Socket-level cancellation remains bounded by connect timeout.
 - [x] Scope device identities to a hashed logical network key (SSID + gateway + subnet), not BSSID; preserve legacy customizations and isolate scan diffs by network. Random-MAC rotation still cannot be correlated reliably.
-- [ ] Validate port scanning, service identification and banner/fingerprint handling.
+- [x] Validate bounded TCP service-port scanning and explicit OPEN/CLOSED/FILTERED/UNKNOWN outcomes; exact port-set completeness is required for a trusted security score. Banner/service fingerprinting beyond port reachability remains a separate capability and is not inferred from port numbers.
 - [x] Show checked/total IPv4 addresses, subnet and truncation warning; physical-device validation remains open.
 - [ ] Test across different routers, subnet sizes, Android versions and network conditions (including mesh roaming and MAC randomization).
 
 ### Phase 2 — Network Engine: active review notes
 
-Latest CI run #157 (43702061228) failed only in unit tests: 80 tests completed, with `NetworkIdentityTest.missingNetworkIdentifiersRemainUnknown` failing because `0.0.0.0/0` was treated as a subnet. The scope builder now ignores zero IPv4 address/netmask placeholders. Additional hardening in the same follow-up requires complete ARP entries and observes default-network changes across transports. Re-run CI on the updated branch before treating these changes as validated.
+Network Engine implementation CI #43703234977 passed on commit `ea60152598f3180aa23f9146a0f1c038f068c815`: Android Lint, unit tests, Debug APK, Release APK and artifact upload. Earlier regression in `NetworkIdentityTest.missingNetworkIdentifiersRemainUnknown` was fixed by ignoring zero IPv4 address/netmask placeholders. Additional validated hardening requires complete ARP entries, usable unicast MAC addresses, active-interface filtering, default-network observation across transports, and atomic network-scope publication/scan commits. Physical-device validation remains open.
 
 
 The first source pass is complete; these are confirmed implementation characteristics and review targets, not yet defect declarations:
@@ -59,7 +59,7 @@ The first source pass is complete; these are confirmed implementation characteri
 - Manual device port scans now require a current device snapshot from the active logical network; result updates and enrichment are keyed by stable device identity and network scope. Device lookup no longer falls back to stale cached entries from another network.
 - Real-device tests remain necessary for ARP visibility, Android permission redaction, Wi-Fi scan throttling, VPN/multi-network behavior, mesh roaming and MAC randomization.
 
-Next implementation gate: finish the source audit and define service boundaries/contracts; then add deterministic tests around the extracted network-context and scan orchestration before migrating UI consumers.
+Phase 2 implementation is complete on this branch. Keep the NetworkRepository service-boundary refactor in Phase 4; do not mix it into the Security Engine evidence work. Real-device validation (ARP visibility, permission redaction, Wi-Fi throttling, VPN/multi-network, mesh roaming and MAC randomization) remains open in Phase 6.
 
 ### Phase 3 — Security, privacy and permissions
 - [x] Audit manifest permissions and request each permission only when needed. Fine and coarse location are requested together for Wi-Fi scan flows; notification permission is requested only when enabling it. API-level device validation remains in Phase 6.
@@ -67,7 +67,10 @@ Next implementation gate: finish the source audit and define service boundaries/
 - [x] Audit local data storage, backup/export paths, logs and sensitive identifiers. Android backup is disabled; FileProvider is restricted to share artifacts; notifications omit device identifiers; history retention is bounded.
 - [x] Verify biometric/app-lock behavior across lifecycle, process recreation and unavailable hardware at source level. Physical-device validation remains in Phase 6.
 - [x] Review widget/receiver exposure and exported component requirements; widget updates remain on the exported AppWidgetProvider, while the scan action moved to a non-exported receiver with goAsync().
-- [x] Reassess security scoring and threat heuristics; scores are withheld until device discovery, bounded service-port checks and a fresh nearby-Wi-Fi scan have completed. Current Wi-Fi security is included. Further calibration remains open.
+- [x] Reassess security scoring and threat heuristics; scores require fresh, network-scoped device coverage, a bounded service-port scan and a fresh nearby-Wi-Fi scan. Current Wi-Fi security is included; unknown encryption and incomplete evidence withhold the score.
+- [x] Preserve per-port outcomes as OPEN/CLOSED/FILTERED/UNKNOWN; do not treat timeouts, routing errors or missing results as closed ports.
+- [x] Require the exact policy port set for every discovered remote host; withhold the score when any result is filtered/unknown, missing/duplicated/mismatched, the subnet is truncated, or no remote target was discovered. Exclude the local handset from remote-host findings.
+- [ ] Calibrate scoring weights and service-port policy against real router/device behavior; document false-positive/false-negative limitations.
 - [x] Remove the assumption that a repeated SSID on another BSSID is an Evil Twin; compare only known, clearly different security families and label the result as a low-confidence configuration signal. Real-world mesh validation remains open.
 - [x] Document what is and is not detectable on stock Android; physical-device validation remains in Phase 6.
 
@@ -178,6 +181,7 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | SEC-011 | Network scope | Device, port and nearby-Wi-Fi evidence could remain attached to a previous network after switching SSID/subnet | High | NetworkRepository retained scan state across NetworkInfo changes; SecurityAudit checked only that coverage was non-zero | Resolved in source: logical network changes invalidate device/port/Wi-Fi evidence; scans re-check scope before publishing; SecurityAudit rejects coverage from a different scope; regression test added |
 | SEC-012 | Evidence freshness | Device, service-port and nearby-Wi-Fi findings could remain visible after their evidence became stale | Medium | SecurityAudit trusted completion booleans without checking scan timestamps | Resolved in source: all three evidence sources expire after five minutes; stale port/AP findings are suppressed and the SecurityScreen refreshes freshness state every 15 seconds |
 | SEC-013 | Wi-Fi security evidence | Unknown/unavailable current Wi-Fi encryption could be treated as a clean signal | Medium | SecurityAudit previously had no finding or score gate for an unrecognized security mode | Resolved in source: unknown mode produces an explicit informational finding and withholds the overall score; regression test added |
+| SEC-014 | Port evidence | A port timeout, routing failure, incomplete port set or unscanned local/remote target could be mistaken for a clean service audit | High | NetworkRepository.scanSecurityPorts() previously retained only open ports; SecurityAudit used a hard-coded result count and reported local-device evidence although the local handset is not scanned | Resolved on work/network-engine: explicit OPEN/CLOSED/FILTERED/UNKNOWN outcomes; shared exact port policy; score withheld for filtered/unknown/missing/duplicate/mismatched evidence, truncated coverage or zero discovered remote targets; local handset excluded; regression tests added |
 | DOC-001 | Docs | README feature list and roadmap are stale relative to source tree | Low | Compare README with current modules/screens | Open |
 
 ## Persistence and app-lock notes
@@ -219,8 +223,10 @@ A phase is complete only when findings are recorded and resolved or explicitly a
 The roadmap is a living document. Reorder work when new evidence justifies it, while keeping the buildable baseline and user data safe.
 
 
-## Security audit source closure — 2026-11-15
+## Security and network-engine validation — 2026-11-15
 
-Source-level hardening is complete on `work/foundation-stabilization`. This does not replace Phase 6 device validation: Android Wi-Fi scan throttling, permission behavior, biometric lifecycle behavior, VPN routing and router-specific service visibility still require physical-device testing.
+Network Engine source implementation is complete on `work/network-engine`; its dedicated CI run #43703234977 passed on commit `ea60152598f3180aa23f9146a0f1c038f068c815`. Security Engine evidence hardening is in progress on the same working branch; the latest full CI result must be recorded after the current changes land.
 
-Security scores remain evidence-based, network-scoped and time-bounded. Device coverage is published only after discovery, enrichment and persistence complete; cancelled/failed runs, evidence from a previous network, and scans older than five minutes or an unknown current Wi-Fi encryption mode cannot produce a score. Stale port/AP findings are suppressed. User-authored device customizations are intentionally retained locally rather than silently discarded. The old sensitive-data toggle was removed because it did not mask any UI; consistent masking is planned for Phase 5.
+Security scores remain network-scoped and time-bounded. Device coverage is published only after discovery, enrichment and persistence complete; cancelled/failed runs, evidence from another network, truncated coverage, stale scans, unknown Wi-Fi encryption, incomplete per-port evidence and missing remote targets cannot produce a score. Port outcomes preserve OPEN/CLOSED/FILTERED/UNKNOWN distinctions; a timeout or routing error is not proof that a port is closed. Only the exact configured audit-port set is accepted for each discovered remote host. Local-handset ports are not presented as remotely audited evidence.
+
+This is source-level and automated-test validation, not a substitute for Phase 6 device validation: Android Wi-Fi scan throttling, permission behavior, biometric lifecycle behavior, VPN routing, ARP visibility and router-specific service visibility still require physical-device testing. User-authored device customizations are intentionally retained locally rather than silently discarded. The old sensitive-data toggle was removed because it did not mask any UI; consistent masking is planned for Phase 5.
