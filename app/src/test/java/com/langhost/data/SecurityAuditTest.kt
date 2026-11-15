@@ -120,6 +120,7 @@ class SecurityAuditTest {
 
     @Test
     fun doesNotUseScanEvidenceFromAnotherNetwork() {
+        val now = System.currentTimeMillis()
         val report = SecurityAudit.analyze(
             devices = emptyList(),
             currentSsid = "Office",
@@ -130,11 +131,15 @@ class SecurityAuditTest {
                 subnetCidr = "192.168.1.0/24",
                 checkedAddresses = 254,
                 totalUsableAddresses = 254,
+                scannedAt = now,
                 networkScope = "home-scope"
             ),
             nearbyScanCompleted = true,
             serviceScanCompleted = true,
-            currentNetworkScope = "office-scope"
+            currentNetworkScope = "office-scope",
+            nearbyScanTime = now,
+            serviceScanTime = now,
+            now = now
         )
 
         assertNull(report.score)
