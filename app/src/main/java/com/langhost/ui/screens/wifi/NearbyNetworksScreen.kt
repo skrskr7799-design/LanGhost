@@ -2,6 +2,7 @@ package com.langhost.ui.screens.wifi
 
 import android.Manifest
 import android.os.Build
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -172,7 +173,7 @@ fun NearbyNetworksScreen(onBack: () -> Unit) {
                                     color = if (resultsFresh) Success else TextSecondary
                                 )
                             }
-                            Icon(Icons.Default.WifiFind, null, tint = Primary, modifier = Modifier.size(28.dp))
+                            Icon(Icons.Default.Wifi, null, tint = Primary, modifier = Modifier.size(28.dp))
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             WifiMetric("Всего", networks.size.toString(), Modifier.weight(1f))
@@ -353,21 +354,16 @@ private fun WifiNetworkCard(network: WifiNetwork) {
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                WifiDetail("Канал", network.channel.toString())
-                WifiDetail("Частота", "${network.frequencyMhz} MHz")
-                WifiDetail("BSSID", network.bssid)
+                WifiDetail("Канал", network.channel.toString(), Modifier.weight(0.7f))
+                WifiDetail("Частота", "${network.frequencyMhz} MHz", Modifier.weight(1f))
+                WifiDetail("BSSID", network.bssid, Modifier.weight(1.5f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
                 repeat(5) { index ->
                     Box(
                         Modifier.weight(1f).height(5.dp).clip(RoundedCornerShape(3.dp))
-                            .then(if (index < signalBars(network.signalDbm)) Modifier else Modifier),
-                    ) {
-                        androidx.compose.foundation.background(
-                            if (index < signalBars(network.signalDbm)) signalTone else SurfaceVariant,
-                            RoundedCornerShape(3.dp)
-                        )
-                    }
+                            .background(if (index < signalBars(network.signalDbm)) signalTone else SurfaceVariant)
+                    )
                 }
             }
         }
@@ -382,8 +378,8 @@ private fun WifiTag(text: String, tint: androidx.compose.ui.graphics.Color) {
 }
 
 @Composable
-private fun WifiDetail(label: String, value: String) {
-    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+private fun WifiDetail(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = TextTertiary)
         Text(value, style = MaterialTheme.typography.bodySmall, color = TextSecondary, maxLines = 1)
     }
