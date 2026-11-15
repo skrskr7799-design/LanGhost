@@ -147,7 +147,7 @@ class NetworkRepository(context: Context) {
 
             val ssid = wifiInfo?.ssid
                 ?.removeSurrounding("\"")
-                ?.takeIf { it.isNotBlank() && it != WifiInfo.UNKNOWN_SSID && it != "<unknown ssid>" }
+                ?.takeIf { it.isNotBlank() && it != WifiManager.UNKNOWN_SSID && it != "<unknown ssid>" }
                 ?: "—"
             val bssid = wifiInfo?.bssid
                 ?.takeIf { it.isNotBlank() && it != "02:00:00:00:00:00" }
