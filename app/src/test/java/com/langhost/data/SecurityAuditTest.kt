@@ -545,4 +545,41 @@ class SecurityAuditTest {
         assertFalse(report.findings.any { it.title == "Доступен Telnet" })
     }
 
+    @Test
+    fun doesNotReportLegacyCachedOpenPortWithoutFreshAuditEvidence() {
+        val now = System.currentTimeMillis()
+        val device = Device(
+            ip = "192.168.1.10",
+            lastSeen = now,
+            networkScope = "home-scope",
+            auditedPorts = listOf(23),
+            auditedPortResults = emptyList()
+        )
+        val report = SecurityAudit.analyze(
+            devices = listOf(device),
+            currentSsid = "Home",
+            currentBssid = "AA:AA:AA:AA:AA:AA",
+            nearby = emptyList(),
+            currentSecurity = "WPA2",
+            scanCoverage = ScanCoverage(
+                subnetCidr = "192.168.1.0/24",
+                checkedAddresses = 254,
+                totalUsableAddresses = 254,
+                scannedAt = now,
+                networkScope = "home-scope"
+            ),
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true,
+            currentNetworkScope = "home-scope",
+            nearbyScanTime = now,
+            serviceScanTime = now,
+            now = now
+        )
+
+        assertNull(report.score)
+        assertFalse(report.serviceEvidenceAdequate)
+        assertFalse(report.findings.any { it.title == "Доступен Telnet" })
+    }
+
+
 }
