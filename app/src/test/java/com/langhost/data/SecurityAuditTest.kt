@@ -118,6 +118,30 @@ class SecurityAuditTest {
 
 
     @Test
+    fun doesNotUseScanEvidenceFromAnotherNetwork() {
+        val report = SecurityAudit.analyze(
+            devices = emptyList(),
+            currentSsid = "Office",
+            currentBssid = "CC:CC:CC:CC:CC:CC",
+            nearby = emptyList(),
+            currentSecurity = "WPA2",
+            scanCoverage = ScanCoverage(
+                subnetCidr = "192.168.1.0/24",
+                checkedAddresses = 254,
+                totalUsableAddresses = 254,
+                networkScope = "home-scope"
+            ),
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true,
+            currentNetworkScope = "office-scope"
+        )
+
+        assertNull(report.score)
+        assertFalse(report.deviceScanCompleted)
+        assertTrue(report.findings.any { it.title == "Недостаточно данных для общей оценки" })
+    }
+
+    @Test
     fun doesNotCalculateScoreUntilServiceScanCompletes() {
         val report = SecurityAudit.analyze(
             devices = emptyList(),
