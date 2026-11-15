@@ -36,7 +36,7 @@ class ChannelAnalyzerTest {
         assertTrue(channelSix.networkCount >= 2)
         assertTrue(channelOne.score > 0)
         assertTrue(channelSix.score > 0)
-        assertTrue(advice.best24 in listOf(1, 6, 11))
+        assertTrue(advice.best24 == 1 || advice.best24 == 6 || advice.best24 == 11)
     }
 
     @Test
