@@ -33,7 +33,8 @@ object SecurityAudit {
         currentSecurity: String = "—",
         scanCoverage: ScanCoverage = ScanCoverage(),
         nearbyScanCompleted: Boolean = false,
-        serviceScanCompleted: Boolean = false
+        serviceScanCompleted: Boolean = false,
+        currentNetworkScope: String? = null
     ): SecurityReport {
         val findings = mutableListOf<SecurityFinding>()
 
@@ -115,7 +116,9 @@ object SecurityAudit {
             )
         }
 
-        val deviceScanCompleted = scanCoverage.checkedAddresses > 0
+        val scopeMatches = currentNetworkScope == null ||
+            (currentNetworkScope.isNotBlank() && scanCoverage.networkScope == currentNetworkScope)
+        val deviceScanCompleted = scanCoverage.checkedAddresses > 0 && scopeMatches
         if (!deviceScanCompleted) {
             findings += SecurityFinding(
                 SecurityFinding.Severity.INFO,
