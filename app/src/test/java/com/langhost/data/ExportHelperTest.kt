@@ -17,6 +17,6 @@ class ExportHelperTest {
 
     @Test
     fun csvCellPreservesCommasAndNewlinesInsideQuotedField() {
-        assertEquals("\"a,b\\nc\"", ExportHelper.escapeCsvCell("a,b\\nc"))
+        assertEquals("\"a,b\nc\"", ExportHelper.escapeCsvCell("a,b\nc"))
     }
 }

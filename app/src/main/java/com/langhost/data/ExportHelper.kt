@@ -64,7 +64,7 @@ object ExportHelper {
     internal fun escapeCsvCell(value: String): String {
         val first = value.firstOrNull()
         val dangerous = first == '=' || first == '+' || first == '@' ||
-            first == '\\t' || first == '\\r' ||
+            first == '\t' || first == '\r' ||
             (first == '-' && value.getOrNull(1)?.isDigit() != true)
         val safe = if (dangerous) "'$value" else value
         return "\"" + safe.replace("\"", "\"\"") + "\""
