@@ -1,7 +1,6 @@
 package com.langhost.ui.theme
 
 import android.app.Activity
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -15,6 +14,8 @@ private val DarkColorScheme = darkColorScheme(
     onPrimary = OnPrimary,
     secondary = Secondary,
     onSecondary = OnSecondary,
+    tertiary = AccentCyan,
+    onTertiary = OnAccentCyan,
     background = Background,
     surface = Surface,
     surfaceVariant = SurfaceVariant,
@@ -22,6 +23,7 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = TextPrimary,
     onSurfaceVariant = TextSecondary,
     outline = Border,
+    outlineVariant = Divider,
     error = Danger
 )
 
