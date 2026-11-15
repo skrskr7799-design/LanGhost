@@ -27,7 +27,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.langhost.data.model.WifiNetwork
 import com.langhost.ui.theme.*
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -57,8 +57,13 @@ fun NearbyNetworksScreen(
         }
         scope.launch {
             isScanning = true
-            networks = scanNearbyNetworks(context)
-            isScanning = false
+            try {
+                networks = scanNearbyNetworks(context)
+            } catch (_: SecurityException) {
+                networks = emptyList()
+            } finally {
+                isScanning = false
+            }
         }
     }
 
@@ -199,54 +204,61 @@ private fun WifiNetworkCard(network: WifiNetwork) {
 
 @SuppressLint("MissingPermission")
 private suspend fun scanNearbyNetworks(context: Context): List<WifiNetwork> {
-    val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+    val appContext = context.applicationContext
+    val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
 
-    val results = suspendCancellableCoroutine { cont ->
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(ctx: Context?, intent: Intent?) {
+    // The broadcast is not guaranteed to arrive (for example, scan throttling or platform quirks).
+    // Bound the wait and fall back to the most recent platform-provided results.
+    val broadcastResults = withTimeoutOrNull(1_500L) {
+        suspendCancellableCoroutine { cont ->
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(ctx: Context?, intent: Intent?) {
+                    try {
+                        appContext.unregisterReceiver(this)
+                    } catch (_: Exception) {
+                    }
+                    @Suppress("DEPRECATION")
+                    val list = wifiManager.scanResults ?: emptyList()
+                    if (cont.isActive) cont.resume(list)
+                }
+            }
+
+            val filter = IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    appContext.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                } else {
+                    @Suppress("UnspecifiedRegisterReceiverFlag")
+                    appContext.registerReceiver(receiver, filter)
+                }
+            } catch (error: Exception) {
+                if (cont.isActive) cont.resume(emptyList())
+                return@suspendCancellableCoroutine
+            }
+
+            cont.invokeOnCancellation {
                 try {
-                    context.unregisterReceiver(this)
+                    appContext.unregisterReceiver(receiver)
+                } catch (_: Exception) {
+                }
+            }
+
+            @Suppress("DEPRECATION")
+            val started = runCatching { wifiManager.startScan() }.getOrDefault(false)
+            if (!started) {
+                try {
+                    appContext.unregisterReceiver(receiver)
                 } catch (_: Exception) {
                 }
                 @Suppress("DEPRECATION")
-                val list = wifiManager.scanResults ?: emptyList()
-                if (cont.isActive) cont.resume(list)
-            }
-        }
-        val filter = IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("UnspecifiedRegisterReceiverFlag")
-            context.registerReceiver(receiver, filter)
-        }
-
-        @Suppress("DEPRECATION")
-        val started = wifiManager.startScan()
-        if (!started) {
-            // Throttled — use cached results
-            try {
-                context.unregisterReceiver(receiver)
-            } catch (_: Exception) {
-            }
-            @Suppress("DEPRECATION")
-            if (cont.isActive) cont.resume(wifiManager.scanResults ?: emptyList())
-        }
-
-        cont.invokeOnCancellation {
-            try {
-                context.unregisterReceiver(receiver)
-            } catch (_: Exception) {
+                if (cont.isActive) cont.resume(wifiManager.scanResults ?: emptyList())
             }
         }
     }
 
-    // Fallback timeout if broadcast never arrives
-    val finalResults = if (results.isEmpty()) {
-        delay(1500)
-        @Suppress("DEPRECATION")
-        wifiManager.scanResults ?: emptyList()
-    } else results
+    @Suppress("DEPRECATION")
+    val finalResults = broadcastResults?.takeIf { it.isNotEmpty() }
+        ?: (wifiManager.scanResults ?: emptyList())
 
     val currentBssid = try {
         wifiManager.connectionInfo?.bssid
