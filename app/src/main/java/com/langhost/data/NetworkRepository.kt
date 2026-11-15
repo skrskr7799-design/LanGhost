@@ -7,6 +7,7 @@ import android.os.Build
 import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
 import com.langhost.data.model.NetworkInfo
+import com.langhost.data.network.Ipv4Subnet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -90,20 +91,6 @@ class NetworkRepository(context: Context) {
         return String.format("%d.%d.%d.%d", value and 0xff, value shr 8 and 0xff, value shr 16 and 0xff, value shr 24 and 0xff)
     }
 
-    private fun hostRangeFromNetmask(netmask: String): IntRange {
-        return try {
-            val parts = netmask.split(".").map { it.toInt() }
-            if (parts.size != 4) return 1..254
-            var bits = 0
-            for (p in parts) bits += Integer.bitCount(p and 0xFF)
-            val hostBits = 32 - bits
-            if (hostBits <= 0 || hostBits > 16) return 1..254
-            1..(1 shl hostBits).minus(2).coerceAtMost(254)
-        } catch (_: Exception) {
-            1..254
-        }
-    }
-
     suspend fun scanDevices() = withContext(Dispatchers.IO) {
         if (_isScanning.value) return@withContext
         _isScanning.value = true
@@ -119,11 +106,16 @@ class NetworkRepository(context: Context) {
             val localIp = networkInfo.ipAddress
             val gateway = networkInfo.gateway
             val bssid = networkInfo.bssid
-            val prefix = localIp.substringBeforeLast(".")
-            val range = hostRangeFromNetmask(networkInfo.netmask)
+            val subnet = runCatching {
+                Ipv4Subnet.fromAddressAndNetmask(localIp, networkInfo.netmask)
+            }.getOrNull()
 
-            val arpDevices = readArpTable()
-            val discoveredIps = discoverHosts(prefix, localIp, range, timeoutMs)
+            // /proc/net/arp may contain entries from other interfaces; keep only this subnet.
+            val arpDevices = subnet?.let { currentSubnet ->
+                readArpTable().filterKeys(currentSubnet::contains)
+            }.orEmpty()
+            val candidates = subnet?.hostAddresses(MAX_DISCOVERY_TARGETS, localIp).orEmpty()
+            val discoveredIps = discoverHosts(candidates, localIp, timeoutMs)
             val allIps = (arpDevices.keys + discoveredIps + setOf(localIp, gateway).filter {
                 it != "0.0.0.0" && it != "—" && it.isNotBlank()
             }).toSet()
@@ -243,26 +235,35 @@ class NetworkRepository(context: Context) {
         return result
     }
 
-    private suspend fun discoverHosts(prefix: String, localIp: String, range: IntRange, timeoutMs: Int): Set<String> =
-        coroutineScope {
-            val alive = ConcurrentHashMap.newKeySet<String>()
-            val portsToTry = listOf(80, 443, 8080, 22, 135, 445, 139, 53, 3389)
-            val t = timeoutMs.coerceIn(50, 500)
-            range.map { i ->
+    private suspend fun discoverHosts(
+        hostCandidates: List<String>,
+        localIp: String,
+        timeoutMs: Int
+    ): Set<String> = coroutineScope {
+        val alive = ConcurrentHashMap.newKeySet<String>()
+        val portsToTry = listOf(80, 443, 8080, 22, 135, 445, 139, 53, 3389)
+        val timeout = timeoutMs.coerceIn(50, 500)
+
+        // Process bounded batches instead of launching one probe coroutine per subnet address.
+        for (batch in hostCandidates.chunked(MAX_CONCURRENT_HOST_PROBES)) {
+            batch.map { ip ->
                 async(Dispatchers.IO) {
-                    val ip = "$prefix.$i"
                     if (ip == localIp) {
                         alive.add(ip)
                         return@async
                     }
                     try {
-                        if (InetAddress.getByName(ip).isReachable(t)) {
+                        if (InetAddress.getByName(ip).isReachable(timeout)) {
                             alive.add(ip)
                             return@async
                         }
                         for (port in portsToTry) {
                             try {
-                                Socket().use { it.connect(InetSocketAddress(ip, port), t); alive.add(ip); return@async }
+                                Socket().use {
+                                    it.connect(InetSocketAddress(ip, port), timeout)
+                                    alive.add(ip)
+                                    return@async
+                                }
                             } catch (_: Exception) {
                             }
                         }
@@ -270,8 +271,9 @@ class NetworkRepository(context: Context) {
                     }
                 }
             }.awaitAll()
-            alive
         }
+        alive
+    }
 
     private fun resolveHostname(ip: String): String = try {
         val host = InetAddress.getByName(ip).canonicalHostName
@@ -351,6 +353,9 @@ class NetworkRepository(context: Context) {
     suspend fun getKnownIds(): Set<String> = devicePreferences.getKnownIds()
 
     companion object {
+        private const val MAX_DISCOVERY_TARGETS = 1024
+        private const val MAX_CONCURRENT_HOST_PROBES = 32
+
         val COMMON_PORTS = listOf(
             21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143,
             443, 445, 548, 993, 995, 1723, 3306, 3389, 5900, 8008, 8009, 8080, 8443, 9100
