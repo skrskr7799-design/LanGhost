@@ -173,7 +173,7 @@ fun DevicesScreen(
                         } else {
                             Text("Запустите сканирование, чтобы получить данные о покрытии сети.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         }
-                        if (state.scanCoverage.isTruncated) StatusBadge("Ограниченное покрытие", StatusTone.Warning)
+                        if (state.scanCoverage.truncated) StatusBadge("Ограниченное покрытие", StatusTone.Warning)
                         if (state.isScanning) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Primary)
