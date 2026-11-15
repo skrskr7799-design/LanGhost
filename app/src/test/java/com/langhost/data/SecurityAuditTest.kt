@@ -99,7 +99,8 @@ class SecurityAuditTest {
     fun reportsTelnetAndIncludesItInScore() {
         val device = Device(
             ip = "192.168.1.10",
-            openPorts = listOf(23),
+            openPorts = listOf(22, 80, 443),
+            auditedPorts = listOf(23),
             lastSeen = System.currentTimeMillis()
         )
         val report = SecurityAudit.analyze(
@@ -241,6 +242,30 @@ class SecurityAuditTest {
         assertNull(report.score)
         assertFalse(report.serviceScanCompleted)
         assertTrue(report.findings.any { it.title == "Проверка сервисов не выполнена или устарела" })
+    }
+
+
+    @Test
+    fun ignoresGeneralDevicePortsWhenDedicatedServiceScanHasNoTelnetEvidence() {
+        val device = Device(
+            ip = "192.168.1.10",
+            openPorts = listOf(23, 80),
+            auditedPorts = emptyList(),
+            lastSeen = System.currentTimeMillis()
+        )
+        val report = SecurityAudit.analyze(
+            devices = listOf(device),
+            currentSsid = "Home",
+            currentBssid = "AA:AA:AA:AA:AA:AA",
+            nearby = emptyList(),
+            currentSecurity = "WPA2",
+            scanCoverage = ScanCoverage("192.168.1.0/24", 254, 254),
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true
+        )
+
+        assertEquals(100, report.score)
+        assertFalse(report.findings.any { it.title == "Доступен Telnet" })
     }
 
     @Test
