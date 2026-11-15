@@ -84,4 +84,31 @@ class HostDiscoveryTest {
         job.cancelAndJoin()
         assertTrue(job.isCancelled)
     }
+    @Test
+    fun mapBoundedPreservesOrderAndRespectsConcurrencyLimit() = runBlocking {
+        val active = AtomicInteger(0)
+        val maximum = AtomicInteger(0)
+        val result = HostDiscovery.mapBounded((1..25).toList(), 5) { value ->
+            val current = active.incrementAndGet()
+            maximum.updateAndGet { old -> maxOf(old, current) }
+            try {
+                delay(5)
+                value * 2
+            } finally {
+                active.decrementAndGet()
+            }
+        }
+        assertEquals((1..25).map { it * 2 }, result)
+        assertTrue(maximum.get() <= 5)
+    }
+
+    @Test
+    fun mapBoundedRejectsInvalidConcurrency() = runBlocking {
+        try {
+            HostDiscovery.mapBounded(listOf(1), 0) { it }
+            throw AssertionError("Expected invalid concurrency to be rejected")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+    }
 }

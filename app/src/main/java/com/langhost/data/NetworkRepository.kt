@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.sync.Mutex
 import java.io.BufferedReader
 import java.io.FileReader
 import java.net.InetAddress
@@ -93,6 +94,7 @@ class NetworkRepository(context: Context) {
     private val appSettings = AppSettings(appContext)
 
     private val devicesCache = ConcurrentHashMap<String, Device>()
+    private val scanMutex = Mutex()
 
     private val _networkInfo = MutableStateFlow(NetworkInfo())
     val networkInfo: StateFlow<NetworkInfo> = _networkInfo.asStateFlow()
@@ -231,7 +233,7 @@ class NetworkRepository(context: Context) {
     }
 
     suspend fun scanDevices() = withContext(Dispatchers.IO) {
-        if (_isScanning.value) return@withContext
+        if (!scanMutex.tryLock()) return@withContext
         _isScanning.value = true
         _scanCoverage.value = ScanCoverage()
         try {
@@ -279,9 +281,10 @@ class NetworkRepository(context: Context) {
                 truncated = subnet != null && candidates.size.toLong() < subnet.usableHostCount,
                 scannedAt = now
             )
-            val onlineDevices = coroutineScope {
-                allIps.map { ip ->
-                    async {
+            val onlineDevices = HostDiscovery.mapBounded(
+                items = allIps.toList(),
+                maxConcurrency = DEVICE_ENRICHMENT_CONCURRENCY
+            ) { ip ->
                         val mac = arpDevices[ip] ?: ""
                         val existingByIp = devicesCache.values.firstOrNull {
                             it.ip == ip && it.networkScope == networkScope
@@ -338,8 +341,6 @@ class NetworkRepository(context: Context) {
                             isRandomMac = randomMac,
                             tags = existing?.tags ?: emptyList()
                         ).also { devicesCache[it.stableId] = it }
-                    }
-                }.awaitAll()
             }
 
             val onlineIds = onlineDevices.map { it.stableId }.toSet()
@@ -376,6 +377,7 @@ class NetworkRepository(context: Context) {
             }
         } finally {
             _isScanning.value = false
+            scanMutex.unlock()
         }
     }
 
@@ -399,46 +401,6 @@ class NetworkRepository(context: Context) {
         } catch (_: Exception) {
         }
         return result
-    }
-
-    private suspend fun discoverHosts(
-        hostCandidates: List<String>,
-        localIp: String,
-        timeoutMs: Int
-    ): Set<String> = coroutineScope {
-        val alive = ConcurrentHashMap.newKeySet<String>()
-        val portsToTry = listOf(80, 443, 8080, 22, 135, 445, 139, 53, 3389)
-        val timeout = timeoutMs.coerceIn(50, 500)
-
-        // Process bounded batches instead of launching one probe coroutine per subnet address.
-        for (batch in hostCandidates.chunked(MAX_CONCURRENT_HOST_PROBES)) {
-            batch.map { ip ->
-                async(Dispatchers.IO) {
-                    if (ip == localIp) {
-                        alive.add(ip)
-                        return@async
-                    }
-                    try {
-                        if (InetAddress.getByName(ip).isReachable(timeout)) {
-                            alive.add(ip)
-                            return@async
-                        }
-                        for (port in portsToTry) {
-                            try {
-                                Socket().use {
-                                    it.connect(InetSocketAddress(ip, port), timeout)
-                                    alive.add(ip)
-                                    return@async
-                                }
-                            } catch (_: Exception) {
-                            }
-                        }
-                    } catch (_: Exception) {
-                    }
-                }
-            }.awaitAll()
-        }
-        alive
     }
 
     private suspend fun probeHost(ip: String, budgetMs: Int): Boolean = withContext(Dispatchers.IO) {
@@ -479,18 +441,21 @@ class NetworkRepository(context: Context) {
     }
 
     suspend fun scanPorts(ip: String, ports: List<Int> = COMMON_PORTS): List<Int> = withContext(Dispatchers.IO) {
-        val t = (appSettings.getOnce().scanTimeoutMs * 2).coerceIn(100, 800)
-        coroutineScope {
-            ports.map { port ->
-                async {
-                    try {
-                        Socket().use { it.connect(InetSocketAddress(ip, port), t); port }
-                    } catch (_: Exception) {
-                        null
-                    }
+        val timeoutMs = (appSettings.getOnce().scanTimeoutMs * 2).coerceIn(100, 800)
+        val validPorts = ports.distinct().filter { it in 1..65535 }
+        HostDiscovery.mapBounded(validPorts, PORT_SCAN_CONCURRENCY) { port ->
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            try {
+                Socket().use { socket ->
+                    socket.connect(InetSocketAddress(ip, port), timeoutMs)
+                    port
                 }
-            }.awaitAll().filterNotNull().sorted()
-        }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
+        }.filterNotNull().sorted()
     }
 
     /** After port scan: HTTP fingerprint + refresh type */
@@ -545,6 +510,8 @@ class NetworkRepository(context: Context) {
     companion object {
         private const val MAX_DISCOVERY_TARGETS = 1024
         private const val MAX_CONCURRENT_HOST_PROBES = 32
+        private const val DEVICE_ENRICHMENT_CONCURRENCY = 16
+        private const val PORT_SCAN_CONCURRENCY = 16
 
         val COMMON_PORTS = listOf(
             21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143,

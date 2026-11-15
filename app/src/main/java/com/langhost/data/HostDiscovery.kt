@@ -13,6 +13,23 @@ import kotlinx.coroutines.coroutineScope
  * A failed probe is treated as unknown/unconfirmed, not proof that the host is offline.
  */
 internal object HostDiscovery {
+    /**
+     * Maps items in bounded batches, preserving input order and propagating cancellation.
+     */
+    suspend fun <T, R> mapBounded(
+        items: List<T>,
+        maxConcurrency: Int,
+        transform: suspend (T) -> R
+    ): List<R> {
+        require(maxConcurrency > 0) { "maxConcurrency must be positive" }
+        if (items.isEmpty()) return emptyList()
+        return coroutineScope {
+            items.chunked(maxConcurrency).flatMap { batch ->
+                batch.map { item -> async { transform(item) } }.awaitAll()
+            }
+        }
+    }
+
     suspend fun discover(
         candidates: List<String>,
         localIp: String,

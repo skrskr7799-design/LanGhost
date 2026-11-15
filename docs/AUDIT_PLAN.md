@@ -37,7 +37,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 
 ### Phase 2 — Network engine
 - [x] Implement IPv4 CIDR calculation, contiguous-mask validation, /31 and /32 handling, bounded host enumeration; IPv6 strategy remains open.
-- [ ] Review discovery methods (ARP, ICMP, TCP/UDP probes), timeouts, cancellation and false negatives. Initial bounded/cancellable TCP-probe orchestration is implemented; device validation and result semantics remain open.
+- [ ] Review discovery methods (ARP, ICMP, TCP/UDP probes), timeouts, cancellation, false negatives, DNS/NetBIOS fan-out and port-scan concurrency. Bounded/cancellable TCP-probe orchestration, bounded device enrichment and bounded port scanning are implemented; device validation and result semantics remain open.
 - [x] Bound discovery candidates to 1,024 and concurrent host probes to 32; add per-host time budget and explicit cancellation propagation. Socket-level cancellation remains bounded by connect timeout.
 - [x] Scope device identities to a hashed logical network key (SSID + gateway + subnet), not BSSID; preserve legacy customizations and isolate scan diffs by network. Random-MAC rotation still cannot be correlated reliably.
 - [ ] Validate port scanning, service identification and banner/fingerprint handling.
