@@ -121,7 +121,7 @@ class DeviceDetailViewModel(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                _uiState.update { it.copy(isSaving = false) }
+                // Keep the current values; a failed persistence operation is not a successful save.
             } finally {
                 _uiState.update { it.copy(isSaving = false) }
             }
