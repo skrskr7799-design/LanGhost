@@ -42,6 +42,7 @@ class AppSettings(private val context: Context) {
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
+        AppLog.warning(AppLog.Component.APP_SETTINGS, AppLog.Event.SETTINGS_READ_FALLBACK)
         AppSettingsData()
     }
 
