@@ -10,7 +10,6 @@ import android.graphics.Typeface
 import androidx.core.content.FileProvider
 import com.langhost.data.model.Device
 import com.langhost.data.model.NetworkInfo
-import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -48,7 +47,7 @@ object ReportShare {
     fun shareImageCard(context: Context, network: NetworkInfo, devices: List<Device>, score: Int?): Intent? {
         return try {
             val bmp = renderCard(network, devices, score)
-            val file = File(context.cacheDir, "langhost_report_${System.currentTimeMillis()}.png")
+            val file = ShareFileStore.create(context, "langhost_report_${System.currentTimeMillis()}.png")
             FileOutputStream(file).use { out ->
                 bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
             }
