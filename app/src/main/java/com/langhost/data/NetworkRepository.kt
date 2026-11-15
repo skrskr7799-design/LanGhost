@@ -31,6 +31,8 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.io.BufferedReader
 import java.io.FileReader
 import java.net.InetSocketAddress
@@ -101,6 +103,7 @@ class NetworkRepository(context: Context) {
 
     private val devicesCache = ConcurrentHashMap<String, Device>()
     private val scanMutex = Mutex()
+    private val portProbeSemaphore = Semaphore(PORT_SCAN_CONCURRENCY)
 
     private val _networkInfo = MutableStateFlow(NetworkInfo())
     val networkInfo: StateFlow<NetworkInfo> = _networkInfo.asStateFlow()
@@ -626,7 +629,13 @@ class NetworkRepository(context: Context) {
      * non-local host. Both host fan-out and per-host port fan-out are bounded.
      */
     suspend fun scanSecurityPorts(): Int = withContext(Dispatchers.IO) {
-        if (_isScanning.value || !securityPortsScanMutex.tryLock()) return@withContext 0
+        // Serialize subnet discovery and the dedicated service audit, while the semaphore
+        // below also caps sockets shared with manual device-detail scans.
+        if (!scanMutex.tryLock()) return@withContext 0
+        if (!securityPortsScanMutex.tryLock()) {
+            scanMutex.unlock()
+            return@withContext 0
+        }
         _isSecurityScanning.value = true
         _securityPortsScanCompleted.value = false
         _securityPortsScanTime.value = 0L
@@ -681,6 +690,7 @@ class NetworkRepository(context: Context) {
         } finally {
             _isSecurityScanning.value = false
             securityPortsScanMutex.unlock()
+            scanMutex.unlock()
         }
     }
 
@@ -714,16 +724,19 @@ class NetworkRepository(context: Context) {
             maxConcurrency = PORT_SCAN_CONCURRENCY,
             beforeBatch = { ensureCurrentNetworkScope(expectedNetworkScope) }
         ) { port ->
-            kotlinx.coroutines.currentCoroutineContext().ensureActive()
-            try {
-                Socket().use { socket ->
-                    socket.connect(InetSocketAddress(ip, port), timeoutMs)
-                    port
+            portProbeSemaphore.withPermit {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                ensureCurrentNetworkScope(expectedNetworkScope)
+                try {
+                    Socket().use { socket ->
+                        socket.connect(InetSocketAddress(ip, port), timeoutMs)
+                        port
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    null
                 }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                null
             }
         }.filterNotNull().sorted()
     }
