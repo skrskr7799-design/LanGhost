@@ -1,6 +1,6 @@
 # LanGhost — Engineering Roadmap & Audit Register
 
-> Status: Phases 1–3 implementation complete; Phase 4 — Data & Architecture active; physical-device validation remains open
+> Status: Phases 1–4 implementation and CI complete; Phase 5 — Full UI/UX redesign active; physical-device validation remains open
 > Baseline branch: main  
 > Baseline commit reviewed: c8e13219461fd1488ccbb83b4fa5ab721ba3eb62  
 > Working branch: work/data-architecture
@@ -83,10 +83,11 @@ Phase 2 implementation is complete. The NetworkRepository service-boundary refac
 - [x] Move widget-triggered scans from short-lived BroadcastReceiver coroutine work into a unique persistent WidgetScanWorker; display an unknown state until a scan has completed.
 - [x] Review error handling, offline behavior, concurrency safety and process-death recovery at source level. Network-scope commits remain atomic; cancelled work propagates cancellation; background scans use WorkManager; full repository/integration and physical-device validation remain in Phase 6.
 - [x] Add structured diagnostic events with fixed component/event identifiers only; logs do not include SSIDs, IPs, MACs, URLs or raw payloads.
-- [ ] Complete full CI validation (Lint, unit tests, Debug APK and Release APK) on the final Phase 4 head before closing the phase.
+- [x] Complete full CI validation (Lint, unit tests, Debug APK and Release APK) on the final Phase 4 head before closing the phase. Run [#43714028759](https://github.com/skrskr7799-design/LanGhost/actions/runs/43714028759) passed all steps on final Phase 4 head `4cc6d383df5ceda30f171072c93820ec4d7ce55d`.
 
-### Phase 5 — Full UI/UX and visual redesign
-- [ ] Audit all screens, navigation paths, empty/loading/error states and interaction consistency.
+### Phase 5 — Full UI/UX and visual redesign (active)
+- [x] Audit the current screen inventory and navigation structure. Confirmed baseline issues: dashboard is a long vertical action list; most screens repeat bespoke Scaffold/TopAppBar/Card patterns; phone navigation is route-driven without a persistent primary navigation surface; tablet uses a fixed 40/60 split; design tokens are limited to a small dark palette and typography scale. Detailed redesign direction is in `docs/REDESIGN_PLAN.md`.
+- [ ] Audit empty/loading/error states and interaction consistency screen by screen.
 - [ ] Implement consistent privacy masking for MAC/IP/BSSID in device views, screenshots, reports and exports; the previous nonfunctional toggle was removed until the behavior is implemented.
 - [ ] Define a coherent design system: color, typography, spacing, shapes, elevation, icons and reusable components.
 - [ ] Redesign dashboard around clear network status, actionable insights and live/refreshable data.
@@ -297,3 +298,12 @@ The final source pass keeps NetworkRepository as the Android-facing coordinator 
 The pass also fixed a fail-open rendering race in LockGate: protected content is now withheld until the persisted biometric setting is observed. AppSettings.getOnce() now propagates cancellation instead of treating it as a storage fallback. Device customization records now share the 512-identity retention boundary, network profiles are capped at 32, and widget scans are executed by persistent WorkManager work rather than a receiver-owned coroutine. Added regression coverage for identity/customization pruning, profile bounds and settings cancellation. Fixed diagnostic events use static component/event identifiers only and do not log network identifiers or raw exception payloads.
 
 Implementation changes are on work/data-architecture; main remains unchanged. Phase 4 is not closed until the final branch head passes Android Lint, unit tests, Debug APK and Release APK in CI. Device-specific validation, repository/integration tests and Compose UI tests remain explicitly tracked in Phase 6.
+
+
+## Phase 4 completion — 2026-11-15
+
+Phase 4 is closed on `work/data-architecture`. The final head `4cc6d383df5ceda30f171072c93820ec4d7ce55d` passed full GitHub Actions run [#43714028759](https://github.com/skrskr7799-design/LanGhost/actions/runs/43714028759): Android Lint, all unit tests, Debug APK, Release APK and artifact upload. Every workflow step completed successfully. The only failure in the preceding run was a JUnit 4 test-method return-type issue in `DataRetentionTest`; the test now explicitly returns Unit and the full workflow is green. The branch is 211 commits ahead of main and 0 behind; main remains unchanged. Phase 6 device/integration/Compose validation remains open and is not implied by CI success.
+
+## Phase 5 kickoff — 2026-11-15
+
+The full visual redesign is now active. Initial source audit confirms that the current UI is functionally broad but visually repetitive: the dashboard is dominated by a long action list, screens independently recreate similar Material scaffolds and cards, phone navigation lacks a persistent primary navigation surface, tablet navigation is a fixed split, and the theme has only a small dark token set. The redesign will establish a reusable visual system and a coherent application shell before replacing individual screens. Existing network behavior, permission disclosures, evidence freshness, scan coverage, privacy boundaries and accessibility semantics must be preserved. See `docs/REDESIGN_PLAN.md` for the visual direction and implementation sequence.
