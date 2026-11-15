@@ -62,12 +62,13 @@ object ExportHelper {
 
     internal fun escapeCsvCell(value: String): String {
         val first = value.firstOrNull()
-        val firstNonWhitespace = value.firstOrNull { !it.isWhitespace() }
-        val negativeNumber = firstNonWhitespace == '-' &&
-            value.trim().drop(1).toDoubleOrNull() != null
+        val formulaCandidate = value.dropWhile { it.isWhitespace() || it == '\uFEFF' }
+        val firstCandidate = formulaCandidate.firstOrNull()
+        val negativeNumber = firstCandidate == '-' &&
+            formulaCandidate.drop(1).toDoubleOrNull() != null
         val dangerous = first == '\t' || first == '\r' || first == '\n' ||
-            firstNonWhitespace == '=' || firstNonWhitespace == '+' || firstNonWhitespace == '@' ||
-            (firstNonWhitespace == '-' && !negativeNumber)
+            firstCandidate == '=' || firstCandidate == '+' || firstCandidate == '@' ||
+            (firstCandidate == '-' && !negativeNumber)
         val safe = if (dangerous) "'$value" else value
         return "\"" + safe.replace("\"", "\"\"") + "\""
     }
