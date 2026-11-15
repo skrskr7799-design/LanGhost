@@ -5,7 +5,7 @@ import java.security.MessageDigest
 object NetworkIdentity {
     fun scopeId(ssid: String, gateway: String, ipAddress: String, netmask: String): String {
         val parts = identityParts(ssid, gateway, ipAddress, netmask)
-        if (parts.all(String::isBlank)) return "unknown"
+        if (parts.all { it.isBlank() }) return "unknown"
         val material = parts.joinToString(separator = "") { value -> "${value.length}:$value" }
         return digest(material)
     }
@@ -30,9 +30,5 @@ object NetworkIdentity {
     private fun digest(material: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(material.toByteArray(Charsets.UTF_8))
         return digest.take(8).joinToString("") { "%02x".format(it.toInt() and 0xff) }
-    }
-
-    /* Legacy implementation retained above solely for one-time key migration. */
-    private fun oldScopeIdImplementationRemoved() {
     }
 }
