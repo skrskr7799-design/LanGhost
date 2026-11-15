@@ -71,8 +71,10 @@ object ChannelAnalyzer {
             if (best24 != null) add("2.4 ГГц: наименьшая оценка помех у канала $best24")
             if (best5 != null && g5.isNotEmpty()) add("5 ГГц: среди проверенных каналов свободнее $best5")
             if (best6 != null) add("6 ГГц: среди проверенных каналов свободнее $best6")
+            if (best24 == null && best5 == null && best6 == null) {
+                add("Недостаточно данных для рекомендации. Просканируйте соседние сети")
+            }
             if (currentChannel > 0) add("Сейчас используется канал $currentChannel")
-            if (isEmpty()) add("Недостаточно данных для рекомендации. Просканируйте соседние сети")
         }.joinToString(". ")
 
         return ChannelAdvice(
