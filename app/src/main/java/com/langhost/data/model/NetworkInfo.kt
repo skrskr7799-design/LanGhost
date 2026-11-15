@@ -14,6 +14,8 @@ data class NetworkInfo(
     val dns1: String = "—",
     val dns2: String = "—",
     val networkId: Int = -1,
+    /** Active Android interface used to scope interface-specific observations such as ARP. */
+    val interfaceName: String = "",
     val isConnected: Boolean = false
 ) {
     val signalLevel: Int
