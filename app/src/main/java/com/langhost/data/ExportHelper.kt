@@ -97,7 +97,7 @@ object ExportHelper {
                 }
             }
 
-            val file = File(context.cacheDir, fileName)
+            val file = ShareFileStore.create(context, fileName)
             file.writeText(content)
 
             val uri = FileProvider.getUriForFile(
