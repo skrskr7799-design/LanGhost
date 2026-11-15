@@ -87,5 +87,6 @@ class DeviceProbeTest {
         assertFalse(DeviceProbe.isPrivateIpv4("192.169.1.1"))
         assertFalse(DeviceProbe.isPrivateIpv4("localhost"))
         assertFalse(DeviceProbe.isPrivateIpv4("192.168.1.999"))
+        assertFalse(DeviceProbe.isPrivateIpv4("010.000.000.001"))
     }
 }

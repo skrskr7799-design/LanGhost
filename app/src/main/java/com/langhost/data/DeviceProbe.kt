@@ -157,7 +157,7 @@ object DeviceProbe {
 
     internal fun isPrivateIpv4(value: String): Boolean {
         val parts = value.split(".")
-        if (parts.size != 4) return false
+        if (parts.size != 4 || parts.any { it.length > 1 && it.startsWith('0') }) return false
         val octets = parts.map { it.toIntOrNull()?.takeIf { n -> n in 0..255 } ?: return false }
         val first = octets[0]
         val second = octets[1]
@@ -170,7 +170,7 @@ object DeviceProbe {
     private fun fingerprintPlainHttp(ip: String, port: Int): String {
         require(port in 1..65535)
         Socket().use { socket ->
-            socket.connect(InetSocketAddress(ip, port), 800)
+            socket.connect(InetSocketAddress(InetAddress.getByAddress(ip.split('.').map { it.toInt().toByte() }.toByteArray()), port), 800)
             socket.soTimeout = 800
             socket.getOutputStream().write(
                 "GET / HTTP/1.1\r\nHost: $ip\r\nUser-Agent: LanGhost/0.4\r\nConnection: close\r\n\r\n"
