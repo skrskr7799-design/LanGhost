@@ -441,6 +441,30 @@ class NetworkRepository(context: Context) {
         alive
     }
 
+    private suspend fun probeHost(ip: String, budgetMs: Int): Boolean = withContext(Dispatchers.IO) {
+        val portsToTry = intArrayOf(80, 443, 22, 445, 8080, 53)
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(budgetMs.coerceIn(100, 1_000).toLong())
+
+        for (port in portsToTry) {
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            val remainingNanos = deadline - System.nanoTime()
+            if (remainingNanos <= 0L) break
+            val remainingMs = TimeUnit.NANOSECONDS.toMillis(remainingNanos).coerceAtLeast(1L)
+            val connectTimeout = remainingMs.coerceAtMost(200L).toInt()
+            try {
+                Socket().use { socket ->
+                    socket.connect(InetSocketAddress(ip, port), connectTimeout)
+                    return@withContext true
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // A closed or filtered port is not evidence that the host is offline.
+            }
+        }
+        false
+    }
+
     private fun resolveHostname(ip: String): String = try {
         val host = InetAddress.getByName(ip).canonicalHostName
         if (host != null && host != ip && !host.matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+"))) host else ""
