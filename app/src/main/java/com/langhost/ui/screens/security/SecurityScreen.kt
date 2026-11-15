@@ -44,6 +44,7 @@ fun SecurityScreen(
         }
     }
     var isWifiScanning by remember { mutableStateOf(false) }
+    var scanError by remember { mutableStateOf<String?>(null) }
     val wifiPermissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
         add(Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -149,14 +150,15 @@ fun SecurityScreen(
                                 } else {
                                     scope.launch {
                                         isWifiScanning = true
+                                        scanError = null
                                         try {
                                             repo.scanNearbyNetworks()
                                         } catch (cancelled: CancellationException) {
                                             throw cancelled
                                         } catch (_: SecurityException) {
-                                            // Permissions may be revoked after the UI check.
+                                            scanError = "Нет разрешения на сканирование Wi-Fi. Проверьте доступ к геолокации и ближайшим устройствам."
                                         } catch (_: Exception) {
-                                            // A platform scan may fail or be throttled.
+                                            scanError = "Не удалось завершить сканирование Wi-Fi. Проверьте разрешения и повторите попытку."
                                         } finally {
                                             isWifiScanning = false
                                         }
@@ -187,6 +189,7 @@ fun SecurityScreen(
                         Button(
                             onClick = {
                                 scope.launch {
+                                    scanError = null
                                     try {
                                         val coverage = repo.scanCoverage.value
                                         val stale = coverage.scannedAt <= 0L ||
@@ -197,8 +200,10 @@ fun SecurityScreen(
                                         repo.scanSecurityPorts()
                                     } catch (cancelled: CancellationException) {
                                         throw cancelled
+                                    } catch (_: SecurityException) {
+                                        scanError = "Система запретила сетевое сканирование. Проверьте разрешения приложения."
                                     } catch (_: Exception) {
-                                        // The report stays incomplete if a platform scan fails.
+                                        scanError = "Не удалось завершить аудит устройств и портов. Результаты останутся неполными."
                                     }
                                 }
                             },
@@ -236,6 +241,25 @@ fun SecurityScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary
                             )
+                        }
+                    }
+                }
+            }
+
+            scanError?.let { message ->
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Danger.copy(alpha = 0.10f)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Warning, contentDescription = null, tint = Danger)
+                            Text(message, color = TextPrimary, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
