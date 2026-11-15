@@ -30,16 +30,15 @@ internal class DeviceEnrichmentEngine(
         } else {
             "ip:${networkScope}:$ip"
         }
-        val legacyIds = buildList {
-            if (legacyNetworkScope != networkScope) {
-                if (macFinal.isNotBlank()) add("${macFinal.uppercase()}@${legacyNetworkScope}")
-                else add("ip:${legacyNetworkScope}:$ip")
-            }
-            if (macFinal.isNotBlank() && bssid.isNotBlank() && bssid != "—") {
-                add("${macFinal.uppercase()}@${bssid.uppercase()}")
-            }
-            if (macFinal.isNotBlank()) add(macFinal.uppercase())
-            add("ip:$ip")
+        // Only migrate the previous *network-scoped* key format. Unscoped MAC/IP
+        // and BSSID fallbacks can belong to another network and must never be reused.
+        val legacyIds = if (legacyNetworkScope != networkScope) {
+            listOf(
+                if (macFinal.isNotBlank()) "${macFinal.uppercase()}@${legacyNetworkScope}"
+                else "ip:${legacyNetworkScope}:$ip"
+            )
+        } else {
+            emptyList()
         }
         val saved = loadCustomization(stableId, legacyIds)
         val previous = existingByStableId ?: existing
