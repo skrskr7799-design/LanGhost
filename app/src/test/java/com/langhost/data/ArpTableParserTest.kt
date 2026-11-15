@@ -11,6 +11,8 @@ class ArpTableParserTest {
 192.168.1.11     0x1         0x2         aa:bb:cc:dd:ee:02     *        eth0
 192.168.1.12     0x1         0x0         00:00:00:00:00:00     *        wlan0
 192.168.1.13     0x1         0x0         aa:bb:cc:dd:ee:03     *        wlan0
+192.168.1.14     0x1         0x2         01:00:5e:00:00:01     *        wlan0
+192.168.1.15     0x1         0x2         ff:ff:ff:ff:ff:ff     *        wlan0
 """
 
         assertEquals(
