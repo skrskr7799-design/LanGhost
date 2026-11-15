@@ -514,8 +514,13 @@ class NetworkRepository(context: Context) {
                     deviceType = type,
                     httpFingerprint = existing?.httpFingerprint ?: "",
                     isRandomMac = randomMac,
-                    tags = existing?.tags ?: emptyList()
-                ).also { devicesCache[it.stableId] = it }
+                    tags = existing?.tags ?: emptyList(),
+                    auditedPorts = existing?.auditedPorts ?: emptyList()
+                ).also { device ->
+                    // A switch can happen while a batch is in flight; never reinsert old-scope
+                    // entries after publishNetworkInfo() has pruned the cache.
+                    if (currentNetworkScope() == networkScope) devicesCache[device.stableId] = device
+                }
             }
 
             val onlineIds = onlineDevices.map { it.stableId }.toSet()
@@ -656,9 +661,20 @@ class NetworkRepository(context: Context) {
             refreshNetworkInfo()
             if (currentNetworkScope() != scanScope) return@withContext 0
 
-            val updatedById = scanned.associateBy { it.stableId }
-            scanned.forEach { devicesCache[it.stableId] = it }
-            _devices.update { current -> current.map { updatedById[it.stableId] ?: it } }
+            val auditedPortsById = scanned.associate { it.stableId to it.auditedPorts }
+            // Merge only the dedicated audit result into the latest device snapshots. A manual
+            // detail scan or customization may have updated the same device while this scan ran.
+            _devices.update { current ->
+                current.map { device ->
+                    val auditedPorts = auditedPortsById[device.stableId]
+                    if (device.networkScope == scanScope && auditedPorts != null) {
+                        device.copy(auditedPorts = auditedPorts)
+                    } else device
+                }
+            }
+            _devices.value.filter { it.networkScope == scanScope }.forEach { device ->
+                devicesCache[device.stableId] = device
+            }
             _securityPortsScanCompleted.value = true
             _securityPortsScanTime.value = System.currentTimeMillis()
             scanned.sumOf { it.openPorts.size }
