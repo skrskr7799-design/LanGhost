@@ -54,6 +54,14 @@ object SecurityAudit {
 
         val findings = mutableListOf<SecurityFinding>()
         val currentSecurityFamilies = securityFamilies(currentSecurity)
+        val currentSecurityKnown = currentSecurityFamilies.isNotEmpty()
+        if (!currentSecurityKnown) {
+            findings += SecurityFinding(
+                SecurityFinding.Severity.INFO,
+                "Не удалось определить режим защиты текущей сети",
+                "Без достоверной информации о шифровании Wi-Fi общую оценку безопасности рассчитать нельзя."
+            )
+        }
         when {
             "OPEN" in currentSecurityFamilies -> findings += SecurityFinding(
                 SecurityFinding.Severity.HIGH,
@@ -141,7 +149,7 @@ object SecurityAudit {
                 "Запустите сканирование локальной сети. Пока проверены только доступные сведения о текущем Wi-Fi подключении."
             )
         } else if (
-            effectiveServiceScanCompleted && effectiveNearbyScanCompleted &&
+            currentSecurityKnown && effectiveServiceScanCompleted && effectiveNearbyScanCompleted &&
             findings.none { it.severity != SecurityFinding.Severity.INFO }
         ) {
             findings += SecurityFinding(
@@ -176,7 +184,7 @@ object SecurityAudit {
         val high = findings.count { it.severity == SecurityFinding.Severity.HIGH }
         val medium = findings.count { it.severity == SecurityFinding.Severity.MEDIUM }
         val low = findings.count { it.severity == SecurityFinding.Severity.LOW }
-        val score = if (deviceScanCompleted && effectiveServiceScanCompleted && effectiveNearbyScanCompleted) {
+        val score = if (deviceScanCompleted && effectiveServiceScanCompleted && effectiveNearbyScanCompleted && currentSecurityKnown) {
             (100 - high * 25 - medium * 12 - low * 4).coerceIn(0, 100)
         } else {
             null
