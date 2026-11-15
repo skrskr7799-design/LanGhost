@@ -3,7 +3,8 @@
 > Status: audit and stabilization in progress  
 > Baseline branch: main  
 > Baseline commit reviewed: c8e13219461fd1488ccbb83b4fa5ab721ba3eb62  
-> Working branch: audit/initial-roadmap
+> Working branch: work/foundation-stabilization
+> Latest implementation commit: 8b76487a7ff1d647a7960e8f87c86871a4a6a4ed
 
 ## Project direction
 
@@ -25,14 +26,14 @@ There are no artificial constraints requiring us to preserve the current impleme
 ## Roadmap
 
 ### Phase 1 — Build and project foundation
-- [ ] Reproduce the current APK build failure and capture the complete compiler output.
-- [ ] Restore and verify the Gradle Wrapper (gradlew, gradlew.bat, wrapper JAR and properties).
-- [ ] Verify Gradle, Android Gradle Plugin, Kotlin, Compose compiler/plugin, JDK, SDK and dependency compatibility.
-- [ ] Fix all compile errors and warnings that indicate correctness or future compatibility risks.
-- [ ] Make CI deterministic: least-privilege permissions, pinned/stable actions, clear triggers, build artifacts and useful failure logs.
-- [ ] Separate pull-request/branch validation from tagged release publication.
-- [ ] Verify both Debug and Release variants; define signing without committing secrets.
-- [ ] Add baseline lint and test tasks.
+- [x] Reproduce the baseline APK build failure and capture the compiler output; the invalid Compose Modifier arguments were identified and corrected on this branch.
+- [x] Restore the Gradle Wrapper (gradlew, gradlew.bat, wrapper JAR and properties); verify it in GitHub Actions.
+- [x] Verify the project with JDK 17, Android SDK 35, Gradle 8.9, Android Lint and unit-test tasks in CI. Final Release verification for the latest commit is still running.
+- [x] Correct the confirmed baseline compile errors.
+- [x] Replace the legacy workflow with branch/PR validation and tagged-release workflows; install Android command-line tools explicitly and upload Debug/Release APK artifacts.
+- [x] Separate pull-request/branch validation from tagged release publication.
+- [ ] Confirm Debug and Release APK builds both pass on the latest working-branch commit; signing remains a release-readiness task.
+- [x] Add baseline Android Lint and JUnit test tasks.
 
 ### Phase 2 — Network engine
 - [ ] Audit subnet/CIDR calculation, IPv4 edge cases and IPv6 support strategy.
@@ -74,7 +75,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [ ] Verify contrast, touch targets, TalkBack semantics and localization.
 
 ### Phase 6 — Automated and device testing
-- [ ] Add unit tests for pure network calculations, identity merging, scoring and diff logic.
+- [x] Add initial unit tests for pure network calculations, identity merging, scoring and diff logic (19 tests currently authored; latest CIDR additions await CI confirmation).
 - [ ] Add repository/integration tests for persistence, scanning orchestration and failure cases.
 - [ ] Add Compose UI tests for critical flows and permission states.
 - [ ] Run Android Lint and dependency/security checks in CI.
@@ -117,11 +118,11 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | ID | Area | Finding | Severity | Evidence / reproduction | Status |
 |---|---|---|---|---|---|
 | BUILD-001 | Build | Baseline Kotlin compilation failed on invalid Compose named arguments | Blocker | Baseline Actions run #33; corrected LockGate.kt and SecurityScreen.kt; validation runs #2 and #3 succeeded | Resolved on audit branch; verify again after later code changes |
-| BUILD-002 | Build | Gradle Wrapper scripts/JAR absent from reviewed repository tree | High | Recursive tree at baseline commit | Open |
-| BUILD-003 | CI | Legacy build workflow grants contents:write to the whole job and publishes a prerelease on every successful main push | Medium | .github/workflows/build-apk.yml | Open |
-| TEST-001 | Testing | No unit or instrumentation test source files are present in the repository tree | High | Recursive tree contains no app/src/test or app/src/androidTest | Open |
-| NET-001 | Discovery | IPv4 scan builds a /24-style prefix from the first three octets and derives only a host-number range from the netmask | High | NetworkRepository.scanDevices() and hostRangeFromNetmask(); non-/24 networks are not correctly enumerated | Open |
-| NET-002 | Discovery | Host probes are launched for the full range without an explicit concurrency limit | Medium | NetworkRepository.discoverHosts() creates one IO coroutine per candidate host | Open |
+| BUILD-002 | Build | Gradle Wrapper scripts/JAR absent from reviewed repository tree | High | Recursive tree at baseline commit; official Wrapper files and Gradle 8.9 distribution checksum added and verified in CI | Resolved on working branch; main unchanged |
+| BUILD-003 | CI | Legacy build workflow grants contents:write to the whole job and publishes a prerelease on every successful main push | Medium | Replaced with branch/PR build workflow and tag-only release workflow; verify permissions and release behavior during final CI review | Resolved on working branch; main unchanged |
+| TEST-001 | Testing | No unit or instrumentation test source files are present in the repository tree | High | Added 19 JUnit tests across Device, NetworkInfo, ChannelAnalyzer, SecurityAudit, ScanDiff and Ipv4Subnet; 13 passed in the preceding CI run, 6 new CIDR tests await latest CI | Partially resolved on working branch; CI confirmation pending |
+| NET-001 | Discovery | IPv4 scan builds a /24-style prefix from the first three octets and derives only a host-number range from the netmask | High | Replaced with Ipv4Subnet: contiguous-mask validation, unsigned IPv4 arithmetic, network/broadcast boundaries, /31 and /32 handling, prioritized bounded host enumeration; six unit tests added | Implemented on working branch; latest CI and physical-network validation pending |
+| NET-002 | Discovery | Host probes are launched for the full range without an explicit concurrency limit | Medium | NetworkRepository.discoverHosts() now processes candidates in batches of 32; total active-discovery candidate cap is 1,024 per scan | Implemented on working branch; latest CI and device validation pending |
 | NET-003 | Network info | Wi-Fi connection data uses deprecated WifiManager.connectionInfo and reports security from Android version rather than negotiated network security | Medium | NetworkRepository.refreshNetworkInfo() | Open |
 | SEC-001 | Security audit | SecurityScreen receives an empty nearby Wi-Fi list from current navigation, so same-SSID BSSID analysis has no input | High | SecurityScreen default nearbyNetworks = emptyList(); NavHost invokes SecurityScreen without argument | Open |
 | SEC-002 | Security score | A clean score can be shown without proving that device port checks or Wi-Fi checks were completed | High | SecurityAudit.analyze() derives score only from findings and does not model scan coverage | Open |
