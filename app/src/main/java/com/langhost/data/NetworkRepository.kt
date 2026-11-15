@@ -671,14 +671,14 @@ class NetworkRepository(context: Context) {
             refreshNetworkInfo()
             if (currentNetworkScope() != scanScope) return@withContext 0
 
-            val auditedPortsById = scanned.associate { it.stableId to it.auditedPorts }
+            val auditedPortsById = scanned.associate { it.stableId to (it.ip to it.auditedPorts) }
             // Merge only the dedicated audit result into the latest device snapshots. A manual
             // detail scan or customization may have updated the same device while this scan ran.
             _devices.update { current ->
                 current.map { device ->
-                    val auditedPorts = auditedPortsById[device.stableId]
-                    if (device.networkScope == scanScope && auditedPorts != null) {
-                        device.copy(auditedPorts = auditedPorts)
+                    val scannedEndpoint = auditedPortsById[device.stableId]
+                    if (device.networkScope == scanScope && scannedEndpoint?.first == device.ip) {
+                        device.copy(auditedPorts = scannedEndpoint.second)
                     } else device
                 }
             }
@@ -709,7 +709,7 @@ class NetworkRepository(context: Context) {
 
         val ports = scanPorts(currentDevice.ip, COMMON_PORTS, expectedScope)
         ensureCurrentNetworkScope(expectedScope)
-        updateDevicePorts(currentDevice.stableId, expectedScope, ports)
+        updateDevicePorts(currentDevice.stableId, expectedScope, currentDevice.ip, ports)
         ports
     }
 
@@ -742,10 +742,15 @@ class NetworkRepository(context: Context) {
         }.filterNotNull().sorted()
     }
 
-    private suspend fun updateDevicePorts(stableId: String, expectedScope: String, ports: List<Int>) {
+    private suspend fun updateDevicePorts(
+        stableId: String,
+        expectedScope: String,
+        expectedIp: String,
+        ports: List<Int>
+    ) {
         ensureCurrentNetworkScope(expectedScope)
         val current = _devices.value.firstOrNull {
-            it.stableId == stableId && it.networkScope == expectedScope
+            it.stableId == stableId && it.networkScope == expectedScope && it.ip == expectedIp
         } ?: return
         val updated = current.withUpdatedPorts(ports)
         devicesCache[updated.stableId] = updated
@@ -761,7 +766,7 @@ class NetworkRepository(context: Context) {
         val (nb, http) = DeviceProbe.enrichHostnamesAndFingerprint(device.ip, device.openPorts)
         ensureCurrentNetworkScope(device.networkScope)
         val current = _devices.value.firstOrNull {
-            it.stableId == device.stableId && it.networkScope == device.networkScope
+            it.stableId == device.stableId && it.networkScope == device.networkScope && it.ip == device.ip
         } ?: return
         val hostname = current.hostname.ifBlank { nb }
         val updated = current.copy(
@@ -773,7 +778,7 @@ class NetworkRepository(context: Context) {
         devicesCache[updated.stableId] = updated
         _devices.update { list ->
             list.map {
-                if (it.stableId == device.stableId && it.networkScope == device.networkScope) updated else it
+                if (it.stableId == device.stableId && it.networkScope == device.networkScope && it.ip == device.ip) updated else it
             }
         }
     }
