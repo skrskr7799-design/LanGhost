@@ -104,16 +104,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                 ) { enabled ->
                     viewModel.setWatchMode(enabled)
                     if (enabled) {
-                        if (
-                            settings.notifyNewDevices &&
-                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                            ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.POST_NOTIFICATIONS
-                            ) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        }
                         WatchWorker.start(context)
                     } else {
                         WatchWorker.stop(context)
