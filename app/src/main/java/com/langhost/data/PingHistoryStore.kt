@@ -52,21 +52,31 @@ class PingHistoryStore(private val context: Context) {
             current.add(PingSample(now, latencyMs))
             prefs[currentKey] = serialize(current.takeLast(MAX_SAMPLES_PER_IP))
 
-            val histories = prefs.asMap().entries.mapNotNull { (preferenceKey, value) ->
-                if (preferenceKey.name.startsWith("ping_") && value is String) {
-                    preferenceKey.name to (parse(value).maxOfOrNull { it.timestamp } ?: Long.MIN_VALUE)
+            val historyNames = prefs.asMap().keys
+                .map { it.name }
+                .filter { it.startsWith("ping_") }
+            val histories = mutableMapOf<String, Long>()
+            historyNames.forEach { name ->
+                val historyKey = stringPreferencesKey(name)
+                val freshSamples = parse(prefs[historyKey])
+                    .filter { it.timestamp >= cutoff }
+                    .takeLast(MAX_SAMPLES_PER_IP)
+                if (freshSamples.isEmpty()) {
+                    prefs.remove(historyKey)
                 } else {
-                    null
+                    // Rewrite active histories too, so expired samples are deleted rather than
+                    // merely hidden by historyFlow().
+                    prefs[historyKey] = serialize(freshSamples)
+                    histories[name] = freshSamples.last().timestamp
                 }
             }
             val retainedKeys = retainPingHistoryKeys(
-                histories.toMap(),
+                histories,
                 maxKeys = MAX_TRACKED_IPS,
                 now = now,
                 retentionMs = HISTORY_RETENTION_MS
             )
-            histories.asSequence().map { it.first }
-                .filterNot { it in retainedKeys }
+            histories.keys.filterNot { it in retainedKeys }
                 .forEach { prefs.remove(stringPreferencesKey(it)) }
         }
     }
