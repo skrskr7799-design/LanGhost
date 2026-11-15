@@ -47,14 +47,11 @@ class SettingsViewModel(
 
     val biometricEnabled = lockSettings.biometricEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-    val hideSensitive = lockSettings.hideSensitive
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     fun setWatchMode(enabled: Boolean) = viewModelScope.launch { appSettings.setWatchMode(enabled) }
     fun setNotifyNew(enabled: Boolean) = viewModelScope.launch { appSettings.setNotifyNewDevices(enabled) }
     fun setAutoScan(enabled: Boolean) = viewModelScope.launch { appSettings.setAutoScanOnOpen(enabled) }
     fun setBiometric(v: Boolean) = viewModelScope.launch { lockSettings.setBiometricEnabled(v) }
-    fun setHideSensitive(v: Boolean) = viewModelScope.launch { lockSettings.setHideSensitive(v) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,7 +69,6 @@ fun SettingsScreen(onBack: () -> Unit) {
     )
     val settings by viewModel.settings.collectAsState()
     val biometric by viewModel.biometricEnabled.collectAsState()
-    val hideSensitive by viewModel.hideSensitive.collectAsState()
     val scope = rememberCoroutineScope()
     var biometricError by remember { mutableStateOf<String?>(null) }
 
@@ -163,9 +159,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
                 }
                 biometricError?.let { Text(it, color = Danger, style = MaterialTheme.typography.bodySmall) }
-                SettingsSwitch("Скрывать MAC и IP", "Для скриншотов (режим приватности)", hideSensitive) {
-                    viewModel.setHideSensitive(it)
-                }
             }
 
             SettingsSection("Отчёт") {
