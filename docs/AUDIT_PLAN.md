@@ -105,7 +105,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 These are repository observations, not a complete audit verdict:
 
 - The latest reviewed main commit is c8e13219461fd1488ccbb83b4fa5ab721ba3eb62.
-- The latest observed GitHub Actions run at review time was run #33 (43682690627), which completed with failure. Its job log reports Kotlin compilation errors; the full compiler output must be captured and mapped to the current source before fixes are selected.
+- The baseline GitHub Actions run #33 (43682690627) failed during Kotlin compilation. The compiler output identified invalid named Modifier arguments in LockGate.kt and SecurityScreen.kt. These were corrected on this branch; validation runs #2 (43683564098) and #3 (43683602775) both completed successfully, including Debug APK artifact upload.
 - The repository contains gradle/wrapper/gradle-wrapper.properties, but the recursive tree reviewed did not contain gradlew, gradlew.bat, or gradle/wrapper/gradle-wrapper.jar.
 - The README still describes several features already present in the source tree as roadmap items. Documentation needs reconciliation.
 - Release build/signing and test coverage require a dedicated review; do not infer readiness from the existence of a release build type.
@@ -116,8 +116,10 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 
 | ID | Area | Finding | Severity | Evidence / reproduction | Status |
 |---|---|---|---|---|---|
-| BUILD-001 | Build | Latest observed CI run fails during Kotlin compilation | Blocker | Actions run #33: invalid named argument Modifier in LockGate.kt and SecurityScreen.kt; Compose errors are cascading | Fix committed on audit branch; CI pending |
+| BUILD-001 | Build | Baseline Kotlin compilation failed on invalid Compose named arguments | Blocker | Baseline Actions run #33; corrected LockGate.kt and SecurityScreen.kt; validation runs #2 and #3 succeeded | Resolved on audit branch; verify again after later code changes |
 | BUILD-002 | Build | Gradle Wrapper scripts/JAR absent from reviewed repository tree | High | Recursive tree at baseline commit | Open |
+| BUILD-003 | CI | Legacy build workflow grants contents:write to the whole job and publishes a prerelease on every successful main push | Medium | .github/workflows/build-apk.yml | Open |
+| TEST-001 | Testing | No unit or instrumentation test source files are present in the repository tree | High | Recursive tree contains no app/src/test or app/src/androidTest | Open |
 | NET-001 | Discovery | IPv4 scan builds a /24-style prefix from the first three octets and derives only a host-number range from the netmask | High | NetworkRepository.scanDevices() and hostRangeFromNetmask(); non-/24 networks are not correctly enumerated | Open |
 | NET-002 | Discovery | Host probes are launched for the full range without an explicit concurrency limit | Medium | NetworkRepository.discoverHosts() creates one IO coroutine per candidate host | Open |
 | NET-003 | Network info | Wi-Fi connection data uses deprecated WifiManager.connectionInfo and reports security from Android version rather than negotiated network security | Medium | NetworkRepository.refreshNetworkInfo() | Open |
