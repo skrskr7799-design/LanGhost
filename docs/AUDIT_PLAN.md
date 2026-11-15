@@ -116,8 +116,17 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 
 | ID | Area | Finding | Severity | Evidence / reproduction | Status |
 |---|---|---|---|---|---|
-| BUILD-001 | Build | Latest observed CI run fails during Kotlin compilation | Blocker | Actions run #33; capture complete diagnostics and verify against current HEAD | Open |
+| BUILD-001 | Build | Latest observed CI run fails during Kotlin compilation | Blocker | Actions run #33: invalid named argument Modifier in LockGate.kt and SecurityScreen.kt; Compose errors are cascading | Fix committed on audit branch; CI pending |
 | BUILD-002 | Build | Gradle Wrapper scripts/JAR absent from reviewed repository tree | High | Recursive tree at baseline commit | Open |
+| NET-001 | Discovery | IPv4 scan builds a /24-style prefix from the first three octets and derives only a host-number range from the netmask | High | NetworkRepository.scanDevices() and hostRangeFromNetmask(); non-/24 networks are not correctly enumerated | Open |
+| NET-002 | Discovery | Host probes are launched for the full range without an explicit concurrency limit | Medium | NetworkRepository.discoverHosts() creates one IO coroutine per candidate host | Open |
+| NET-003 | Network info | Wi-Fi connection data uses deprecated WifiManager.connectionInfo and reports security from Android version rather than negotiated network security | Medium | NetworkRepository.refreshNetworkInfo() | Open |
+| SEC-001 | Security audit | SecurityScreen receives an empty nearby Wi-Fi list from current navigation, so same-SSID BSSID analysis has no input | High | SecurityScreen default nearbyNetworks = emptyList(); NavHost invokes SecurityScreen without argument | Open |
+| SEC-002 | Security score | A clean score can be shown without proving that device port checks or Wi-Fi checks were completed | High | SecurityAudit.analyze() derives score only from findings and does not model scan coverage | Open |
+| DATA-001 | Fingerprinting | HTTP response body is read fully before extracting the title, without a byte limit | Medium | DeviceProbe.httpFingerprint() uses readText() | Open |
+| DATA-002 | Change tracking | ScanDiff keeps one process-global previous map, not persisted or scoped to a network | Medium | ScanDiff.previous | Open |
+| DATA-003 | Widget | Widget scan starts a coroutine from BroadcastReceiver without goAsync() or a durable work handoff | Medium | ScanWidgetProvider.onReceive() | Open |
+| DATA-004 | Export | CSV fields are quoted but embedded double quotes are not escaped | Medium | ExportHelper.exportDevicesAsCsv() | Open |
 | DOC-001 | Docs | README feature list and roadmap are stale relative to source tree | Low | Compare README with current modules/screens | Open |
 
 ## Definition of done
