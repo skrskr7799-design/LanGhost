@@ -96,10 +96,17 @@ fun ChannelAnalyzerScreen(onBack: () -> Unit) {
             item {
                 Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Рекомендация", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                        Text("Анализ радиоэфира", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                         Text(advice.recommendation, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                        Text(
+                            "Оценка учитывает обнаруженные точки доступа и уровень их сигнала. Поддержка каналов зависит от региона и роутера.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextTertiary
+                        )
                         if (networks.isEmpty()) {
                             TextButton(onClick = { scan() }) { Text("Сканировать эфир") }
+                        } else {
+                            Text("${networks.size} обнаруженных сетей", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
                         }
                     }
                 }
@@ -112,10 +119,19 @@ fun ChannelAnalyzerScreen(onBack: () -> Unit) {
                 }
             }
 
-            if (advice.band5.isNotEmpty()) {
-                item { Text("5 ГГц", style = MaterialTheme.typography.titleMedium, color = TextSecondary) }
-                items(advice.band5) { load ->
+            val visible5 = advice.band5.filter { it.networkCount > 0 || it.channel == advice.best5 }
+            if (visible5.isNotEmpty()) {
+                item { Text("5 ГГц · обнаруженные и рекомендуемый", style = MaterialTheme.typography.titleMedium, color = TextSecondary) }
+                items(visible5) { load ->
                     ChannelBar(load, advice.best5 == load.channel)
+                }
+            }
+
+            val visible6 = advice.band6.filter { it.networkCount > 0 || it.channel == advice.best6 }
+            if (visible6.isNotEmpty()) {
+                item { Text("6 ГГц · обнаруженные и рекомендуемый", style = MaterialTheme.typography.titleMedium, color = TextSecondary) }
+                items(visible6) { load ->
+                    ChannelBar(load, advice.best6 == load.channel)
                 }
             }
         }
