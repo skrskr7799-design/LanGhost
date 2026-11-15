@@ -47,6 +47,8 @@ class NetworkRepository(context: Context) {
     private val connectivityManager = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
     private val wifiInfoByNetwork = ConcurrentHashMap<Network, WifiInfo>()
+    private val networkStateLock = Any()
+    @Volatile private var publishedActiveNetwork: Network? = null
     private val wifiNetworkCallback = createWifiNetworkCallback()
     private val devicePreferences = DevicePreferences(appContext)
 
@@ -154,7 +156,7 @@ class NetworkRepository(context: Context) {
         try {
             val network = connectivityManager.activeNetwork
             if (network == null) {
-                publishNetworkInfo(NetworkInfo())
+                publishNetworkInfo(NetworkInfo(), null)
                 return
             }
 
@@ -225,7 +227,7 @@ class NetworkRepository(context: Context) {
                 interfaceName = linkProperties.interfaceName.orEmpty(),
                 isConnected = localAddress != null && (isWifi ||
                     capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
-            ))
+            ), network)
         } catch (_: Exception) {
             publishNetworkInfo(NetworkInfo())
         }
@@ -256,26 +258,45 @@ class NetworkRepository(context: Context) {
         }
     }
 
-    private fun publishNetworkInfo(next: NetworkInfo) {
-        val previousScope = networkScope(_networkInfo.value)
-        val nextScope = networkScope(next)
-        if (previousScope != nextScope) {
-            // Do not carry device, port, or nearby-AP evidence across logical networks.
-            // Device customizations live in DataStore; the in-memory cache is scoped and bounded
-            // to the active network so moving between many networks cannot grow it indefinitely.
-            devicesCache.entries.removeAll { it.value.networkScope != nextScope }
-            _devices.value = emptyList()
-            _lastDiff.value = null
-            _lastScanTime.value = 0L
-            _scanCoverage.value = ScanCoverage()
-            _securityPortsScanCompleted.value = false
-            _securityPortsScanTime.value = 0L
-            _nearbyNetworks.value = emptyList()
-            _nearbyScanCompleted.value = false
-            _nearbyScanTime.value = 0L
+    private fun publishNetworkInfo(next: NetworkInfo, activeNetwork: Network?) {
+        synchronized(networkStateLock) {
+            val previousScope = networkScope(_networkInfo.value)
+            val nextScope = networkScope(next)
+            if (previousScope != nextScope) {
+                // Do not carry device, port, or nearby-AP evidence across logical networks.
+                // Device customizations live in DataStore; the in-memory cache is scoped and bounded
+                // to the active network so moving between many networks cannot grow it indefinitely.
+                devicesCache.entries.removeAll { it.value.networkScope != nextScope }
+                _devices.value = emptyList()
+                _lastDiff.value = null
+                _lastScanTime.value = 0L
+                _scanCoverage.value = ScanCoverage()
+                _securityPortsScanCompleted.value = false
+                _securityPortsScanTime.value = 0L
+                _nearbyNetworks.value = emptyList()
+                _nearbyScanCompleted.value = false
+                _nearbyScanTime.value = 0L
+            }
+            publishedActiveNetwork = activeNetwork
+            _networkInfo.value = next
         }
-        _networkInfo.value = next
     }
+
+    /**
+     * Serializes evidence commits with network publication and verifies Android's
+     * current default Network as well as the logical scope. This closes the window
+     * where a callback is queued but an old scan publishes against the old snapshot.
+     */
+    private inline fun commitIfCurrentNetwork(expectedScope: String, action: () -> Unit): Boolean =
+        synchronized(networkStateLock) {
+            val activeNetwork = connectivityManager.activeNetwork
+            if (activeNetwork != publishedActiveNetwork || currentNetworkScope() != expectedScope) {
+                false
+            } else {
+                action()
+                true
+            }
+        }
 
     @SuppressLint("MissingPermission")
     suspend fun scanNearbyNetworks(): List<WifiNetwork> = withContext(Dispatchers.IO) {
@@ -356,11 +377,15 @@ class NetworkRepository(context: Context) {
         if (currentNetworkScope() != scanScope) return@withContext emptyList()
 
         val completedAt = System.currentTimeMillis()
-        _nearbyNetworks.value = mapped
-        if (batch.updated) _nearbyScanTime.value = completedAt
-        _nearbyScanCompleted.value = batch.updated ||
-            (_nearbyScanTime.value > 0L && completedAt - _nearbyScanTime.value <= NEARBY_SCAN_FRESHNESS_MS)
-        mapped
+        val committed = scanScope?.let { expected ->
+            commitIfCurrentNetwork(expected) {
+                _nearbyNetworks.value = mapped
+                if (batch.updated) _nearbyScanTime.value = completedAt
+                _nearbyScanCompleted.value = batch.updated ||
+                    (_nearbyScanTime.value > 0L && completedAt - _nearbyScanTime.value <= NEARBY_SCAN_FRESHNESS_MS)
+            }
+        } ?: false
+        if (committed) mapped else emptyList()
     }
 
     private data class WifiScanBatch(
@@ -529,11 +554,7 @@ class NetworkRepository(context: Context) {
                     isRandomMac = randomMac,
                     tags = existing?.tags ?: emptyList(),
                     auditedPorts = existing?.auditedPorts ?: emptyList()
-                ).also { device ->
-                    // A switch can happen while a batch is in flight; never reinsert old-scope
-                    // entries after publishNetworkInfo() has pruned the cache.
-                    if (currentNetworkScope() == networkScope) devicesCache[device.stableId] = device
-                }
+                )
             }
 
             val onlineIds = onlineDevices.map { it.stableId }.toSet()
@@ -552,11 +573,13 @@ class NetworkRepository(context: Context) {
             )
 
             refreshNetworkInfo()
-            if (currentNetworkScope() != networkScope) return@withContext
-
-            _lastDiff.value = ScanDiff.updateAndDiff(result, networkScope)
-            _devices.value = result
-            _lastScanTime.value = now
+            val committed = commitIfCurrentNetwork(networkScope) {
+                _lastDiff.value = ScanDiff.updateAndDiff(result, networkScope)
+                _devices.value = result
+                _lastScanTime.value = now
+                onlineDevices.forEach { devicesCache[it.stableId] = it }
+            }
+            if (!committed) return@withContext
             devicePreferences.saveKnownIds(onlineDevices.map { it.stableId })
 
             onlineDevices.forEach { d ->
@@ -573,7 +596,7 @@ class NetworkRepository(context: Context) {
             }
             // Cancelled or failed discovery must not be presented as completed security evidence.
             refreshNetworkInfo()
-            if (currentNetworkScope() == networkScope) {
+            commitIfCurrentNetwork(networkScope) {
                 _scanCoverage.value = completedCoverage.copy(scannedAt = System.currentTimeMillis())
             }
         } finally {
@@ -667,26 +690,28 @@ class NetworkRepository(context: Context) {
 
             // A network switch during the port scan invalidates its results.
             refreshNetworkInfo()
-            if (currentNetworkScope() != scanScope) return@withContext 0
-
             val scannedById = scanned.associateBy { it.stableId }
-            // Merge only the dedicated audit result into the latest device snapshots. A manual
-            // detail scan, DHCP address change or customization may have updated the device
-            // while this scan ran; endpoint identity must still match before evidence is attached.
-            _devices.update { current ->
-                current.map { device ->
-                    val scannedDevice = scannedById[device.stableId]
-                    if (scannedDevice != null && device.hasSameEndpointAs(scannedDevice)) {
-                        device.copy(auditedPorts = scannedDevice.auditedPorts)
-                    } else device
+            var auditedPortCount = 0
+            val committed = commitIfCurrentNetwork(scanScope) {
+                // Merge only the dedicated audit result into the latest device snapshots. A manual
+                // detail scan, DHCP address change or customization may have updated the device
+                // while this scan ran; endpoint identity must still match before evidence is attached.
+                _devices.update { current ->
+                    current.map { device ->
+                        val scannedDevice = scannedById[device.stableId]
+                        if (scannedDevice != null && device.hasSameEndpointAs(scannedDevice)) {
+                            device.copy(auditedPorts = scannedDevice.auditedPorts)
+                        } else device
+                    }
                 }
+                _devices.value.filter { it.networkScope == scanScope }.forEach { device ->
+                    devicesCache[device.stableId] = device
+                }
+                _securityPortsScanCompleted.value = true
+                _securityPortsScanTime.value = System.currentTimeMillis()
+                auditedPortCount = scanned.sumOf { it.auditedPorts.size }
             }
-            _devices.value.filter { it.networkScope == scanScope }.forEach { device ->
-                devicesCache[device.stableId] = device
-            }
-            _securityPortsScanCompleted.value = true
-            _securityPortsScanTime.value = System.currentTimeMillis()
-            scanned.sumOf { it.auditedPorts.size }
+            if (committed) auditedPortCount else 0
         } finally {
             _isSecurityScanning.value = false
             securityPortsScanMutex.unlock()
@@ -748,15 +773,19 @@ class NetworkRepository(context: Context) {
         ports: List<Int>
     ) {
         ensureCurrentNetworkScope(expectedScope)
-        val current = _devices.value.firstOrNull {
-            it.stableId == stableId && it.networkScope == expectedScope && it.ip == expectedIp
-        } ?: return
-        val updated = current.withUpdatedPorts(ports)
-        devicesCache[updated.stableId] = updated
-        _devices.update { list ->
-            list.map { if (it.stableId == stableId && it.networkScope == expectedScope) updated else it }
+        var updated: Device? = null
+        val committed = commitIfCurrentNetwork(expectedScope) {
+            val current = _devices.value.firstOrNull {
+                it.stableId == stableId && it.networkScope == expectedScope && it.ip == expectedIp
+            } ?: return@commitIfCurrentNetwork
+            val next = current.withUpdatedPorts(ports)
+            devicesCache[next.stableId] = next
+            _devices.update { list ->
+                list.map { if (it.hasSameEndpointAs(next)) next else it }
+            }
+            updated = next
         }
-        enrichDevice(updated)
+        if (committed) updated?.let { enrichDevice(it) }
     }
 
     /** Enrichment results are committed only if the originating network/device is still current. */
@@ -764,18 +793,20 @@ class NetworkRepository(context: Context) {
         ensureCurrentNetworkScope(device.networkScope)
         val (nb, http) = DeviceProbe.enrichHostnamesAndFingerprint(device.ip, device.openPorts)
         ensureCurrentNetworkScope(device.networkScope)
-        val current = _devices.value.firstOrNull { device.hasSameEndpointAs(it) } ?: return
-        val hostname = current.hostname.ifBlank { nb }
-        val updated = current.copy(
-            hostname = hostname,
-            httpFingerprint = http.ifBlank { current.httpFingerprint },
-            osGuess = Device.guessOs(current.openPorts, current.vendor, hostname),
-            deviceType = Device.guessType(current.openPorts, current.vendor, hostname, current.isGateway)
-        )
-        devicesCache[updated.stableId] = updated
-        _devices.update { list ->
-            list.map {
-                if (device.hasSameEndpointAs(it)) updated else it
+        commitIfCurrentNetwork(device.networkScope) {
+            val current = _devices.value.firstOrNull { device.hasSameEndpointAs(it) } ?: return@commitIfCurrentNetwork
+            val hostname = current.hostname.ifBlank { nb }
+            val updated = current.copy(
+                hostname = hostname,
+                httpFingerprint = http.ifBlank { current.httpFingerprint },
+                osGuess = Device.guessOs(current.openPorts, current.vendor, hostname),
+                deviceType = Device.guessType(current.openPorts, current.vendor, hostname, current.isGateway)
+            )
+            devicesCache[updated.stableId] = updated
+            _devices.update { list ->
+                list.map {
+                    if (device.hasSameEndpointAs(it)) updated else it
+                }
             }
         }
     }
@@ -795,19 +826,18 @@ class NetworkRepository(context: Context) {
         if (target == null || expectedScope == null) return
 
         refreshNetworkInfo()
-        if (currentNetworkScope() != expectedScope) return
-        _devices.update { list ->
-            list.map { device ->
-                if (device.stableId == stableId && device.networkScope == expectedScope &&
-                    currentNetworkScope() == expectedScope
-                ) {
-                    device.copy(
-                        nickname = customization.nickname,
-                        notes = customization.notes,
-                        isFavorite = customization.isFavorite,
-                        isWatched = customization.isWatched
-                    ).also { devicesCache[it.stableId] = it }
-                } else device
+        commitIfCurrentNetwork(expectedScope) {
+            _devices.update { list ->
+                list.map { device ->
+                    if (device.stableId == stableId && device.networkScope == expectedScope) {
+                        device.copy(
+                            nickname = customization.nickname,
+                            notes = customization.notes,
+                            isFavorite = customization.isFavorite,
+                            isWatched = customization.isWatched
+                        ).also { devicesCache[it.stableId] = it }
+                    } else device
+                }
             }
         }
     }
