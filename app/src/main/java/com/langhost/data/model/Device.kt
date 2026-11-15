@@ -22,6 +22,7 @@ data class Device(
     val isFavorite: Boolean = false,
     val isWatched: Boolean = false,
     val networkBssid: String = "",
+    val networkScope: String = "",
     val deviceType: DeviceType = DeviceType.UNKNOWN,
     val httpFingerprint: String = "",
     val isRandomMac: Boolean = false
@@ -39,9 +40,10 @@ data class Device(
 
     val stableId: String
         get() = when {
-            mac.isNotBlank() && networkBssid.isNotBlank() && networkBssid != "—" ->
-                "${mac.uppercase()}@${networkBssid.uppercase()}"
+            mac.isNotBlank() && networkScope.isNotBlank() ->
+                "${mac.uppercase()}@${networkScope}"
             mac.isNotBlank() -> mac.uppercase()
+            networkScope.isNotBlank() -> "ip:${networkScope}:$ip"
             else -> "ip:$ip"
         }
 

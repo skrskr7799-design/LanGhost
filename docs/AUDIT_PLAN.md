@@ -4,7 +4,7 @@
 > Baseline branch: main  
 > Baseline commit reviewed: c8e13219461fd1488ccbb83b4fa5ab721ba3eb62  
 > Working branch: work/foundation-stabilization
-> Latest implementation commit: 8b76487a7ff1d647a7960e8f87c86871a4a6a4ed
+> Latest implementation commit: 1085a7653e219d820b9695b4fd5fa7b7fc0eeedd
 
 ## Project direction
 
@@ -28,7 +28,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 ### Phase 1 — Build and project foundation
 - [x] Reproduce the baseline APK build failure and capture the compiler output; the invalid Compose Modifier arguments were identified and corrected on this branch.
 - [x] Restore the Gradle Wrapper (gradlew, gradlew.bat, wrapper JAR and properties); verify it in GitHub Actions.
-- [x] Verify the project with JDK 17, Android SDK 35, Gradle 8.9, Android Lint and unit-test tasks in CI. Final Release verification for the latest commit is still running.
+- [x] Verify the project with JDK 17, Android SDK 35, Gradle 8.9, Android Lint and unit-test tasks in CI. Latest CI run completed successfully: lint, unit tests, Debug and Release APK.
 - [x] Correct the confirmed baseline compile errors.
 - [x] Replace the legacy workflow with branch/PR validation and tagged-release workflows; install Android command-line tools explicitly and upload Debug/Release APK artifacts.
 - [x] Separate pull-request/branch validation from tagged release publication.
@@ -36,13 +36,13 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [x] Add baseline Android Lint and JUnit test tasks.
 
 ### Phase 2 — Network engine
-- [ ] Audit subnet/CIDR calculation, IPv4 edge cases and IPv6 support strategy.
+- [x] Implement IPv4 CIDR calculation, contiguous-mask validation, /31 and /32 handling, bounded host enumeration; IPv6 strategy remains open.
 - [ ] Review discovery methods (ARP, ICMP, TCP/UDP probes), timeouts, cancellation and false negatives.
-- [ ] Bound concurrency, sockets, retries, scan duration and memory use.
-- [ ] Review device identity, MAC randomization, duplicate merging and multi-AP/mesh behavior.
+- [x] Bound discovery candidates to 1,024 and concurrent host probes to 32; cancellation/retry/socket lifecycle review remains open.
+- [x] Scope device identities to a hashed logical network key (SSID + gateway + subnet), not BSSID; preserve legacy customizations and isolate scan diffs by network. Random-MAC rotation still cannot be correlated reliably.
 - [ ] Validate port scanning, service identification and banner/fingerprint handling.
-- [ ] Make scan coverage and confidence visible to users.
-- [ ] Test across different routers, subnet sizes, Android versions and network conditions.
+- [x] Show checked/total IPv4 addresses, subnet and truncation warning; physical-device validation remains open.
+- [ ] Test across different routers, subnet sizes, Android versions and network conditions (including mesh roaming and MAC randomization).
 
 ### Phase 3 — Security, privacy and permissions
 - [ ] Audit manifest permissions and request each permission only when needed.
@@ -75,7 +75,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [ ] Verify contrast, touch targets, TalkBack semantics and localization.
 
 ### Phase 6 — Automated and device testing
-- [x] Add initial unit tests for pure network calculations, identity merging, scoring and diff logic (19 tests currently authored; latest CIDR additions await CI confirmation).
+- [x] Add initial unit tests for pure network calculations, identity merging, scoring and diff logic (26+ tests authored across model, CIDR, scan coverage, Wi-Fi channel and network identity; latest CI confirmation pending).
 - [ ] Add repository/integration tests for persistence, scanning orchestration and failure cases.
 - [ ] Add Compose UI tests for critical flows and permission states.
 - [ ] Run Android Lint and dependency/security checks in CI.
@@ -121,13 +121,13 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | BUILD-002 | Build | Gradle Wrapper scripts/JAR absent from reviewed repository tree | High | Recursive tree at baseline commit; official Wrapper files and Gradle 8.9 distribution checksum added and verified in CI | Resolved on working branch; main unchanged |
 | BUILD-003 | CI | Legacy build workflow grants contents:write to the whole job and publishes a prerelease on every successful main push | Medium | Replaced with branch/PR build workflow and tag-only release workflow; verify permissions and release behavior during final CI review | Resolved on working branch; main unchanged |
 | TEST-001 | Testing | No unit or instrumentation test source files are present in the repository tree | High | Added 19 JUnit tests across Device, NetworkInfo, ChannelAnalyzer, SecurityAudit, ScanDiff and Ipv4Subnet; 13 passed in the preceding CI run, 6 new CIDR tests await latest CI | Partially resolved on working branch; CI confirmation pending |
-| NET-001 | Discovery | IPv4 scan builds a /24-style prefix from the first three octets and derives only a host-number range from the netmask | High | Replaced with Ipv4Subnet: contiguous-mask validation, unsigned IPv4 arithmetic, network/broadcast boundaries, /31 and /32 handling, prioritized bounded host enumeration; six unit tests added | Implemented on working branch; latest CI and physical-network validation pending |
-| NET-002 | Discovery | Host probes are launched for the full range without an explicit concurrency limit | Medium | NetworkRepository.discoverHosts() now processes candidates in batches of 32; total active-discovery candidate cap is 1,024 per scan | Implemented on working branch; latest CI and device validation pending |
-| NET-003 | Network info | Wi-Fi connection data uses deprecated WifiManager.connectionInfo and reports security from Android version rather than negotiated network security | Medium | NetworkRepository.refreshNetworkInfo() | Open |
+| NET-001 | Discovery | IPv4 scan built a /24-style prefix from the first three octets | High | Ipv4Subnet validates masks and handles unsigned IPv4, /31, /32 and bounded enumeration | Implemented; physical-network validation pending |
+| NET-002 | Discovery | Host probes were launched without explicit concurrency limit | Medium | Candidate cap 1,024 and batches of 32 concurrent probes | Implemented; device validation pending |
+| NET-003 | Network info | Wi-Fi connection data used deprecated WifiManager.connectionInfo and inferred security from Android version | Medium | Migrated to ConnectivityManager/LinkProperties and WifiInfo.currentSecurityType where available, with location-aware callback on API 31+ | Implemented on branch; physical-device validation pending |
 | SEC-001 | Security audit | SecurityScreen receives an empty nearby Wi-Fi list from current navigation, so same-SSID BSSID analysis has no input | High | SecurityScreen default nearbyNetworks = emptyList(); NavHost invokes SecurityScreen without argument | Open |
 | SEC-002 | Security score | A clean score can be shown without proving that device port checks or Wi-Fi checks were completed | High | SecurityAudit.analyze() derives score only from findings and does not model scan coverage | Open |
 | DATA-001 | Fingerprinting | HTTP response body is read fully before extracting the title, without a byte limit | Medium | DeviceProbe.httpFingerprint() uses readText() | Open |
-| DATA-002 | Change tracking | ScanDiff keeps one process-global previous map, not persisted or scoped to a network | Medium | ScanDiff.previous | Open |
+| DATA-002 | Change tracking | ScanDiff kept one process-global previous map, not scoped to a network | Medium | ScanDiff now stores bounded per-network snapshots; switching networks no longer emits false disappearance events | Implemented on branch; regression tests added |
 | DATA-003 | Widget | Widget scan starts a coroutine from BroadcastReceiver without goAsync() or a durable work handoff | Medium | ScanWidgetProvider.onReceive() | Open |
 | DATA-004 | Export | CSV fields are quoted but embedded double quotes are not escaped | Medium | ExportHelper.exportDevicesAsCsv() | Open |
 | NET-004 | Wi-Fi scan | Nearby-network and channel scans can suspend indefinitely if startScan succeeds but the results broadcast never arrives | High | scanNearbyNetworks() and scanWifi() use suspendCancellableCoroutine without a timeout around the broadcast wait | Open |
@@ -136,9 +136,9 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | UI-002 | Design | Dashboard is a long stack of action rows; theme is dark-only and screens mostly use repeated generic cards | Medium | DashboardScreen.kt, Theme.kt and screen implementations | Open |
 | SEC-003 | Security heuristics | Same SSID on another BSSID is classified as an Evil Twin without considering mesh/roaming or matching security configuration | High | SecurityAudit.analyze() flags every different BSSID with the current SSID | Open |
 | SEC-004 | Security scoring | Current Wi-Fi encryption is not included in the security score/findings | High | SecurityAudit.analyze() receives SSID/BSSID and nearby list, but not the current network security mode | Open |
-| DATA-005 | Persistence | Known device IDs are only ever added to a DataStore set and are never pruned | Medium | DevicePreferences.saveKnownIds() unions new IDs with all previous IDs | Open |
+| DATA-005 | Persistence | Known device IDs are only ever added to a DataStore set and are never pruned | Medium | Still accumulates; retention/pruning policy remains open | Open |
 | DATA-006 | Persistence | Ping history is capped per IP, but old per-IP DataStore keys have no retention/cleanup policy | Low | PingHistoryStore.addSample() caps sample count but never removes unused keys | Open |
-| MODEL-001 | Classification | Randomized/local MAC detection misses locally administered addresses whose low nibble is odd | Low | Device.isRandomMacAddress() checks only 2, 6, A, E rather than testing bit 1 | Open |
+| MODEL-001 | Classification | Randomized/local MAC detection missed locally administered addresses whose low nibble is odd | Low | Device.isRandomMacAddress() now tests the IEEE U/L bit directly | Resolved on branch; tests added |
 | UI-003 | Lock UX | Biometric lock can be enabled without checking authenticator availability or handling prompt errors/cancellation with a recovery path | Medium | SettingsScreen toggles boolean directly; LockGate callback only handles success | Open |
 | DOC-001 | Docs | README feature list and roadmap are stale relative to source tree | Low | Compare README with current modules/screens | Open |
 

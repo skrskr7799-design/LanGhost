@@ -31,6 +31,20 @@ class ScanDiffTest {
     }
 
     @Test
+    fun keepsSnapshotsSeparateAcrossNetworks() {
+        val home = Device(ip = "192.168.1.10", mac = "aa:bb:cc:dd:ee:ff", networkScope = "home", lastSeen = System.currentTimeMillis())
+        val office = Device(ip = "192.168.1.10", mac = "aa:bb:cc:dd:ee:ff", networkScope = "office", lastSeen = System.currentTimeMillis())
+
+        ScanDiff.updateAndDiff(listOf(home), "home")
+        ScanDiff.updateAndDiff(listOf(office), "office")
+
+        val homeAgain = ScanDiff.updateAndDiff(listOf(home.copy(openPorts = listOf(80))), "home")
+        assertEquals(emptyList<Device>(), homeAgain.appeared)
+        assertEquals(emptyList<Device>(), homeAgain.disappeared)
+        assertEquals(1, homeAgain.portsChanged.size)
+    }
+
+    @Test
     fun detectsDevicesMissingFromTheNextScan() {
         val device = Device(ip = "192.168.1.11", lastSeen = System.currentTimeMillis())
         ScanDiff.updateAndDiff(listOf(device))

@@ -24,7 +24,7 @@ data class DeviceCustomization(
 
 class DevicePreferences(private val context: Context) {
 
-    /** Key by stableId (MAC@BSSID or MAC or ip:x) */
+    /** Key by network-scoped stable device identity. */
     private fun key(stableId: String) = stringPreferencesKey("dev_${stableId.replace(':', '_').replace('@', '_')}")
     private val KEY_KNOWN_IDS = stringSetPreferencesKey("known_stable_ids")
 
@@ -35,9 +35,15 @@ class DevicePreferences(private val context: Context) {
         }
     }
 
-    suspend fun getCustomizationOnce(stableId: String): DeviceCustomization {
+    suspend fun getCustomizationOnce(
+        stableId: String,
+        legacyIds: List<String> = emptyList()
+    ): DeviceCustomization {
         return try {
-            getCustomization(stableId).first()
+            val preferences = context.deviceDataStore.data.first()
+            (listOf(stableId) + legacyIds).firstNotNullOfOrNull { id ->
+                preferences[key(id)]?.let(::parseCustomization)
+            } ?: DeviceCustomization()
         } catch (_: Exception) {
             DeviceCustomization()
         }

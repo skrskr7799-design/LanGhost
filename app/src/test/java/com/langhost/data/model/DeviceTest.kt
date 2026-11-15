@@ -8,20 +8,20 @@ import org.junit.Test
 class DeviceTest {
 
     @Test
-    fun stableIdUsesMacAndNetworkIdentity() {
-        val device = Device(
-            ip = "192.168.1.20",
-            mac = "aa:bb:cc:dd:ee:ff",
-            networkBssid = "11:22:33:44:55:66"
-        )
+    fun stableIdUsesMacAndLogicalNetworkNotAccessPoint() {
+        val firstAp = Device(ip = "192.168.1.20", mac = "aa:bb:cc:dd:ee:ff", networkBssid = "11:22:33:44:55:66", networkScope = "lan-a")
+        val secondAp = firstAp.copy(networkBssid = "22:33:44:55:66:77")
 
-        assertEquals("AA:BB:CC:DD:EE:FF@11:22:33:44:55:66", device.stableId)
+        assertEquals("AA:BB:CC:DD:EE:FF@lan-a", firstAp.stableId)
+        assertEquals(firstAp.stableId, secondAp.stableId)
     }
 
     @Test
-    fun stableIdFallsBackToMacThenIp() {
+    fun stableIdScopesMacAndIpToNetworkWhenAvailable() {
         assertEquals("AA:BB:CC:DD:EE:FF", Device(ip = "192.168.1.20", mac = "aa:bb:cc:dd:ee:ff").stableId)
+        assertEquals("AA:BB:CC:DD:EE:FF@lan-a", Device(ip = "192.168.1.20", mac = "aa:bb:cc:dd:ee:ff", networkScope = "lan-a").stableId)
         assertEquals("ip:192.168.1.20", Device(ip = "192.168.1.20").stableId)
+        assertEquals("ip:lan-a:192.168.1.20", Device(ip = "192.168.1.20", networkScope = "lan-a").stableId)
     }
 
     @Test

@@ -242,6 +242,12 @@ class NetworkRepository(context: Context) {
             val localIp = networkInfo.ipAddress
             val gateway = networkInfo.gateway
             val bssid = networkInfo.bssid
+            val networkScope = NetworkIdentity.scopeId(
+                ssid = networkInfo.ssid,
+                gateway = gateway,
+                ipAddress = localIp,
+                netmask = networkInfo.netmask
+            )
             val subnet = runCatching {
                 Ipv4Subnet.fromAddressAndNetmask(localIp, networkInfo.netmask)
             }.getOrNull()
@@ -269,15 +275,19 @@ class NetworkRepository(context: Context) {
                     async {
                         val mac = arpDevices[ip] ?: ""
                         val randomMac = Device.isRandomMacAddress(mac)
-                        val tempId = when {
-                            mac.isNotBlank() && bssid.isNotBlank() && bssid != "—" ->
-                                "${mac.uppercase()}@${bssid.uppercase()}"
-                            mac.isNotBlank() -> mac.uppercase()
-                            else -> "ip:$ip"
+                        val stableId = when {
+                            mac.isNotBlank() -> "${mac.uppercase()}@${networkScope}"
+                            else -> "ip:${networkScope}:$ip"
                         }
-                        val saved = devicePreferences.getCustomizationOnce(tempId)
-                        val savedMac = if (mac.isNotBlank()) devicePreferences.getCustomizationOnce(mac.uppercase()) else DeviceCustomization()
-                        val existing = devicesCache[tempId]
+                        val legacyIds = buildList {
+                            if (mac.isNotBlank() && bssid.isNotBlank() && bssid != "—") {
+                                add("${mac.uppercase()}@${bssid.uppercase()}")
+                            }
+                            if (mac.isNotBlank()) add(mac.uppercase())
+                            add("ip:$ip")
+                        }
+                        val saved = devicePreferences.getCustomizationOnce(stableId, legacyIds)
+                        val existing = devicesCache[stableId]
                         val firstSeen = when {
                             saved.firstSeen > 0 -> saved.firstSeen
                             existing != null && existing.firstSeen > 0 -> existing.firstSeen
@@ -310,6 +320,7 @@ class NetworkRepository(context: Context) {
                             isFavorite = saved.isFavorite || savedMac.isFavorite || (existing?.isFavorite == true),
                             isWatched = saved.isWatched || savedMac.isWatched || (existing?.isWatched == true),
                             networkBssid = bssid,
+                            networkScope = networkScope,
                             deviceType = type,
                             httpFingerprint = existing?.httpFingerprint ?: "",
                             isRandomMac = randomMac,
@@ -322,7 +333,7 @@ class NetworkRepository(context: Context) {
             val onlineIds = onlineDevices.map { it.stableId }.toSet()
             val offlineKept = devicesCache.values.filter { dev ->
                 dev.stableId !in onlineIds &&
-                    (dev.networkBssid == bssid || dev.networkBssid.isBlank()) &&
+                    dev.networkScope == networkScope &&
                     (now - dev.lastSeen) < 24 * 60 * 60 * 1000
             }
 
@@ -334,7 +345,7 @@ class NetworkRepository(context: Context) {
                     .thenBy { it.ip }
             )
 
-            _lastDiff.value = ScanDiff.updateAndDiff(result)
+            _lastDiff.value = ScanDiff.updateAndDiff(result, networkScope)
             _devices.value = result
             _lastScanTime.value = now
             devicePreferences.saveKnownIds(onlineDevices.map { it.stableId })
