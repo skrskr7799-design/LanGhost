@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,8 +22,6 @@ import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Radar
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -353,7 +350,7 @@ private fun TopologyGraph(
                         color = android.graphics.Color.rgb(225, 233, 245)
                         textSize = 11.dp.toPx()
                         textAlign = AndroidPaint.Align.CENTER
-                        typeface = AndroidPaint.createDefault().typeface
+                        typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
                     }
                     val label = if (isGateway) "Шлюз" else device.displayName.take(15)
                     drawContext.canvas.nativeCanvas.drawText(
