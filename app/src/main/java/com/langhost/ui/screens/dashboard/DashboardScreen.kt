@@ -146,13 +146,13 @@ fun DashboardScreen(
     Card(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface, disabledContainerColor = Surface.copy(alpha = 0.6f)), shape = RoundedCornerShape(12.dp)) {
         Row(modifier = Modifier.padding(14.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Box(modifier = Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(Primary.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
-                Icon(icon, null co, tint = Primary)
+                Icon(icon, contentDescription = null, tint = Primary)
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
             }
-            Icon(Icons.Default.ChevronRight, null, tint = TextTertiary)
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextTertiary)
         }
     }
 }
