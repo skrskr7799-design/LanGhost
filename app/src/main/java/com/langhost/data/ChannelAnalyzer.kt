@@ -63,8 +63,8 @@ object ChannelAnalyzer {
             load(channel, "6", observed, center, 0)
         }.sortedBy { it.score }
 
-        val best24 = band24.minByOrNull { it.score }?.channel
-        val best5 = band5.minByOrNull { it.score }?.channel
+        val best24 = if (g24.isNotEmpty()) band24.minByOrNull { it.score }?.channel else null
+        val best5 = if (g5.isNotEmpty()) band5.minByOrNull { it.score }?.channel else null
         val best6 = if (g6.isNotEmpty()) band6.minByOrNull { it.score }?.channel else null
 
         val recommendation = buildList {
@@ -72,7 +72,7 @@ object ChannelAnalyzer {
             if (best5 != null && g5.isNotEmpty()) add("5 ГГц: среди проверенных каналов свободнее $best5")
             if (best6 != null) add("6 ГГц: среди проверенных каналов свободнее $best6")
             if (currentChannel > 0) add("Сейчас используется канал $currentChannel")
-            if (isEmpty()) add("Недостаточно данных. Просканируйте соседние сети")
+            if (isEmpty()) add("Недостаточно данных для рекомендации. Просканируйте соседние сети")
         }.joinToString(". ")
 
         return ChannelAdvice(
