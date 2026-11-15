@@ -140,7 +140,8 @@ object SecurityAudit {
                 "Проверено ${scanCoverage.checkedAddresses} из ${scanCoverage.totalUsableAddresses} доступных адресов. Часть устройств могла остаться вне проверки."
             )
         }
-        if (deviceScanCompleted && !serviceScanCompleted) {
+        val effectiveServiceScanCompleted = deviceScanCompleted && serviceScanCompleted
+        if (deviceScanCompleted && !effectiveServiceScanCompleted) {
             findings += SecurityFinding(
                 SecurityFinding.Severity.INFO,
                 "Проверка сервисов не выполнена",
@@ -158,7 +159,7 @@ object SecurityAudit {
         val high = findings.count { it.severity == SecurityFinding.Severity.HIGH }
         val medium = findings.count { it.severity == SecurityFinding.Severity.MEDIUM }
         val low = findings.count { it.severity == SecurityFinding.Severity.LOW }
-        val score = if (deviceScanCompleted && serviceScanCompleted && nearbyScanCompleted) {
+        val score = if (deviceScanCompleted && effectiveServiceScanCompleted && nearbyScanCompleted) {
             (100 - high * 25 - medium * 12 - low * 4).coerceIn(0, 100)
         } else {
             null
@@ -170,7 +171,7 @@ object SecurityAudit {
             securityMismatches = securityMismatches,
             coveragePercent = scanCoverage.coveragePercent,
             deviceScanCompleted = deviceScanCompleted,
-            serviceScanCompleted = serviceScanCompleted
+            serviceScanCompleted = effectiveServiceScanCompleted
         )
     }
 
