@@ -100,12 +100,14 @@ class DeviceEnrichmentEngineTest {
     }
 
     @Test
-    fun doesNotApplyCustomizationFromOldScope() = runBlocking {
+    fun migratesOnlyThePreviousNetworkScopedCustomizationKey() = runBlocking {
         var requestedId = ""
+        var requestedLegacyIds = emptyList<String>()
         val engine = DeviceEnrichmentEngine(
-            loadCustomization = { id, _ ->
+            loadCustomization = { id, legacyIds ->
                 requestedId = id
-                DeviceCustomization(nickname = "old network name")
+                requestedLegacyIds = legacyIds
+                DeviceCustomization(nickname = "legacy scoped name")
             },
             resolveHostname = { "" },
             lookupVendor = { "" }
@@ -125,6 +127,7 @@ class DeviceEnrichmentEngineTest {
         )
 
         assertEquals("ip:new-scope:10.0.0.8", requestedId)
-        assertEquals("", result.nickname)
+        assertEquals(listOf("ip:old-scope:10.0.0.8"), requestedLegacyIds)
+        assertEquals("legacy scoped name", result.nickname)
     }
 }
