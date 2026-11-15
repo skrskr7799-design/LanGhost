@@ -19,4 +19,15 @@ class ExportHelperTest {
     fun csvCellPreservesCommasAndNewlinesInsideQuotedField() {
         assertEquals("\"a,b\nc\"", ExportHelper.escapeCsvCell("a,b\nc"))
     }
+
+    @Test
+    fun csvCellNeutralizesFormulaAfterLeadingWhitespace() {
+        assertEquals("\"'  =1+1\"", ExportHelper.escapeCsvCell("  =1+1"))
+        assertEquals("\"'\\t=cmd\"", ExportHelper.escapeCsvCell("\t=cmd"))
+    }
+
+    @Test
+    fun csvCellPreservesNegativeNumbers() {
+        assertEquals("\"-42\"", ExportHelper.escapeCsvCell("-42"))
+    }
 }
