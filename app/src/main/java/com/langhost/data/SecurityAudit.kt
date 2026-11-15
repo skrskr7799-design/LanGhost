@@ -3,6 +3,7 @@ package com.langhost.data
 import com.langhost.data.model.Device
 import com.langhost.data.model.ScanCoverage
 import com.langhost.data.model.PortAuditStatus
+import com.langhost.data.model.SecurityPortAuditPolicy
 import com.langhost.data.model.WifiNetwork
 
 data class SecurityFinding(
@@ -23,6 +24,7 @@ data class SecurityReport(
     val deviceScanCompleted: Boolean,
     val serviceScanCompleted: Boolean,
     val serviceEvidenceAdequate: Boolean,
+    val auditedTargetCount: Int,
     val openPortCount: Int,
     val closedPortCount: Int,
     val filteredPortCount: Int,
@@ -69,12 +71,14 @@ object SecurityAudit {
         val closedPortCount = portEvidence.count { it.status == PortAuditStatus.CLOSED }
         val filteredPortCount = portEvidence.count { it.status == PortAuditStatus.FILTERED }
         val unknownPortCount = portEvidence.count { it.status == PortAuditStatus.UNKNOWN }
-        val expectedPortCount = auditedTargets.size * 6 // SECURITY_AUDIT_PORTS
+        val expectedPorts = SecurityPortAuditPolicy.ports.toSet()
         val portEvidenceComplete = !requiresFreshness ||
-            (portEvidence.size == expectedPortCount &&
-                auditedTargets.all { device ->
-                    device.auditedPortResults.map { it.port }.distinct().size == 6
-                })
+            (auditedTargets.isNotEmpty() && auditedTargets.all { device ->
+                val results = device.auditedPortResults
+                results.size == expectedPorts.size &&
+                    results.map { it.port }.toSet() == expectedPorts &&
+                    results.map { it.port }.distinct().size == results.size
+            })
         val serviceEvidenceAdequate = effectiveServiceScanCompleted && portEvidenceComplete &&
             filteredPortCount == 0 && unknownPortCount == 0
         val networkCoverageAdequate = !requiresFreshness ||
@@ -111,7 +115,8 @@ object SecurityAudit {
         // Port findings are shown only when a fresh service scan belongs to this network.
         if (effectiveServiceScanCompleted) {
             devices.filter {
-                it.isOnline && (!requiresFreshness || it.networkScope == currentNetworkScope)
+                it.isOnline && !it.isLocalDevice &&
+                    (!requiresFreshness || it.networkScope == currentNetworkScope)
             }.forEach { device ->
                 val ports = device.auditedPorts.toSet()
                 if (23 in ports) {
@@ -203,6 +208,13 @@ object SecurityAudit {
                 "Общая оценка недоступна, пока не будет проверена вся доступная IPv4-подсеть."
             )
         }
+        if (effectiveServiceScanCompleted && requiresFreshness && auditedTargets.isEmpty()) {
+            findings += SecurityFinding(
+                SecurityFinding.Severity.INFO,
+                "Нет удалённых устройств для проверки сервисов",
+                "В текущем сканировании не обнаружено доступных удалённых устройств. Это не доказывает, что в сети нет других устройств; общая оценка останется недоступна."
+            )
+        }
         if (effectiveServiceScanCompleted && requiresFreshness && !serviceEvidenceAdequate) {
             findings += SecurityFinding(
                 SecurityFinding.Severity.INFO,
@@ -248,6 +260,7 @@ object SecurityAudit {
             deviceScanCompleted = deviceScanCompleted,
             serviceScanCompleted = effectiveServiceScanCompleted,
             serviceEvidenceAdequate = serviceEvidenceAdequate && networkCoverageAdequate,
+            auditedTargetCount = auditedTargets.size,
             openPortCount = openPortCount,
             closedPortCount = closedPortCount,
             filteredPortCount = filteredPortCount,
