@@ -129,27 +129,22 @@ fun DeviceDetailScreen(
                 }
             }
 
-            // Quick actions
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Быстрые действия", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(onClick = { QuickActions.openHttpAdmin(context, device) }, modifier = Modifier.weight(1f)) {
-                            Text("Админка")
-                        }
+                        OutlinedButton(onClick = { QuickActions.openHttpAdmin(context, device) }, modifier = Modifier.weight(1f)) { Text("Админка") }
                         if (22 in device.openPorts || device.openPorts.isEmpty()) {
-                            OutlinedButton(onClick = { QuickActions.openSsh(context, device) }, modifier = Modifier.weight(1f)) {
-                                Text("SSH")
-                            }
+                            OutlinedButton(onClick = { QuickActions.openSsh(context, device) }, modifier = Modifier.weight(1f)) { Text("SSH") }
                         }
                         if (3389 in device.openPorts || device.openPorts.isEmpty()) {
-                            OutlinedButton(onClick = { QuickActions.openRdp(context, device) }, modifier = Modifier.weight(1f)) {
-                                Text("RDP")
-                            }
+                            OutlinedButton(onClick = { QuickActions.openRdp(context, device) }, modifier = Modifier.weight(1f)) { Text("RDP") }
                         }
                     }
                 }
             }
+
+            PingHistorySection(ip = device.ip)
 
             if (device.mac.isNotBlank() && !device.isLocalDevice) {
                 Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
@@ -179,20 +174,12 @@ fun DeviceDetailScreen(
                         OutlinedButton(
                             onClick = {
                                 scope.launch {
-                                    WolProfiles(context).add(
-                                        WolProfile(
-                                            id = UUID.randomUUID().toString(),
-                                            name = device.displayName,
-                                            mac = device.mac
-                                        )
-                                    )
+                                    WolProfiles(context).add(WolProfile(id = UUID.randomUUID().toString(), name = device.displayName, mac = device.mac))
                                     Toast.makeText(context, "Профиль WoL сохранён", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Сохранить в профили WoL")
-                        }
+                        ) { Text("Сохранить в профили WoL") }
                     }
                 }
             }
