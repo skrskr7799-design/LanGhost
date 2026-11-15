@@ -217,8 +217,8 @@ fun SecurityScreen(
                             )
                         }
                         Text(
-                            if (serviceScanCompleted) "Проверка сервисов завершена"
-                            else "Проверка сервисов ещё не выполнена",
+                            if (report.serviceScanCompleted) "Проверка сервисов завершена"
+                            else "Проверка сервисов ещё не выполнена или устарела",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextTertiary
                         )
