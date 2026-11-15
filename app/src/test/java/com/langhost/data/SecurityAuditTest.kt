@@ -204,6 +204,23 @@ class SecurityAuditTest {
     }
 
     @Test
+    fun withholdsScoreWhenCurrentWifiSecurityIsUnknown() {
+        val report = SecurityAudit.analyze(
+            devices = emptyList(),
+            currentSsid = "Home",
+            currentBssid = "AA:AA:AA:AA:AA:AA",
+            nearby = emptyList(),
+            currentSecurity = "—",
+            scanCoverage = ScanCoverage("192.168.1.0/24", 254, 254),
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true
+        )
+
+        assertNull(report.score)
+        assertTrue(report.findings.any { it.title == "Не удалось определить режим защиты текущей сети" })
+    }
+
+    @Test
     fun doesNotCalculateScoreUntilServiceScanCompletes() {
         val report = SecurityAudit.analyze(
             devices = emptyList(),
