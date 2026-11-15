@@ -2,9 +2,6 @@ package com.langhost.data
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.BroadcastReceiver
-import android.content.Intent
-import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -28,14 +25,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import java.io.BufferedReader
 import java.io.FileReader
-import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.coroutines.resume
 import java.util.concurrent.ConcurrentHashMap
 
 class NetworkRepository(context: Context) {
@@ -43,6 +36,11 @@ class NetworkRepository(context: Context) {
     private val appContext = context.applicationContext
     private val connectivityManager = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+    private val wifiScanCoordinator = WifiScanCoordinator(
+        AndroidWifiScanPlatform(appContext, wifiManager) {
+            _networkInfo.value.bssid.takeIf { it.isNotBlank() && it != "—" }
+        }
+    )
     private val wifiInfoByNetwork = ConcurrentHashMap<Network, WifiInfo>()
     private val networkStateLock = Any()
     @Volatile private var publishedActiveNetwork: Network? = null
@@ -301,80 +299,10 @@ class NetworkRepository(context: Context) {
             }
         }
 
-    @SuppressLint("MissingPermission")
     suspend fun scanNearbyNetworks(): List<WifiNetwork> = withContext(Dispatchers.IO) {
         refreshNetworkInfo()
         val scanScope = currentNetworkScope()
-        val batch = withTimeoutOrNull(10_000L) {
-            suspendCancellableCoroutine { continuation ->
-                val finished = AtomicBoolean(false)
-                lateinit var receiver: BroadcastReceiver
-                var registered = false
-
-                fun unregister() {
-                    if (registered) {
-                        registered = false
-                        runCatching { appContext.unregisterReceiver(receiver) }
-                    }
-                }
-
-                fun finish(results: List<android.net.wifi.ScanResult>, updated: Boolean) {
-                    if (finished.compareAndSet(false, true)) {
-                        unregister()
-                        if (continuation.isActive) continuation.resume(WifiScanBatch(results, updated))
-                    }
-                }
-
-                receiver = object : BroadcastReceiver() {
-                    override fun onReceive(context: Context?, intent: Intent?) {
-                        val updated = intent?.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false) == true
-                        val results = runCatching { wifiManager.scanResults ?: emptyList() }.getOrDefault(emptyList())
-                        finish(results, updated)
-                    }
-                }
-
-                val filter = IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    appContext.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-                } else {
-                    @Suppress("UnspecifiedRegisterReceiverFlag")
-                    appContext.registerReceiver(receiver, filter)
-                }
-                registered = true
-                continuation.invokeOnCancellation {
-                    if (finished.compareAndSet(false, true)) unregister()
-                }
-
-                @Suppress("DEPRECATION")
-                val started = try {
-                    wifiManager.startScan()
-                } catch (error: Throwable) {
-                    finished.set(true)
-                    unregister()
-                    throw error
-                }
-                if (!started) {
-                    @Suppress("DEPRECATION")
-                    finish(wifiManager.scanResults ?: emptyList(), false)
-                }
-            }
-        } ?: WifiScanBatch(wifiManager.scanResults ?: emptyList(), false)
-
-        val currentBssid = _networkInfo.value.bssid.takeIf { it.isNotBlank() && it != "—" }
-        val mapped = batch.results.map { result ->
-            val frequency = result.frequency
-            WifiNetwork(
-                ssid = result.SSID.orEmpty(),
-                bssid = result.BSSID.orEmpty(),
-                signalDbm = result.level,
-                frequencyMhz = frequency,
-                channel = WifiChannel.fromFrequencyMhz(frequency),
-                security = WifiSecurity.classify(result.capabilities.orEmpty()),
-                isCurrent = !result.BSSID.isNullOrBlank() && result.BSSID == currentBssid
-            )
-        }.filter { it.bssid.isNotBlank() }
-            .distinctBy { it.bssid }
-            .sortedByDescending { it.signalDbm }
+        val batch = wifiScanCoordinator.scan()
 
         refreshNetworkInfo()
         if (currentNetworkScope() != scanScope) return@withContext emptyList()
@@ -382,19 +310,14 @@ class NetworkRepository(context: Context) {
         val completedAt = System.currentTimeMillis()
         val committed = scanScope?.let { expected ->
             commitIfCurrentNetwork(expected) {
-                _nearbyNetworks.value = mapped
+                _nearbyNetworks.value = batch.results
                 if (batch.updated) _nearbyScanTime.value = completedAt
                 _nearbyScanCompleted.value = batch.updated ||
                     (_nearbyScanTime.value > 0L && completedAt - _nearbyScanTime.value <= NEARBY_SCAN_FRESHNESS_MS)
             }
         } ?: false
-        if (committed) mapped else emptyList()
+        if (committed) batch.results else emptyList()
     }
-
-    private data class WifiScanBatch(
-        val results: List<android.net.wifi.ScanResult>,
-        val updated: Boolean
-    )
 
     private fun wifiSecurityType(wifiInfo: WifiInfo?): String {
         if (wifiInfo == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return "—"
