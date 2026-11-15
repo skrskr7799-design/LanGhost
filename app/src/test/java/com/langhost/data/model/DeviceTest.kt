@@ -44,6 +44,20 @@ class DeviceTest {
     }
 
     @Test
+    fun endpointIdentityRejectsIpChangesEvenWhenDeviceIdentityIsStable() {
+        val original = Device(
+            ip = "192.168.1.10", mac = "AA:BB:CC:DD:EE:FF", networkScope = "home"
+        )
+        val sameEndpoint = original.copy(lastSeen = original.lastSeen + 1)
+        val changedIp = original.copy(ip = "192.168.1.11")
+        val changedNetwork = original.copy(networkScope = "office")
+
+        assertTrue(original.hasSameEndpointAs(sameEndpoint))
+        assertFalse(original.hasSameEndpointAs(changedIp))
+        assertFalse(original.hasSameEndpointAs(changedNetwork))
+    }
+
+    @Test
     fun manualPortUpdatesPreserveDedicatedSecurityAuditEvidence() {
         val device = Device(
             ip = "192.168.1.10",
