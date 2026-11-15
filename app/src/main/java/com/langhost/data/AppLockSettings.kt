@@ -13,16 +13,11 @@ private val Context.lockDataStore: DataStore<Preferences> by preferencesDataStor
 
 class AppLockSettings(private val context: Context) {
     private val KEY_ENABLED = booleanPreferencesKey("biometric_lock")
-    private val KEY_HIDE_SENSITIVE = booleanPreferencesKey("hide_sensitive")
 
     val biometricEnabled: Flow<Boolean> = context.lockDataStore.data.map { it[KEY_ENABLED] ?: false }
-    val hideSensitive: Flow<Boolean> = context.lockDataStore.data.map { it[KEY_HIDE_SENSITIVE] ?: false }
 
     suspend fun setBiometricEnabled(v: Boolean) {
         context.lockDataStore.edit { it[KEY_ENABLED] = v }
     }
 
-    suspend fun setHideSensitive(v: Boolean) {
-        context.lockDataStore.edit { it[KEY_HIDE_SENSITIVE] = v }
-    }
 }
