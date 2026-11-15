@@ -139,4 +139,46 @@ class HostDiscoveryTest {
         assertEquals(1000, receivedBudget)
     }
 
+
+    @Test
+    fun discoveryChecksNetworkScopeBeforeEachBatchAndStopsWhenItChanges() = runBlocking {
+        var batchChecks = 0
+        var probeCalls = 0
+
+        try {
+            HostDiscovery.discover(
+                candidates = (1..5).map { "192.168.1.$it" },
+                localIp = "192.168.1.254",
+                maxConcurrency = 2,
+                timeoutMs = 150,
+                beforeBatch = {
+                    batchChecks++
+                    if (batchChecks == 2) {
+                        throw kotlinx.coroutines.CancellationException("network changed")
+                    }
+                }
+            ) { _, _ ->
+                probeCalls++
+                true
+            }
+            throw AssertionError("Expected the network-scope checkpoint to cancel discovery")
+        } catch (_: kotlinx.coroutines.CancellationException) {
+            assertEquals(2, batchChecks)
+            assertEquals(2, probeCalls)
+        }
+    }
+
+    @Test
+    fun mapBoundedRunsNetworkScopeCheckpointOncePerBatch() = runBlocking {
+        var batchChecks = 0
+        val result = HostDiscovery.mapBounded(
+            items = (1..5).toList(),
+            maxConcurrency = 2,
+            beforeBatch = { batchChecks++ }
+        ) { it * 2 }
+
+        assertEquals((1..5).map { it * 2 }, result)
+        assertEquals(3, batchChecks)
+    }
+
 }
