@@ -54,8 +54,9 @@ data class Device(
     companion object {
         fun isRandomMacAddress(mac: String): Boolean {
             if (mac.length < 2) return false
-            val second = mac.getOrNull(1)?.uppercaseChar() ?: return false
-            return second == '2' || second == '6' || second == 'A' || second == 'E'
+            val firstOctet = mac.take(2).toIntOrNull(16) ?: return false
+            // IEEE 802 MAC U/L bit (bit 1 of the first octet) marks locally administered addresses.
+            return firstOctet and 0x02 != 0
         }
 
         fun guessOs(ports: List<Int>, vendor: String, hostname: String): String {

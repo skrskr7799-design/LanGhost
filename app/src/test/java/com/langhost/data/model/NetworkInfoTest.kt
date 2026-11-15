@@ -12,6 +12,7 @@ class NetworkInfoTest {
         assertEquals(2, NetworkInfo(signalDbm = -70).signalLevel)
         assertEquals(1, NetworkInfo(signalDbm = -80).signalLevel)
         assertEquals(0, NetworkInfo(signalDbm = -81).signalLevel)
+        assertEquals(0, NetworkInfo(signalDbm = 0).signalLevel)
     }
 
     @Test

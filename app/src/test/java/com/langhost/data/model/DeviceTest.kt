@@ -35,6 +35,10 @@ class DeviceTest {
     fun detectsLocallyAdministeredMacAddresses() {
         assertTrue(Device.isRandomMacAddress("02:11:22:33:44:55"))
         assertTrue(Device.isRandomMacAddress("06:11:22:33:44:55"))
+        assertTrue(Device.isRandomMacAddress("03:11:22:33:44:55"))
+        assertTrue(Device.isRandomMacAddress("07:11:22:33:44:55"))
+        assertTrue(Device.isRandomMacAddress("0B:11:22:33:44:55"))
+        assertTrue(Device.isRandomMacAddress("0F:11:22:33:44:55"))
         assertFalse(Device.isRandomMacAddress("00:11:22:33:44:55"))
         assertFalse(Device.isRandomMacAddress(""))
     }

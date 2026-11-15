@@ -18,6 +18,7 @@ data class NetworkInfo(
 ) {
     val signalLevel: Int
         get() = when {
+            signalDbm == 0 -> 0 // 0 means unavailable in this model, not an exceptionally strong signal.
             signalDbm >= -50 -> 4
             signalDbm >= -60 -> 3
             signalDbm >= -70 -> 2

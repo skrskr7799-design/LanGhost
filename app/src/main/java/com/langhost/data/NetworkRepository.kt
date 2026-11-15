@@ -13,6 +13,7 @@ import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
 import com.langhost.data.model.NetworkInfo
 import com.langhost.data.network.Ipv4Subnet
+import com.langhost.data.network.WifiChannel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -75,6 +76,9 @@ class NetworkRepository(context: Context) {
     }
 
     private fun cacheWifiInfo(network: Network, capabilities: NetworkCapabilities) {
+        // NetworkCapabilities.transportInfo was added in API 29. Android 8–9 use
+        // WifiManager.connectionInfo in refreshNetworkInfo() instead.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
         if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
             (capabilities.transportInfo as? WifiInfo)?.let { wifiInfoByNetwork[network] = it }
         } else {
@@ -211,11 +215,7 @@ class NetworkRepository(context: Context) {
         ).joinToString(".")
     }
 
-    private fun frequencyToChannel(freq: Int): Int = when {
-        freq in 2412..2484 -> (freq - 2412) / 5 + 1
-        freq in 5170..5825 -> (freq - 5170) / 5 + 34
-        else -> 0
-    }
+    private fun frequencyToChannel(freq: Int): Int = WifiChannel.fromFrequencyMhz(freq)
 
     private fun intToIp(value: Int): String {
         if (value == 0) return "0.0.0.0"
