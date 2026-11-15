@@ -3,7 +3,6 @@ package com.langhost.ui.screens.dashboard
 import android.Manifest
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -73,9 +72,6 @@ import com.langhost.ui.theme.TextSecondary
 import com.langhost.ui.theme.TextTertiary
 import com.langhost.ui.theme.Warning
 import com.langhost.ui.theme.Success
-import com.langhost.ui.theme.Danger
-import com.langhost.ui.theme.Info
-import com.langhost.ui.theme.Secondary
 import com.langhost.ui.theme.AccentCyan
 import com.langhost.ui.theme.OnPrimary
 import com.langhost.ui.theme.LanGhostSpacing
