@@ -20,10 +20,19 @@ object NetworkIdentity {
     private fun identityParts(ssid: String, gateway: String, ipAddress: String, netmask: String): List<String> {
         val normalizedSsid = ssid.trim().takeUnless { it.isBlank() || it == "—" || it == "<unknown ssid>" }.orEmpty()
         val normalizedGateway = gateway.trim().takeUnless { it.isBlank() || it == "0.0.0.0" || it == "—" }.orEmpty()
-        val subnet = runCatching {
-            val parsed = Ipv4Subnet.fromAddressAndNetmask(ipAddress, netmask)
-            "${parsed.networkAddressString()}/${parsed.prefixLength}"
-        }.getOrDefault("")
+        val subnet = if (
+            ipAddress.trim().isNotBlank() &&
+            ipAddress.trim() != "0.0.0.0" &&
+            netmask.trim().isNotBlank() &&
+            netmask.trim() != "0.0.0.0"
+        ) {
+            runCatching {
+                val parsed = Ipv4Subnet.fromAddressAndNetmask(ipAddress, netmask)
+                "${parsed.networkAddressString()}/${parsed.prefixLength}"
+            }.getOrDefault("")
+        } else {
+            ""
+        }
         return listOf(normalizedSsid, normalizedGateway, subnet)
     }
 
