@@ -12,9 +12,11 @@ import java.net.HttpURLConnection
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.net.SocketTimeoutException
 import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.TimeUnit
 
 object DeviceProbe {
 
@@ -176,7 +178,9 @@ object DeviceProbe {
                 "GET / HTTP/1.1\r\nHost: $ip\r\nUser-Agent: LanGhost/0.4\r\nConnection: close\r\n\r\n"
                     .toByteArray(Charsets.US_ASCII)
             )
-            val response = socket.getInputStream().use { readBounded(it, 32 * 1024) }
+            val response = socket.getInputStream().use {
+                readBounded(it, 32 * 1024, 800) { remaining -> socket.soTimeout = remaining }
+            }
             return summarizeHttpResponse(response)
         }
     }
@@ -195,7 +199,9 @@ object DeviceProbe {
         try {
             val status = connection.responseCode
             val stream = if (status in 200..399) connection.inputStream else connection.errorStream
-            val body = stream?.use { readBounded(it, 32 * 1024) }.orEmpty()
+            val body = stream?.use {
+                readBounded(it, 32 * 1024, 800) { remaining -> connection.readTimeout = remaining }
+            }.orEmpty()
             val server = connection.getHeaderField("Server").orEmpty()
             return summarizeHttpResponse("HTTP $status\r\nServer: $server\r\n\r\n$body")
         } finally {
@@ -203,12 +209,27 @@ object DeviceProbe {
         }
     }
 
-    private fun readBounded(input: java.io.InputStream, limit: Int): String {
+    /** Reads a bounded response with one total read budget, not a fresh timeout per chunk. */
+    private fun readBounded(
+        input: java.io.InputStream,
+        limit: Int,
+        timeoutMs: Int,
+        updateReadTimeout: (Int) -> Unit
+    ): String {
         val output = java.io.ByteArrayOutputStream()
         val buffer = ByteArray(4096)
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs.coerceAtLeast(1).toLong())
         var total = 0
         while (total < limit) {
-            val count = input.read(buffer, 0, minOf(buffer.size, limit - total))
+            val remainingNanos = deadline - System.nanoTime()
+            if (remainingNanos <= 0L) break
+            val remainingMs = TimeUnit.NANOSECONDS.toMillis(remainingNanos).coerceAtLeast(1L).toInt()
+            updateReadTimeout(remainingMs)
+            val count = try {
+                input.read(buffer, 0, minOf(buffer.size, limit - total))
+            } catch (_: SocketTimeoutException) {
+                break
+            }
             if (count < 0) break
             output.write(buffer, 0, count)
             total += count
