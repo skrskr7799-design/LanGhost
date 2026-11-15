@@ -113,6 +113,7 @@ class NetworkRepository(context: Context) {
         probeHost = { ip, budgetMs -> probeEngine.probeHost(ip, budgetMs) },
         ensureCurrentNetworkScope = { expectedScope -> ensureCurrentNetworkScope(expectedScope) }
     )
+    private val deviceLifecycleEngine = DeviceLifecycleEngine()
 
     private val _networkInfo = MutableStateFlow(NetworkInfo())
     val networkInfo: StateFlow<NetworkInfo> = _networkInfo.asStateFlow()
@@ -437,19 +438,11 @@ class NetworkRepository(context: Context) {
                 )
             }
 
-            val onlineIds = onlineDevices.map { it.stableId }.toSet()
-            val offlineKept = devicesCache.values.filter { dev ->
-                dev.stableId !in onlineIds &&
-                    dev.networkScope == networkScope &&
-                    (now - dev.lastSeen) < 24 * 60 * 60 * 1000
-            }
-
-            val result = (onlineDevices + offlineKept).sortedWith(
-                compareByDescending<Device> { it.isOnline }
-                    .thenByDescending { it.isGateway }
-                    .thenByDescending { it.isLocalDevice }
-                    .thenByDescending { it.isFavorite }
-                    .thenBy { it.ip }
+            val result = deviceLifecycleEngine.reconcile(
+                discoveredOnline = onlineDevices,
+                cachedDevices = devicesCache.values,
+                networkScope = networkScope,
+                now = now
             )
 
             refreshNetworkInfo()
