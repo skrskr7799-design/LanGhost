@@ -15,4 +15,13 @@ class PublicIpInfoTest {
     fun responseReaderRejectsPayloadOverLimit() {
         PublicIpLookup.readLimitedText(ByteArrayInputStream("123456789".toByteArray()), 8)
     }
+
+    @Test
+    fun validatesIpLiteralsWithoutAcceptingHostnames() {
+        assertEquals(true, PublicIpLookup.isIpLiteral("203.0.113.8"))
+        assertEquals(true, PublicIpLookup.isIpLiteral("2001:db8::1"))
+        assertEquals(false, PublicIpLookup.isIpLiteral("ipapi.co"))
+        assertEquals(false, PublicIpLookup.isIpLiteral("203.0.113.999"))
+        assertEquals(false, PublicIpLookup.isIpLiteral("203.000.113.8"))
+    }
 }
