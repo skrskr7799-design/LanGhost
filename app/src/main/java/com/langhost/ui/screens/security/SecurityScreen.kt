@@ -24,17 +24,27 @@ import com.langhost.ui.theme.*
 @Composable
 fun SecurityScreen(
     onBack: () -> Unit,
-    nearbyNetworks: List<WifiNetwork> = emptyList()
+    nearbyNetworks: List<WifiNetwork> = emptyList(),
+    nearbyScanCompleted: Boolean = false
 ) {
     val context = LocalContext.current
     val repo = remember { NetworkRepository.getInstance(context) }
     val devices by repo.devices.collectAsState()
     val network by repo.networkInfo.collectAsState()
     val diff by repo.lastDiff.collectAsState()
-
-    val report = remember(devices, network, nearbyNetworks) {
-        SecurityAudit.analyze(devices, network.ssid, network.bssid, nearbyNetworks)
+    val scanCoverage by repo.scanCoverage.collectAsState()
+    val report = remember(devices, network, nearbyNetworks, nearbyScanCompleted, scanCoverage) {
+        SecurityAudit.analyze(
+            devices = devices,
+            currentSsid = network.ssid,
+            currentBssid = network.bssid,
+            nearby = nearbyNetworks,
+            currentSecurity = network.security,
+            scanCoverage = scanCoverage,
+            nearbyScanCompleted = nearbyScanCompleted
+        )
     }
+    val score = report.score
 
     Scaffold(
         topBar = {
@@ -62,35 +72,56 @@ fun SecurityScreen(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Оценка сети", style = MaterialTheme.typography.titleMedium, color = TextSecondary)
+                        Text("Оценка проверенных признаков", style = MaterialTheme.typography.titleMedium, color = TextSecondary)
                         Text(
-                            text = "${report.score}",
+                            text = score?.toString() ?: "—",
                             style = MaterialTheme.typography.displayLarge,
                             fontWeight = FontWeight.Bold,
                             color = when {
-                                report.score >= 80 -> Success
-                                report.score >= 50 -> Secondary
+                                score == null -> TextTertiary
+                                score >= 80 -> Success
+                                score >= 50 -> Secondary
                                 else -> Danger
                             }
                         )
-                        Text("из 100", style = MaterialTheme.typography.bodyMedium, color = TextTertiary)
+                        Text(
+                            text = if (score == null) "недостаточно данных" else "из 100",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextTertiary
+                        )
+                        if (report.deviceScanCompleted) {
+                            Text(
+                                "Покрытие подсети: ${report.coveragePercent}%",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
                     }
                 }
             }
 
-            if (report.evilTwins.isNotEmpty()) {
+            if (report.securityMismatches.isNotEmpty()) {
                 item {
-                    Text("Evil Twin", style = MaterialTheme.typography.titleMedium, color = Danger)
+                    Text("Различия в защите точек доступа", style = MaterialTheme.typography.titleMedium, color = TextSecondary)
                 }
-                items(report.evilTwins) { twin ->
+                items(report.securityMismatches) { accessPoint ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Danger.copy(alpha = 0.12f)),
+                        colors = CardDefaults.cardColors(containerColor = Warning.copy(alpha = 0.12f)),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
-                            Text(twin.ssid, fontWeight = FontWeight.Medium, color = TextPrimary)
-                            Text("${twin.bssid} · ${twin.security} · ${twin.signalDbm} dBm", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                            Text(accessPoint.ssid, fontWeight = FontWeight.Medium, color = TextPrimary)
+                            Text(
+                                "${accessPoint.bssid} · ${accessPoint.security} · ${accessPoint.signalDbm} dBm",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                            Text(
+                                "Это сигнал для проверки конфигурации, а не подтверждение атаки.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
                         }
                     }
                 }
@@ -99,20 +130,20 @@ fun SecurityScreen(
             item {
                 Text("Находки", style = MaterialTheme.typography.titleMedium, color = TextSecondary)
             }
-            items(report.findings) { f ->
-                FindingCard(f)
+            items(report.findings) { finding ->
+                FindingCard(finding)
             }
 
-            diff?.let { d ->
-                if (d.appeared.isNotEmpty() || d.disappeared.isNotEmpty()) {
+            diff?.let { result ->
+                if (result.appeared.isNotEmpty() || result.disappeared.isNotEmpty()) {
                     item {
                         Text("Изменения с прошлого скана", style = MaterialTheme.typography.titleMedium, color = TextSecondary)
                     }
-                    items(d.appeared) { dev ->
-                        Text("+ ${dev.displayName} (${dev.ip})", color = Success, style = MaterialTheme.typography.bodyMedium)
+                    items(result.appeared) { device ->
+                        Text("+ ${device.displayName} (${device.ip})", color = Success, style = MaterialTheme.typography.bodyMedium)
                     }
-                    items(d.disappeared) { dev ->
-                        Text("- ${dev.displayName} (${dev.ip})", color = Danger, style = MaterialTheme.typography.bodyMedium)
+                    items(result.disappeared) { device ->
+                        Text("- ${device.displayName} (${device.ip})", color = Danger, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -121,8 +152,8 @@ fun SecurityScreen(
 }
 
 @Composable
-private fun FindingCard(f: SecurityFinding) {
-    val color = when (f.severity) {
+private fun FindingCard(finding: SecurityFinding) {
+    val color = when (finding.severity) {
         SecurityFinding.Severity.HIGH -> Danger
         SecurityFinding.Severity.MEDIUM -> Warning
         SecurityFinding.Severity.LOW -> Secondary
@@ -136,8 +167,8 @@ private fun FindingCard(f: SecurityFinding) {
         Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Icon(Icons.Default.Shield, contentDescription = null, tint = color)
             Column {
-                Text(f.title, fontWeight = FontWeight.Medium, color = TextPrimary)
-                Text(f.detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                Text(finding.title, fontWeight = FontWeight.Medium, color = TextPrimary)
+                Text(finding.detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
             }
         }
     }
