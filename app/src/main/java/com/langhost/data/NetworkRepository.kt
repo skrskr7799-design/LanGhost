@@ -163,7 +163,7 @@ class NetworkRepository(context: Context) {
             val capabilities = connectivityManager.getNetworkCapabilities(network)
             val linkProperties = connectivityManager.getLinkProperties(network)
             if (capabilities == null || linkProperties == null) {
-                publishNetworkInfo(NetworkInfo())
+                publishNetworkInfo(NetworkInfo(), null)
                 return
             }
 
