@@ -258,3 +258,10 @@ Phase 4 is now active on `work/data-architecture`, branched from that validated 
 The `WifiScanCoordinator` extraction is implemented on `work/data-architecture`. Android receiver registration, scan start, cached-result retrieval, broadcast completion, timeout fallback and cancellation cleanup now live behind a small `WifiScanPlatform` boundary. `NetworkRepository` retains responsibility for network-scope validation and atomic publication of nearby-network evidence. Freshness semantics are unchanged: cached results may be displayed, but only `EXTRA_RESULTS_UPDATED=true` advances the fresh-scan timestamp.
 
 Focused coordinator tests cover successful broadcast completion, duplicate callbacks, rejected scan fallback, timeout fallback and cancellation cleanup. The extraction is pending full CI validation; physical-device checks for Android permission behavior, scan throttling and receiver lifecycle remain part of Phase 6.
+
+
+## Phase 4 — Network discovery orchestration extraction
+
+The next Phase 4 boundary is implemented on `work/data-architecture`. `NetworkDiscoveryEngine` now owns subnet candidate generation, bounded positive-evidence host probing, ARP/subnet filtering, endpoint merging (ARP + discovered + local + gateway) and `ScanCoverage` calculation. The Android repository remains responsible for reading the active-interface ARP table, constructing/enriching `Device` models, user customization, cache and atomic network-scoped publication. The engine receives probe and network-scope checkpoint callbacks, preserving cancellation and network-switch isolation without Android dependencies.
+
+Regression tests cover evidence merging and subnet isolation, candidate limits and truncated coverage, invalid subnet handling, and scope-change cancellation between bounded batches. Full CI validation is required before this extraction is considered complete.

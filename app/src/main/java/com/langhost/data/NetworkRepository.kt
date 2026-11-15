@@ -15,7 +15,6 @@ import com.langhost.data.model.SecurityPortAuditPolicy
 import com.langhost.data.model.PortAuditStatus
 import com.langhost.data.model.ScanCoverage
 import com.langhost.data.model.WifiNetwork
-import com.langhost.data.network.Ipv4Subnet
 import com.langhost.data.network.NetworkIdentity
 import com.langhost.data.network.WifiChannel
 import kotlinx.coroutines.CancellationException
@@ -386,35 +385,22 @@ class NetworkRepository(context: Context) {
                 ipAddress = localIp,
                 netmask = networkInfo.netmask
             )
-            val subnet = runCatching {
-                Ipv4Subnet.fromAddressAndNetmask(localIp, networkInfo.netmask)
-            }.getOrNull()
-
-            // /proc/net/arp may contain entries from other interfaces; keep only this subnet.
-            val arpDevices = subnet?.let { currentSubnet ->
-                readArpTable(networkInfo.interfaceName).filterKeys(currentSubnet::contains)
-            }.orEmpty()
-            val candidates = subnet?.hostAddresses(MAX_DISCOVERY_TARGETS, localIp).orEmpty()
-            val discoveredIps = HostDiscovery.discover(
-                candidates = candidates,
+            // Keep ARP parsing and interface selection in the Android repository;
+            // discovery orchestration itself is platform-independent and independently tested.
+            val discovery = discoveryEngine.discover(
                 localIp = localIp,
-                maxConcurrency = MAX_CONCURRENT_HOST_PROBES,
+                gateway = gateway,
+                netmask = networkInfo.netmask,
+                arpEntries = readArpTable(networkInfo.interfaceName),
+                networkScope = networkScope,
                 timeoutMs = timeoutMs,
-                beforeBatch = { ensureCurrentNetworkScope(networkScope) }
-            ) { ip, budgetMs -> probeEngine.probeHost(ip, budgetMs) }
-            val allIps = (arpDevices.keys + discoveredIps + setOf(localIp, gateway).filter {
-                it != "0.0.0.0" && it != "—" && it.isNotBlank()
-            }).toSet()
-
-            val now = System.currentTimeMillis()
-            val completedCoverage = ScanCoverage(
-                subnetCidr = subnet?.let { "${it.networkAddressString()}/${it.prefixLength}" }.orEmpty(),
-                checkedAddresses = candidates.size,
-                totalUsableAddresses = subnet?.usableHostCount ?: 0L,
-                truncated = subnet != null && candidates.size.toLong() < subnet.usableHostCount,
-                scannedAt = now,
-                networkScope = networkScope
+                maxTargets = MAX_DISCOVERY_TARGETS,
+                maxConcurrency = MAX_CONCURRENT_HOST_PROBES
             )
+            val arpDevices = discovery.arpAddresses
+            val allIps = discovery.ips
+            val now = System.currentTimeMillis()
+            val completedCoverage = discovery.coverage.copy(scannedAt = now)
             val onlineDevices = HostDiscovery.mapBounded(
                 items = allIps.toList(),
                 maxConcurrency = DEVICE_ENRICHMENT_CONCURRENCY,
