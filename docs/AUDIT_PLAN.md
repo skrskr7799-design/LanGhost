@@ -1,6 +1,6 @@
 # LanGhost — Engineering Roadmap & Audit Register
 
-> Status: audit and stabilization in progress  
+> Status: Phase 1 complete; Phase 2 — Network Engine active  
 > Baseline branch: main  
 > Baseline commit reviewed: c8e13219461fd1488ccbb83b4fa5ab721ba3eb62  
 > Working branch: work/foundation-stabilization
@@ -27,7 +27,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 ### Phase 1 — Build and project foundation
 - [x] Reproduce the baseline APK build failure and capture the compiler output; the invalid Compose Modifier arguments were identified and corrected on this branch.
 - [x] Restore the Gradle Wrapper (gradlew, gradlew.bat, wrapper JAR and properties); verify it in GitHub Actions.
-- [x] Verify the project with JDK 17, Android SDK 35, Gradle 8.9, Android Lint and unit-test tasks in CI. Latest CI run completed successfully: lint, unit tests, Debug and Release APK.
+- [x] Verify the project with JDK 17, Android SDK 35, Gradle 8.9, Android Lint and unit-test tasks in CI. CI run 43697709829 on commit 8db7f710 completed successfully: lint, all 70 unit tests, Debug APK, Release APK and artifact upload.
 - [x] Correct the confirmed baseline compile errors.
 - [x] Replace the legacy workflow with branch/PR validation and tagged-release workflows; install Android command-line tools explicitly and upload Debug/Release APK artifacts.
 - [x] Separate pull-request/branch validation from tagged release publication.
@@ -36,12 +36,26 @@ There are no artificial constraints requiring us to preserve the current impleme
 
 ### Phase 2 — Network engine
 - [x] Implement IPv4 CIDR calculation, contiguous-mask validation, /31 and /32 handling, bounded host enumeration; IPv6 strategy remains open.
-- [ ] Review discovery methods (ARP, TCP probes), timeouts, cancellation, false negatives, DNS/NetBIOS fan-out and port-scan concurrency. Bounded orchestration and cancellation handling implemented; real-device validation remains open. Bounded/cancellable TCP-probe orchestration, bounded device enrichment and bounded port scanning are implemented; 35 tests passed in CI on commit 1df8efe. Shared Wi-Fi scan integration and 7 classifier tests are now on the branch and await their own CI run.
+- [ ] Review discovery methods (ARP, TCP probes), timeouts, cancellation, false negatives, DNS/NetBIOS fan-out and port-scan concurrency. Bounded orchestration and cancellation handling implemented; real-device validation remains open. Bounded/cancellable TCP-probe orchestration, bounded device enrichment and bounded port scanning are implemented; 35 tests passed in CI on commit 1df8efe. Shared Wi-Fi scan integration and Wi-Fi classifier tests are included in the validated 70-test CI run on commit 8db7f710.
 - [x] Bound discovery candidates to 1,024 and concurrent host probes to 32; add per-host time budget and explicit cancellation propagation. Socket-level cancellation remains bounded by connect timeout.
 - [x] Scope device identities to a hashed logical network key (SSID + gateway + subnet), not BSSID; preserve legacy customizations and isolate scan diffs by network. Random-MAC rotation still cannot be correlated reliably.
 - [ ] Validate port scanning, service identification and banner/fingerprint handling.
 - [x] Show checked/total IPv4 addresses, subnet and truncation warning; physical-device validation remains open.
 - [ ] Test across different routers, subnet sizes, Android versions and network conditions (including mesh roaming and MAC randomization).
+
+### Phase 2 — Network Engine: active review notes
+
+The first source pass is complete; these are confirmed implementation characteristics and review targets, not yet defect declarations:
+
+- `NetworkRepository` currently owns connectivity callbacks, network snapshots, Wi-Fi scanning, host discovery orchestration, device enrichment, persistence coordination, service-port scans and multiple UI-facing StateFlows in one 756-line class. Evaluate boundaries and extract cohesive services without changing behavior prematurely.
+- Host discovery is deliberately bounded: at most 1,024 IPv4 candidates, 32 concurrent host probes, 16 concurrent enrichment/port probes, and four concurrent hosts during security service scans. Coverage records the checked/total count and truncation.
+- Discovery combines filtered `/proc/net/arp` entries with positive TCP-probe responses and the local/gateway addresses. A failed/filtered TCP probe is not proof that a host is offline; assess how the UI and history communicate uncertainty and disappearance.
+- `DeviceProbe` wraps blocking UDP/TCP/HTTP work in coroutine timeouts and also sets socket/connection timeouts. Review cancellation latency and ensure cancellation closes active sockets rather than merely waiting for their bounded timeout.
+- Logical network scope currently hashes SSID, gateway and IPv4 subnet. Validate collisions/unknown SSID behavior, roaming, mesh, VPN and simultaneous transports before treating this identity as durable.
+- IPv6 is not yet part of host discovery. Keep IPv4-only coverage explicit until an authorized, bounded IPv6 strategy is designed.
+- Real-device tests remain necessary for ARP visibility, Android permission redaction, Wi-Fi scan throttling, VPN/multi-network behavior, mesh roaming and MAC randomization.
+
+Next implementation gate: finish the source audit and define service boundaries/contracts; then add deterministic tests around the extracted network-context and scan orchestration before migrating UI consumers.
 
 ### Phase 3 — Security, privacy and permissions
 - [x] Audit manifest permissions and request each permission only when needed. Fine and coarse location are requested together for Wi-Fi scan flows; notification permission is requested only when enabling it. API-level device validation remains in Phase 6.
@@ -75,7 +89,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [ ] Verify contrast, touch targets, TalkBack semantics and localization.
 
 ### Phase 6 — Automated and device testing
-- [x] Add unit tests for pure network calculations, identity merging, scoring, diff, discovery orchestration, public-IP response validation/limits, CSV safety, retention bounds and evidence expiry (70 tests total on the current branch; CI confirmation pending).
+- [x] Add unit tests for pure network calculations, identity merging, scoring, diff, discovery orchestration, public-IP response validation/limits, CSV safety, retention bounds and evidence expiry (70 tests; all pass in CI run 43697709829 on commit 8db7f710).
 - [ ] Add repository/integration tests for persistence, scanning orchestration and failure cases.
 - [ ] Add Compose UI tests for critical flows and permission states.
 - [ ] Run Android Lint and dependency/security checks in CI.
@@ -120,7 +134,7 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | BUILD-001 | Build | Baseline Kotlin compilation failed on invalid Compose named arguments | Blocker | Baseline Actions run #33; corrected LockGate.kt and SecurityScreen.kt; validation runs #2 and #3 succeeded | Resolved on audit branch; verify again after later code changes |
 | BUILD-002 | Build | Gradle Wrapper scripts/JAR absent from reviewed repository tree | High | Recursive tree at baseline commit; official Wrapper files and Gradle 8.9 distribution checksum added and verified in CI | Resolved on working branch; main unchanged |
 | BUILD-003 | CI | Legacy build workflow grants contents:write to the whole job and publishes a prerelease on every successful main push | Medium | Replaced with branch/PR build workflow and tag-only release workflow; verify permissions and release behavior during final CI review | Resolved on working branch; main unchanged |
-| TEST-001 | Testing | No unit or instrumentation test source files are present in the repository tree | High | Added 61 JUnit tests authored across network calculations, discovery, security, identity, export, public-IP response bounds and data-retention policies; 35 passed in CI on commit 1df8efe; the latest 26 additions are awaiting CI confirmation | Partially resolved on working branch; CI confirmation pending |
+| TEST-001 | Testing | No unit or instrumentation test source files are present in the repository tree | High | Added 70 JUnit tests across network calculations, discovery, security, identity, export, public-IP response bounds and data-retention policies; all 70 passed in CI run 43697709829 on commit 8db7f710 | Resolved on working branch; Compose/integration coverage remains open |
 | NET-001 | Discovery | IPv4 scan built a /24-style prefix from the first three octets | High | Ipv4Subnet validates masks and handles unsigned IPv4, /31, /32 and bounded enumeration | Implemented; physical-network validation pending |
 | NET-002 | Discovery | Host probes were launched without explicit concurrency limit and had no total per-host time budget | Medium | Candidate cap 1,024, bounded batches of 32, per-host TCP budget, bounded device enrichment and port scanning (16), cancellation propagation, bounded HTTP fingerprint response | Implemented on branch; CI/device validation pending |
 | NET-003 | Network info | Wi-Fi connection data used deprecated WifiManager.connectionInfo and inferred security from Android version | Medium | Migrated to ConnectivityManager/LinkProperties and WifiInfo.currentSecurityType where available, with location-aware callback on API 31+ | Implemented on branch; physical-device validation pending |
