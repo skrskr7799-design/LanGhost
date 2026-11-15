@@ -48,7 +48,10 @@ fun SecurityScreen(
     val nearbyNetworks by repo.nearbyNetworks.collectAsState()
     val nearbyScanCompleted by repo.nearbyScanCompleted.collectAsState()
     val nearbyScanTime by repo.nearbyScanTime.collectAsState()
-    val report = remember(devices, network, nearbyNetworks, nearbyScanCompleted, scanCoverage) {
+    val serviceScanCompleted by repo.securityPortsScanCompleted.collectAsState()
+    val isSecurityScanning by repo.isSecurityScanning.collectAsState()
+    val isDeviceScanning by repo.isScanning.collectAsState()
+    val report = remember(devices, network, nearbyNetworks, nearbyScanCompleted, scanCoverage, serviceScanCompleted) {
         SecurityAudit.analyze(
             devices = devices,
             currentSsid = network.ssid,
@@ -56,7 +59,8 @@ fun SecurityScreen(
             nearby = nearbyNetworks,
             currentSecurity = network.security,
             scanCoverage = scanCoverage,
-            nearbyScanCompleted = nearbyScanCompleted
+            nearbyScanCompleted = nearbyScanCompleted,
+            serviceScanCompleted = serviceScanCompleted
         )
     }
     val score = report.score
@@ -121,6 +125,8 @@ fun SecurityScreen(
                                         isWifiScanning = true
                                         try {
                                             repo.scanNearbyNetworks()
+                                        } catch (cancelled: CancellationException) {
+                                            throw cancelled
                                         } catch (_: SecurityException) {
                                             // Permissions may be revoked after the UI check.
                                         } catch (_: Exception) {
@@ -151,6 +157,45 @@ fun SecurityScreen(
                                 color = TextTertiary
                             )
                         }
+                        Spacer(Modifier.height(4.dp))
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    try {
+                                        val coverage = repo.scanCoverage.value
+                                        val stale = coverage.scannedAt <= 0L ||
+                                            System.currentTimeMillis() - coverage.scannedAt > 5 * 60 * 1000L
+                                        if (coverage.checkedAddresses <= 0 || stale) {
+                                            repo.scanDevices()
+                                        }
+                                        repo.scanSecurityPorts()
+                                    } catch (cancelled: CancellationException) {
+                                        throw cancelled
+                                    } catch (_: Exception) {
+                                        // The report stays incomplete if a platform scan fails.
+                                    }
+                                }
+                            },
+                            enabled = !isSecurityScanning && !isDeviceScanning
+                        ) {
+                            if (isSecurityScanning || isDeviceScanning) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                            }
+                            Text(
+                                if (isSecurityScanning || isDeviceScanning) "Проверка устройств и сервисов…"
+                                else "Проверить устройства и сервисы"
+                            )
+                        }
+                        Text(
+                            if (serviceScanCompleted) "Проверка сервисов завершена"
+                            else "Проверка сервисов ещё не выполнена",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextTertiary
+                        )
                     }
                 }
             }
