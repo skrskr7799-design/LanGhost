@@ -25,6 +25,7 @@ import com.langhost.data.ChannelLoad
 import com.langhost.data.NetworkRepository
 import com.langhost.ui.theme.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -56,6 +57,8 @@ fun ChannelAnalyzerScreen(onBack: () -> Unit) {
             scanning = true
             try {
                 repo.scanNearbyNetworks()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (_: SecurityException) {
             } catch (_: Exception) {
             } finally {

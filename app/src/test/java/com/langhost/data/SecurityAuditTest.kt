@@ -37,7 +37,9 @@ class SecurityAuditTest {
             currentBssid = "AA:AA:AA:AA:AA:AA",
             nearby = nearby,
             currentSecurity = "WPA2",
-            scanCoverage = ScanCoverage("192.168.1.0/24", 254, 254)
+            scanCoverage = ScanCoverage("192.168.1.0/24", 254, 254),
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true
         )
 
         assertTrue(report.securityMismatches.isEmpty())
@@ -73,7 +75,9 @@ class SecurityAuditTest {
             currentBssid = "AA:AA:AA:AA:AA:AA",
             nearby = emptyList(),
             currentSecurity = "Open",
-            scanCoverage = coverage
+            scanCoverage = coverage,
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true
         )
         val openNeighborOnly = SecurityAudit.analyze(
             devices = emptyList(),
@@ -81,7 +85,9 @@ class SecurityAuditTest {
             currentBssid = "AA:AA:AA:AA:AA:AA",
             nearby = listOf(WifiNetwork("Cafe", "BB:BB:BB:BB:BB:BB", -50, 2412, 1, "Open")),
             currentSecurity = "WPA2",
-            scanCoverage = coverage
+            scanCoverage = coverage,
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true
         )
 
         assertEquals(75, openCurrent.score)
@@ -101,11 +107,48 @@ class SecurityAuditTest {
             currentBssid = "AA:AA:AA:AA:AA:AA",
             nearby = emptyList(),
             currentSecurity = "WPA2",
-            scanCoverage = ScanCoverage("192.168.1.0/24", 254, 254)
+            scanCoverage = ScanCoverage("192.168.1.0/24", 254, 254),
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true
         )
 
         assertEquals(75, report.score)
         assertTrue(report.findings.any { it.title == "Доступен Telnet" })
+    }
+
+
+    @Test
+    fun doesNotCalculateScoreUntilServiceScanCompletes() {
+        val report = SecurityAudit.analyze(
+            devices = emptyList(),
+            currentSsid = "Home",
+            currentBssid = "AA:AA:AA:AA:AA:AA",
+            nearby = emptyList(),
+            currentSecurity = "WPA2",
+            scanCoverage = ScanCoverage("192.168.1.0/24", 254, 254),
+            nearbyScanCompleted = true,
+            serviceScanCompleted = false
+        )
+
+        assertNull(report.score)
+        assertFalse(report.serviceScanCompleted)
+        assertTrue(report.findings.any { it.title == "Проверка сервисов не выполнена" })
+    }
+
+    @Test
+    fun doesNotCalculateScoreUntilNearbyScanCompletes() {
+        val report = SecurityAudit.analyze(
+            devices = emptyList(),
+            currentSsid = "Home",
+            currentBssid = "AA:AA:AA:AA:AA:AA",
+            nearby = emptyList(),
+            currentSecurity = "WPA2",
+            scanCoverage = ScanCoverage("192.168.1.0/24", 254, 254),
+            nearbyScanCompleted = false,
+            serviceScanCompleted = true
+        )
+
+        assertNull(report.score)
     }
 
     @Test

@@ -126,6 +126,13 @@ class NetworkRepository(context: Context) {
     private val _nearbyScanTime = MutableStateFlow(0L)
     val nearbyScanTime: StateFlow<Long> = _nearbyScanTime.asStateFlow()
 
+    private val securityPortsScanMutex = Mutex()
+    private val _securityPortsScanCompleted = MutableStateFlow(false)
+    val securityPortsScanCompleted: StateFlow<Boolean> = _securityPortsScanCompleted.asStateFlow()
+
+    private val _isSecurityScanning = MutableStateFlow(false)
+    val isSecurityScanning: StateFlow<Boolean> = _isSecurityScanning.asStateFlow()
+
     @SuppressLint("MissingPermission", "HardwareIds")
     fun refreshNetworkInfo() {
         try {
@@ -334,6 +341,7 @@ class NetworkRepository(context: Context) {
         if (!scanMutex.tryLock()) return@withContext
         _isScanning.value = true
         _scanCoverage.value = ScanCoverage()
+        _securityPortsScanCompleted.value = false
         try {
             refreshNetworkInfo()
             val networkInfo = _networkInfo.value
@@ -530,6 +538,37 @@ class NetworkRepository(context: Context) {
         return OUI_MAP[mac.take(8).uppercase()] ?: ""
     }
 
+    /**
+     * Checks the small set of security-relevant TCP services on every currently discovered
+     * non-local host. Both host fan-out and per-host port fan-out are bounded.
+     */
+    suspend fun scanSecurityPorts(): Int = withContext(Dispatchers.IO) {
+        if (_isScanning.value || !securityPortsScanMutex.tryLock()) return@withContext 0
+        _isSecurityScanning.value = true
+        _securityPortsScanCompleted.value = false
+        try {
+            if (_scanCoverage.value.checkedAddresses <= 0) return@withContext 0
+
+            val targets = _devices.value.filter { it.isOnline && !it.isLocalDevice }
+            val scanned = HostDiscovery.mapBounded(
+                items = targets,
+                maxConcurrency = SECURITY_HOST_SCAN_CONCURRENCY
+            ) { device ->
+                val ports = scanPorts(device.ip, SECURITY_AUDIT_PORTS)
+                device.withUpdatedPorts(ports)
+            }
+
+            val updatedById = scanned.associateBy { it.stableId }
+            scanned.forEach { devicesCache[it.stableId] = it }
+            _devices.update { current -> current.map { updatedById[it.stableId] ?: it } }
+            _securityPortsScanCompleted.value = true
+            scanned.sumOf { it.openPorts.size }
+        } finally {
+            _isSecurityScanning.value = false
+            securityPortsScanMutex.unlock()
+        }
+    }
+
     suspend fun scanPorts(ip: String, ports: List<Int> = COMMON_PORTS): List<Int> = withContext(Dispatchers.IO) {
         val timeoutMs = (appSettings.getOnce().scanTimeoutMs * 2).coerceIn(100, 800)
         val validPorts = ports.distinct().filter { it in 1..65535 }
@@ -602,6 +641,8 @@ class NetworkRepository(context: Context) {
         private const val MAX_CONCURRENT_HOST_PROBES = 32
         private const val DEVICE_ENRICHMENT_CONCURRENCY = 16
         private const val PORT_SCAN_CONCURRENCY = 16
+        private const val SECURITY_HOST_SCAN_CONCURRENCY = 4
+        private val SECURITY_AUDIT_PORTS = listOf(23, 80, 443, 139, 445, 3389)
         private const val NEARBY_SCAN_FRESHNESS_MS = 5 * 60 * 1000L
 
         val COMMON_PORTS = listOf(

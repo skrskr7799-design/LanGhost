@@ -4,7 +4,7 @@
 > Baseline branch: main  
 > Baseline commit reviewed: c8e13219461fd1488ccbb83b4fa5ab721ba3eb62  
 > Working branch: work/foundation-stabilization
-> Latest implementation commit: 1488022f8540389dcc2511a0cbf02b0f3ddb962b
+> Latest implementation commit: pending current security-service scan commit
 
 ## Project direction
 
@@ -50,7 +50,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [ ] Audit local data storage, backup/export paths, logs and sensitive identifiers.
 - [ ] Verify biometric/app-lock behavior across lifecycle, process recreation and unavailable hardware.
 - [ ] Review widget/receiver exposure and exported component requirements.
-- [x] Reassess security scoring and threat heuristics; scores are withheld until a device scan has coverage evidence, and current Wi-Fi security is included. Further calibration remains open.
+- [x] Reassess security scoring and threat heuristics; scores are withheld until device discovery, bounded service-port checks and a fresh nearby-Wi-Fi scan have completed. Current Wi-Fi security is included. Further calibration remains open.
 - [x] Remove the assumption that a repeated SSID on another BSSID is an Evil Twin; compare only known, clearly different security families and label the result as a low-confidence configuration signal. Real-world mesh validation remains open.
 - [ ] Document what is and is not detectable on stock Android.
 
@@ -75,7 +75,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [ ] Verify contrast, touch targets, TalkBack semantics and localization.
 
 ### Phase 6 — Automated and device testing
-- [x] Add initial unit tests for pure network calculations, identity merging, scoring, diff and discovery orchestration (35 tests passed in CI on 1df8efe; 8 Wi-Fi security classifier tests and one transition-mode regression test added afterward and await CI).
+- [x] Add initial unit tests for pure network calculations, identity merging, scoring, diff and discovery orchestration (35 tests passed in CI on 1df8efe; 8 Wi-Fi security classifier tests and three security-score/transition regressions added afterward and await CI).
 - [ ] Add repository/integration tests for persistence, scanning orchestration and failure cases.
 - [ ] Add Compose UI tests for critical flows and permission states.
 - [ ] Run Android Lint and dependency/security checks in CI.
@@ -120,12 +120,12 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | BUILD-001 | Build | Baseline Kotlin compilation failed on invalid Compose named arguments | Blocker | Baseline Actions run #33; corrected LockGate.kt and SecurityScreen.kt; validation runs #2 and #3 succeeded | Resolved on audit branch; verify again after later code changes |
 | BUILD-002 | Build | Gradle Wrapper scripts/JAR absent from reviewed repository tree | High | Recursive tree at baseline commit; official Wrapper files and Gradle 8.9 distribution checksum added and verified in CI | Resolved on working branch; main unchanged |
 | BUILD-003 | CI | Legacy build workflow grants contents:write to the whole job and publishes a prerelease on every successful main push | Medium | Replaced with branch/PR build workflow and tag-only release workflow; verify permissions and release behavior during final CI review | Resolved on working branch; main unchanged |
-| TEST-001 | Testing | No unit or instrumentation test source files are present in the repository tree | High | Added 44 JUnit tests authored across Device, NetworkInfo, ChannelAnalyzer, SecurityAudit, ScanDiff, ScanCoverage, HostDiscovery, Ipv4Subnet, NetworkIdentity, WifiChannel and WifiSecurity; 35 passed in CI, latest 7 await CI | Partially resolved on working branch; CI confirmation pending |
+| TEST-001 | Testing | No unit or instrumentation test source files are present in the repository tree | High | Added 53 JUnit tests authored across Device, NetworkInfo, ChannelAnalyzer, SecurityAudit, ScanDiff, ScanCoverage, HostDiscovery, Ipv4Subnet, NetworkIdentity, WifiChannel and WifiSecurity; 35 passed in CI, latest 7 await CI | Partially resolved on working branch; CI confirmation pending |
 | NET-001 | Discovery | IPv4 scan built a /24-style prefix from the first three octets | High | Ipv4Subnet validates masks and handles unsigned IPv4, /31, /32 and bounded enumeration | Implemented; physical-network validation pending |
 | NET-002 | Discovery | Host probes were launched without explicit concurrency limit and had no total per-host time budget | Medium | Candidate cap 1,024, bounded batches of 32, per-host TCP budget, bounded device enrichment and port scanning (16), cancellation propagation, bounded HTTP fingerprint response | Implemented on branch; CI/device validation pending |
 | NET-003 | Network info | Wi-Fi connection data used deprecated WifiManager.connectionInfo and inferred security from Android version | Medium | Migrated to ConnectivityManager/LinkProperties and WifiInfo.currentSecurityType where available, with location-aware callback on API 31+ | Implemented on branch; physical-device validation pending |
-| SEC-001 | Security audit | SecurityScreen received no nearby Wi-Fi list from navigation | High | Shared NetworkRepository StateFlow now supplies the same scan results to both nearby-network and security screens; SecurityScreen can initiate the scan itself | Implemented on branch; CI/device validation pending |
-| SEC-002 | Security score | A clean score could be shown without scan evidence | High | Score is now null until device-scan coverage exists; current Wi-Fi security findings are included; missing Wi-Fi scan is explicitly disclosed | Implemented on branch; scoring calibration remains open |
+| SEC-001 | Security audit | SecurityScreen received no nearby Wi-Fi list from navigation | High | Shared NetworkRepository StateFlow now supplies the same bounded scan results to nearby-network, security and channel-analysis screens; SecurityScreen can initiate the scan itself | Implemented on branch; CI/device validation pending |
+| SEC-002 | Security score | A clean score could be shown without scan evidence | High | Score is now null until device-scan coverage, service-port scan and fresh nearby-Wi-Fi scan are all complete; missing evidence is explicitly disclosed | Implemented on branch; scoring calibration remains open |
 | DATA-001 | Fingerprinting | HTTP response body was read without a byte limit | Medium | HTTP fingerprint now reads at most 32 KB, uses bounded timeouts, disables redirects/cache and disconnects in finally | Implemented on branch; CI/device validation pending |
 | DATA-002 | Change tracking | ScanDiff kept one process-global previous map, not scoped to a network | Medium | ScanDiff now stores bounded per-network snapshots; switching networks no longer emits false disappearance events | Implemented on branch; regression tests added |
 | DATA-003 | Widget | Widget scan starts a coroutine from BroadcastReceiver without goAsync() or a durable work handoff | Medium | ScanWidgetProvider.onReceive() | Open |
@@ -142,12 +142,13 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | UI-003 | Lock UX | Biometric lock can be enabled without checking authenticator availability or handling prompt errors/cancellation with a recovery path | Medium | SettingsScreen toggles boolean directly; LockGate callback only handles success | Open |
 | DOC-001 | Docs | README feature list and roadmap are stale relative to source tree | Low | Compare README with current modules/screens | Open |
 
-## Latest Wi-Fi integration notes
+## Latest Wi-Fi and security-service integration notes
 
 - Nearby Wi-Fi scan results, completion state and last fresh-scan timestamp are owned by `NetworkRepository` and shared through StateFlow across the nearby-network, security and channel-analysis screens.
 - A 10-second timeout and cancellation cleanup prevent a missing scan-results broadcast from leaving the UI waiting forever.
 - Android cached scan results may be displayed, but only `EXTRA_RESULTS_UPDATED=true` advances the fresh-scan timestamp. A previous fresh scan is considered usable for five minutes.
 - Security screen can request the necessary Wi-Fi permissions and launch the same repository scan without navigating away.
+- Security scoring now also requires a separate bounded scan of Telnet, HTTP(S), SMB and RDP-related ports on discovered non-local hosts. Host concurrency is capped at four; per-host port concurrency remains capped at 16.
 - Wi-Fi capability parsing distinguishes Open, WEP, WPA, WPA2, WPA3, WPA2/WPA3 transition and OWE; unknown capability strings are not assumed to be Open.
 - Stock Android may throttle scans and redact identifiers; physical-device validation across API levels remains required.
 

@@ -19,7 +19,8 @@ data class SecurityReport(
     /** Same-SSID access points with a clearly different, known security family. Not proof of an evil twin. */
     val securityMismatches: List<WifiNetwork>,
     val coveragePercent: Int,
-    val deviceScanCompleted: Boolean
+    val deviceScanCompleted: Boolean,
+    val serviceScanCompleted: Boolean
 )
 
 object SecurityAudit {
@@ -31,22 +32,24 @@ object SecurityAudit {
         nearby: List<WifiNetwork>,
         currentSecurity: String = "—",
         scanCoverage: ScanCoverage = ScanCoverage(),
-        nearbyScanCompleted: Boolean = false
+        nearbyScanCompleted: Boolean = false,
+        serviceScanCompleted: Boolean = false
     ): SecurityReport {
         val findings = mutableListOf<SecurityFinding>()
 
-        when (securityFamily(currentSecurity)) {
-            "OPEN" -> findings += SecurityFinding(
+        val currentSecurityFamilies = securityFamilies(currentSecurity)
+        when {
+            "OPEN" in currentSecurityFamilies -> findings += SecurityFinding(
                 SecurityFinding.Severity.HIGH,
                 "Текущая Wi-Fi сеть не использует шифрование",
                 "Трафик в этой сети может быть доступен другим участникам. Используйте защищённую сеть или доверенный VPN."
             )
-            "WEP" -> findings += SecurityFinding(
+            "WEP" in currentSecurityFamilies -> findings += SecurityFinding(
                 SecurityFinding.Severity.HIGH,
                 "Используется устаревший WEP",
                 "WEP считается небезопасным. Переключите точку доступа на WPA2-AES или WPA3."
             )
-            "WPA" -> findings += SecurityFinding(
+            "WPA" in currentSecurityFamilies -> findings += SecurityFinding(
                 SecurityFinding.Severity.MEDIUM,
                 "Используется устаревший WPA",
                 "Предпочтительны WPA2-AES или WPA3. Android может не раскрывать точный режим для некоторых PSK-сетей."
@@ -134,6 +137,13 @@ object SecurityAudit {
                 "Проверено ${scanCoverage.checkedAddresses} из ${scanCoverage.totalUsableAddresses} доступных адресов. Часть устройств могла остаться вне проверки."
             )
         }
+        if (deviceScanCompleted && !serviceScanCompleted) {
+            findings += SecurityFinding(
+                SecurityFinding.Severity.INFO,
+                "Проверка сервисов не выполнена",
+                "Сканирование подсети обнаруживает устройства, но не проверяет полный набор рискованных TCP-сервисов. Запустите отдельную проверку устройств и портов."
+            )
+        }
         if (!nearbyScanCompleted) {
             findings += SecurityFinding(
                 SecurityFinding.Severity.INFO,
@@ -145,7 +155,7 @@ object SecurityAudit {
         val high = findings.count { it.severity == SecurityFinding.Severity.HIGH }
         val medium = findings.count { it.severity == SecurityFinding.Severity.MEDIUM }
         val low = findings.count { it.severity == SecurityFinding.Severity.LOW }
-        val score = if (deviceScanCompleted) {
+        val score = if (deviceScanCompleted && serviceScanCompleted && nearbyScanCompleted) {
             (100 - high * 25 - medium * 12 - low * 4).coerceIn(0, 100)
         } else {
             null
@@ -156,7 +166,8 @@ object SecurityAudit {
             findings = findings,
             securityMismatches = securityMismatches,
             coveragePercent = scanCoverage.coveragePercent,
-            deviceScanCompleted = deviceScanCompleted
+            deviceScanCompleted = deviceScanCompleted,
+            serviceScanCompleted = serviceScanCompleted
         )
     }
 
