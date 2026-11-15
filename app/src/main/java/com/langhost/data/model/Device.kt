@@ -16,6 +16,8 @@ data class Device(
     val openPorts: List<Int> = emptyList(),
     /** Ports confirmed by the dedicated security-service scan, kept separate from general discovery. */
     val auditedPorts: List<Int> = emptyList(),
+    /** Per-port outcomes from the dedicated security audit; unlike openPorts, includes uncertainty. */
+    val auditedPortResults: List<PortAuditResult> = emptyList(),
     val osGuess: String = "",
     val nickname: String = "",
     val notes: String = "",
