@@ -261,7 +261,8 @@ class NetworkRepository(context: Context) {
 
     @SuppressLint("MissingPermission")
     suspend fun scanNearbyNetworks(): List<WifiNetwork> = withContext(Dispatchers.IO) {
-        val now = System.currentTimeMillis()
+        refreshNetworkInfo()
+        val scanScope = currentNetworkScope()
         val batch = withTimeoutOrNull(10_000L) {
             suspendCancellableCoroutine { continuation ->
                 val finished = AtomicBoolean(false)
@@ -333,10 +334,14 @@ class NetworkRepository(context: Context) {
             .distinctBy { it.bssid }
             .sortedByDescending { it.signalDbm }
 
+        refreshNetworkInfo()
+        if (currentNetworkScope() != scanScope) return@withContext emptyList()
+
+        val completedAt = System.currentTimeMillis()
         _nearbyNetworks.value = mapped
-        if (batch.updated) _nearbyScanTime.value = now
+        if (batch.updated) _nearbyScanTime.value = completedAt
         _nearbyScanCompleted.value = batch.updated ||
-            (_nearbyScanTime.value > 0L && now - _nearbyScanTime.value <= NEARBY_SCAN_FRESHNESS_MS)
+            (_nearbyScanTime.value > 0L && completedAt - _nearbyScanTime.value <= NEARBY_SCAN_FRESHNESS_MS)
         mapped
     }
 
@@ -533,7 +538,7 @@ class NetworkRepository(context: Context) {
             // Cancelled or failed discovery must not be presented as completed security evidence.
             refreshNetworkInfo()
             if (currentNetworkScope() == networkScope) {
-                _scanCoverage.value = completedCoverage
+                _scanCoverage.value = completedCoverage.copy(scannedAt = System.currentTimeMillis())
             }
         } finally {
             _isScanning.value = false
