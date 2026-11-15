@@ -434,4 +434,115 @@ class SecurityAuditTest {
         assertEquals(6, report.closedPortCount)
     }
 
+
+    @Test
+    fun withholdsScoreWhenPortSetDoesNotMatchTheAuditPolicy() {
+        val now = System.currentTimeMillis()
+        val results = listOf(23, 80, 443, 139, 445, 9999)
+            .map { PortAuditResult(it, PortAuditStatus.CLOSED) }
+        val device = Device(
+            ip = "192.168.1.10",
+            lastSeen = now,
+            networkScope = "home-scope",
+            auditedPortResults = results
+        )
+        val report = SecurityAudit.analyze(
+            devices = listOf(device),
+            currentSsid = "Home",
+            currentBssid = "AA:AA:AA:AA:AA:AA",
+            nearby = emptyList(),
+            currentSecurity = "WPA2",
+            scanCoverage = ScanCoverage(
+                subnetCidr = "192.168.1.0/24",
+                checkedAddresses = 254,
+                totalUsableAddresses = 254,
+                scannedAt = now,
+                networkScope = "home-scope"
+            ),
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true,
+            currentNetworkScope = "home-scope",
+            nearbyScanTime = now,
+            serviceScanTime = now,
+            now = now
+        )
+
+        assertNull(report.score)
+        assertFalse(report.serviceEvidenceAdequate)
+        assertTrue(report.findings.any { it.title == "Часть результатов портов не подтверждена" })
+    }
+
+    @Test
+    fun withholdsScoreWhenNoRemoteDeviceWasDiscovered() {
+        val now = System.currentTimeMillis()
+        val report = SecurityAudit.analyze(
+            devices = emptyList(),
+            currentSsid = "Home",
+            currentBssid = "AA:AA:AA:AA:AA:AA",
+            nearby = emptyList(),
+            currentSecurity = "WPA2",
+            scanCoverage = ScanCoverage(
+                subnetCidr = "192.168.1.0/24",
+                checkedAddresses = 254,
+                totalUsableAddresses = 254,
+                scannedAt = now,
+                networkScope = "home-scope"
+            ),
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true,
+            currentNetworkScope = "home-scope",
+            nearbyScanTime = now,
+            serviceScanTime = now,
+            now = now
+        )
+
+        assertNull(report.score)
+        assertEquals(0, report.auditedTargetCount)
+        assertFalse(report.serviceEvidenceAdequate)
+        assertTrue(report.findings.any { it.title == "Нет удалённых устройств для проверки сервисов" })
+    }
+
+    @Test
+    fun localDeviceOldPortEvidenceDoesNotCreateSecurityFinding() {
+        val now = System.currentTimeMillis()
+        val localDevice = Device(
+            ip = "192.168.1.2",
+            isLocalDevice = true,
+            lastSeen = now,
+            networkScope = "home-scope",
+            auditedPorts = listOf(23)
+        )
+        val remoteDevice = Device(
+            ip = "192.168.1.10",
+            lastSeen = now,
+            networkScope = "home-scope",
+            auditedPortResults = listOf(23, 80, 443, 139, 445, 3389)
+                .map { PortAuditResult(it, PortAuditStatus.CLOSED) }
+        )
+        val report = SecurityAudit.analyze(
+            devices = listOf(localDevice, remoteDevice),
+            currentSsid = "Home",
+            currentBssid = "AA:AA:AA:AA:AA:AA",
+            nearby = emptyList(),
+            currentSecurity = "WPA2",
+            scanCoverage = ScanCoverage(
+                subnetCidr = "192.168.1.0/24",
+                checkedAddresses = 254,
+                totalUsableAddresses = 254,
+                scannedAt = now,
+                networkScope = "home-scope"
+            ),
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true,
+            currentNetworkScope = "home-scope",
+            nearbyScanTime = now,
+            serviceScanTime = now,
+            now = now
+        )
+
+        assertEquals(100, report.score)
+        assertEquals(1, report.auditedTargetCount)
+        assertFalse(report.findings.any { it.title == "Доступен Telnet" })
+    }
+
 }
