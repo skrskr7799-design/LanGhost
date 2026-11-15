@@ -97,26 +97,33 @@ class DeviceDetailViewModel(
 
     fun saveCustomization() {
         viewModelScope.launch {
+            val device = _uiState.value.device ?: return@launch
             _uiState.update { it.copy(isSaving = true) }
-            val state = _uiState.value
-            val device = state.device
-            val stableId = device?.stableId ?: "ip:$deviceIp"
-            repository.updateDeviceCustomization(
-                stableId,
-                DeviceCustomization(
-                    nickname = state.nickname.trim(),
-                    notes = state.notes.trim(),
-                    isFavorite = state.isFavorite,
-                    isWatched = state.isWatched,
-                    firstSeen = device?.firstSeen ?: 0L
+            try {
+                val state = _uiState.value
+                repository.updateDeviceCustomization(
+                    device.stableId,
+                    DeviceCustomization(
+                        nickname = state.nickname.trim(),
+                        notes = state.notes.trim(),
+                        isFavorite = state.isFavorite,
+                        isWatched = state.isWatched,
+                        firstSeen = device.firstSeen
+                    )
                 )
-            )
-            val updated = repository.getDevice(deviceIp)
-            _uiState.update {
-                it.copy(
-                    device = updated,
-                    isSaving = false
-                )
+                val updated = repository.getDevice(deviceIp)
+                _uiState.update {
+                    it.copy(
+                        device = updated ?: device,
+                        isSaving = false
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isSaving = false) }
+            } finally {
+                _uiState.update { it.copy(isSaving = false) }
             }
         }
     }
