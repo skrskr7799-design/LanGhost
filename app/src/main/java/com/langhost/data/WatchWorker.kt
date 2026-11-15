@@ -35,16 +35,7 @@ class WatchWorker(
             }
 
             if (settings.notifyNewDevices && newDevices.isNotEmpty() && knownBefore.isNotEmpty()) {
-                if (newDevices.size == 1) {
-                    val d = newDevices.first()
-                    NotificationHelper.notifyNewDevice(
-                        applicationContext,
-                        d.displayName,
-                        d.ip
-                    )
-                } else {
-                    NotificationHelper.notifyMultipleNew(applicationContext, newDevices.size)
-                }
+                NotificationHelper.notifyNewDevices(applicationContext)
             }
 
             Result.success()
