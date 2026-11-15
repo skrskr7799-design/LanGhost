@@ -3,6 +3,7 @@ package com.langhost.ui.screens.dashboard
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.langhost.data.AppSettings
 import com.langhost.data.NetworkRepository
 import com.langhost.data.model.Device
 import com.langhost.data.model.NetworkInfo
@@ -22,6 +23,7 @@ data class DashboardUiState(
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = NetworkRepository.getInstance(application)
+    private val appSettings = AppSettings(application)
 
     val uiState: StateFlow<DashboardUiState> = combine(
         repository.networkInfo,
@@ -43,6 +45,12 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         repository.refreshNetworkInfo()
+        viewModelScope.launch {
+            val settings = appSettings.getOnce()
+            if (settings.autoScanOnOpen) {
+                repository.scanDevices()
+            }
+        }
     }
 
     fun refreshNetworkInfo() {

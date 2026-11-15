@@ -35,15 +35,19 @@ fun DashboardScreen(
     val state by viewModel.uiState.collectAsState()
     val network = state.networkInfo
 
+    // FINE is preferred; COARSE alone is acceptable on Android 12+
     val permissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
-        add(Manifest.permission.ACCESS_COARSE_LOCATION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.NEARBY_WIFI_DEVICES)
         }
     }
 
     val permissionState = rememberMultiplePermissionsState(permissions)
+    // Consider granted if FINE or (on older) we at least asked
+    val hasLocation = permissionState.permissions.any {
+        it.permission == Manifest.permission.ACCESS_FINE_LOCATION && it.status.toString().contains("Granted", ignoreCase = true)
+    } || permissionState.allPermissionsGranted
 
     LaunchedEffect(Unit) {
         if (!permissionState.allPermissionsGranted) {
@@ -101,7 +105,7 @@ fun DashboardScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Нужны разрешения", color = TextPrimary, fontWeight = FontWeight.Medium)
                             Text(
-                                "Для чтения названия сети и сканирования требуется доступ к геолокации.",
+                                "Для SSID и сканирования нужна точная геолокация (или Nearby Wi-Fi на Android 13+).",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary
                             )
@@ -121,7 +125,7 @@ fun DashboardScreen(
             ) {
                 StatCard(
                     title = "Онлайн",
-                    value = if (state.devices.isNotEmpty()) state.devices.size.toString() else "—",
+                    value = state.devices.count { it.isOnline }.let { if (state.devices.isNotEmpty()) it.toString() else "—" },
                     icon = Icons.Default.Devices,
                     modifier = Modifier.weight(1f)
                 )
@@ -171,7 +175,10 @@ fun DashboardScreen(
 
             ActionButton(
                 title = "Устройства",
-                subtitle = if (state.devices.isNotEmpty()) "${state.devices.size} хостов найдено" else "Список обнаруженных устройств",
+                subtitle = if (state.devices.isNotEmpty()) {
+                    val online = state.devices.count { it.isOnline }
+                    "$online онлайн / ${state.devices.size} всего"
+                } else "Список обнаруженных устройств",
                 icon = Icons.Default.Devices,
                 onClick = onNavigateToDevices
             )
@@ -230,6 +237,7 @@ private fun NetworkStatusCard(network: com.langhost.data.model.NetworkInfo) {
             InfoRow("Защита", network.security)
             InfoRow("Шлюз", network.gateway)
             InfoRow("Локальный IP", network.ipAddress)
+            InfoRow("Маска", network.netmask)
             InfoRow("DNS", listOf(network.dns1, network.dns2).filter { it != "0.0.0.0" && it != "—" }.joinToString(" / ").ifBlank { "—" })
         }
     }

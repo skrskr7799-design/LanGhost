@@ -95,13 +95,16 @@ class DeviceDetailViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
             val state = _uiState.value
+            val device = state.device
+            val stableId = device?.stableId ?: "ip:$deviceIp"
             repository.updateDeviceCustomization(
-                deviceIp,
+                stableId,
                 DeviceCustomization(
                     nickname = state.nickname.trim(),
                     notes = state.notes.trim(),
                     isFavorite = state.isFavorite,
-                    isWatched = state.isWatched
+                    isWatched = state.isWatched,
+                    firstSeen = device?.firstSeen ?: 0L
                 )
             )
             val updated = repository.getDevice(deviceIp)

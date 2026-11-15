@@ -2,10 +2,12 @@ package com.langhost.ui.screens.wifi
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.net.wifi.WifiManager
 import android.os.Build
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,6 +29,8 @@ import com.langhost.data.model.WifiNetwork
 import com.langhost.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -37,11 +41,9 @@ fun NearbyNetworksScreen(
     val scope = rememberCoroutineScope()
     var networks by remember { mutableStateOf<List<WifiNetwork>>(emptyList()) }
     var isScanning by remember { mutableStateOf(false) }
-    var lastScanTime by remember { mutableStateOf(0L) }
 
     val permissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
-        add(Manifest.permission.ACCESS_COARSE_LOCATION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.NEARBY_WIFI_DEVICES)
         }
@@ -56,7 +58,6 @@ fun NearbyNetworksScreen(
         scope.launch {
             isScanning = true
             networks = scanNearbyNetworks(context)
-            lastScanTime = System.currentTimeMillis()
             isScanning = false
         }
     }
@@ -179,7 +180,6 @@ private fun WifiNetworkCard(network: WifiNetwork) {
                 color = TextTertiary
             )
 
-            // Signal bar
             LinearProgressIndicator(
                 progress = { (network.signalLevel / 4f).coerceIn(0f, 1f) },
                 modifier = Modifier
@@ -201,19 +201,60 @@ private fun WifiNetworkCard(network: WifiNetwork) {
 private suspend fun scanNearbyNetworks(context: Context): List<WifiNetwork> {
     val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
 
-    // Trigger scan
-    @Suppress("DEPRECATION")
-    wifiManager.startScan()
+    val results = suspendCancellableCoroutine { cont ->
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: Intent?) {
+                try {
+                    context.unregisterReceiver(this)
+                } catch (_: Exception) {
+                }
+                @Suppress("DEPRECATION")
+                val list = wifiManager.scanResults ?: emptyList()
+                if (cont.isActive) cont.resume(list)
+            }
+        }
+        val filter = IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            context.registerReceiver(receiver, filter)
+        }
 
-    // Wait a bit for results
-    delay(2500)
+        @Suppress("DEPRECATION")
+        val started = wifiManager.startScan()
+        if (!started) {
+            // Throttled — use cached results
+            try {
+                context.unregisterReceiver(receiver)
+            } catch (_: Exception) {
+            }
+            @Suppress("DEPRECATION")
+            if (cont.isActive) cont.resume(wifiManager.scanResults ?: emptyList())
+        }
 
-    val currentBssid = wifiManager.connectionInfo?.bssid
+        cont.invokeOnCancellation {
+            try {
+                context.unregisterReceiver(receiver)
+            } catch (_: Exception) {
+            }
+        }
+    }
 
-    @Suppress("DEPRECATION")
-    val results = wifiManager.scanResults ?: emptyList()
+    // Fallback timeout if broadcast never arrives
+    val finalResults = if (results.isEmpty()) {
+        delay(1500)
+        @Suppress("DEPRECATION")
+        wifiManager.scanResults ?: emptyList()
+    } else results
 
-    return results
+    val currentBssid = try {
+        wifiManager.connectionInfo?.bssid
+    } catch (_: Exception) {
+        null
+    }
+
+    return finalResults
         .map { result ->
             val freq = result.frequency
             val channel = when {
@@ -221,11 +262,12 @@ private suspend fun scanNearbyNetworks(context: Context): List<WifiNetwork> {
                 freq in 5170..5825 -> (freq - 5170) / 5 + 34
                 else -> 0
             }
+            val caps = result.capabilities ?: ""
             val security = when {
-                result.capabilities.contains("WPA3") -> "WPA3"
-                result.capabilities.contains("WPA2") -> "WPA2"
-                result.capabilities.contains("WPA") -> "WPA"
-                result.capabilities.contains("WEP") -> "WEP"
+                caps.contains("SAE") || caps.contains("WPA3") -> "WPA3"
+                caps.contains("WPA2") -> "WPA2"
+                caps.contains("WPA") -> "WPA"
+                caps.contains("WEP") -> "WEP"
                 else -> "Open"
             }
             WifiNetwork(
@@ -235,7 +277,7 @@ private suspend fun scanNearbyNetworks(context: Context): List<WifiNetwork> {
                 frequencyMhz = freq,
                 channel = channel,
                 security = security,
-                isCurrent = result.BSSID == currentBssid
+                isCurrent = result.BSSID != null && result.BSSID == currentBssid
             )
         }
         .distinctBy { it.bssid }
