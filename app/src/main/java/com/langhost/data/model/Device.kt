@@ -49,6 +49,10 @@ data class Device(
             else -> "ip:$ip"
         }
 
+    /** True only when two snapshots describe the same device endpoint on the same network. */
+    fun hasSameEndpointAs(other: Device): Boolean =
+        stableId == other.stableId && networkScope == other.networkScope && ip == other.ip
+
     fun withUpdatedPorts(ports: List<Int>): Device {
         val os = guessOs(ports, vendor, hostname)
         val type = guessType(ports, vendor, hostname, isGateway)
