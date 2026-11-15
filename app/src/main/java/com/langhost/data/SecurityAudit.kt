@@ -130,30 +130,31 @@ object SecurityAudit {
                 }
                 if (23 in ports) {
                     findings += SecurityFinding(
-                        SecurityFinding.Severity.HIGH,
-                        "Доступен Telnet",
-                        "${device.displayName} (${device.ip}) принимает TCP-соединения на порту 23. Telnet не шифрует сеанс."
+                        SecurityFinding.Severity.MEDIUM,
+                        "Открыт TCP-порт 23 (обычно Telnet)",
+                        "${device.displayName} (${device.ip}): TCP handshake на порту 23 успешен, но протокол не идентифицирован. Если это Telnet, сеанс может передаваться без шифрования; проверьте назначение порта и ограничьте доступ."
                     )
                 }
                 if (445 in ports || 139 in ports) {
+                    val openSmbPorts = listOf(139, 445).filter { it in ports }.joinToString("/")
                     findings += SecurityFinding(
                         SecurityFinding.Severity.MEDIUM,
-                        "Доступен SMB",
-                        "${device.displayName} (${device.ip}) предоставляет SMB в проверяемой сети. Проверьте правила общего доступа и firewall."
+                        "Открыт TCP-порт $openSmbPorts (обычно SMB)",
+                        "${device.displayName} (${device.ip}): TCP handshake успешен, но протокол SMB не подтверждён fingerprinting-ом. Если порт используется SMB, проверьте общий доступ, обновления и правила firewall."
                     )
                 }
                 if (3389 in ports) {
                     findings += SecurityFinding(
                         SecurityFinding.Severity.MEDIUM,
-                        "Доступен RDP",
-                        "${device.displayName} (${device.ip}) принимает RDP-соединения. Ограничьте доступ доверенными устройствами."
+                        "Открыт TCP-порт 3389 (обычно RDP)",
+                        "${device.displayName} (${device.ip}): TCP handshake успешен, но протокол RDP не подтверждён fingerprinting-ом. Если это RDP, ограничьте доступ доверенными устройствами и используйте дополнительные меры защиты."
                     )
                 }
                 if (80 in ports && device.isGateway && 443 !in ports) {
                     findings += SecurityFinding(
                         SecurityFinding.Severity.LOW,
-                        "HTTP доступен на шлюзе",
-                        "${device.displayName} (${device.ip}) отвечает на HTTP, а порт 443 не подтвердился. Это не доказывает, что интерфейс администратора передаёт данные без защиты."
+                        "Открыт TCP-порт 80 на шлюзе",
+                        "${device.displayName} (${device.ip}): TCP handshake на порту 80 успешен, но HTTP-протокол и характер интерфейса не подтверждены. Порт 443 в этой проверке не открыт; это само по себе не доказывает отсутствие защищённого интерфейса."
                     )
                 }
             }
