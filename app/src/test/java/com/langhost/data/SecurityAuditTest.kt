@@ -146,7 +146,7 @@ class SecurityAuditTest {
     fun expiresDeviceScanEvidenceAfterFiveMinutes() {
         val now = 1_000_000L
         val report = SecurityAudit.analyze(
-            devices = listOf(Device(ip = "192.168.1.10", openPorts = listOf(23), lastSeen = now)),
+            devices = listOf(Device(ip = "192.168.1.10", openPorts = listOf(23), lastSeen = System.currentTimeMillis())),
             currentSsid = "Home",
             currentBssid = "AA:AA:AA:AA:AA:AA",
             nearby = emptyList(),
@@ -176,7 +176,7 @@ class SecurityAuditTest {
     fun hidesPortAndNearbyFindingsWhenTheirEvidenceIsStale() {
         val now = 1_000_000L
         val report = SecurityAudit.analyze(
-            devices = listOf(Device(ip = "192.168.1.10", openPorts = listOf(23), lastSeen = now)),
+            devices = listOf(Device(ip = "192.168.1.10", openPorts = listOf(23), lastSeen = System.currentTimeMillis())),
             currentSsid = "Home",
             currentBssid = "AA:AA:AA:AA:AA:AA",
             nearby = listOf(WifiNetwork("Home", "BB:BB:BB:BB:BB:BB", -45, 2412, 1, "Open")),
