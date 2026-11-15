@@ -27,4 +27,16 @@ class NetworkIdentityTest {
         assertEquals(16, scope.length)
         assertEquals(false, scope.contains("Private"))
     }
+    @Test
+    fun scopeEncodingDoesNotCollideWhenSsidContainsSeparatorCharacters() {
+        val first = NetworkIdentity.scopeId(
+            "home|office", "192.168.1.1", "192.168.1.20", "255.255.255.0"
+        )
+        val second = NetworkIdentity.scopeId(
+            "home", "office|192.168.1.1", "192.168.1.20", "255.255.255.0"
+        )
+
+        assertNotEquals(first, second)
+    }
+
 }
