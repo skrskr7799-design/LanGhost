@@ -47,7 +47,11 @@ fun DevicesScreen(
                     Column {
                         Text("Устройства", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         if (devices.isNotEmpty()) {
-                            Text("${devices.size} хостов", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                            val coverage = state.scanCoverage
+                            val subtitle = if (coverage.totalUsableAddresses > 0L) {
+                                "${devices.size} хостов · ${coverage.checkedAddresses}/${coverage.totalUsableAddresses} адресов проверено"
+                            } else "${devices.size} хостов"
+                            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         }
                     }
                 },

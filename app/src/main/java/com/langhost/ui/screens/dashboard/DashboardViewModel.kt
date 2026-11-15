@@ -7,6 +7,7 @@ import com.langhost.data.AppSettings
 import com.langhost.data.NetworkRepository
 import com.langhost.data.model.Device
 import com.langhost.data.model.NetworkInfo
+import com.langhost.data.model.ScanCoverage
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -17,7 +18,8 @@ data class DashboardUiState(
     val networkInfo: NetworkInfo = NetworkInfo(),
     val devices: List<Device> = emptyList(),
     val isScanning: Boolean = false,
-    val lastScanTime: Long = 0L
+    val lastScanTime: Long = 0L,
+    val scanCoverage: ScanCoverage = ScanCoverage()
 )
 
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
@@ -29,13 +31,15 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         repository.networkInfo,
         repository.devices,
         repository.isScanning,
-        repository.lastScanTime
-    ) { networkInfo, devices, isScanning, lastScanTime ->
+        repository.lastScanTime,
+        repository.scanCoverage
+    ) { networkInfo, devices, isScanning, lastScanTime, scanCoverage ->
         DashboardUiState(
             networkInfo = networkInfo,
             devices = devices,
             isScanning = isScanning,
-            lastScanTime = lastScanTime
+            lastScanTime = lastScanTime,
+            scanCoverage = scanCoverage
         )
     }.stateIn(
         scope = viewModelScope,

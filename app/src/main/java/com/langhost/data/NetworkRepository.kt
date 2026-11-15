@@ -12,6 +12,7 @@ import android.os.Build
 import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
 import com.langhost.data.model.NetworkInfo
+import com.langhost.data.model.ScanCoverage
 import com.langhost.data.network.Ipv4Subnet
 import com.langhost.data.network.WifiChannel
 import kotlinx.coroutines.Dispatchers
@@ -100,6 +101,9 @@ class NetworkRepository(context: Context) {
 
     private val _lastScanTime = MutableStateFlow(0L)
     val lastScanTime: StateFlow<Long> = _lastScanTime.asStateFlow()
+
+    private val _scanCoverage = MutableStateFlow(ScanCoverage())
+    val scanCoverage: StateFlow<ScanCoverage> = _scanCoverage.asStateFlow()
 
     private val _lastDiff = MutableStateFlow<ScanDiffResult?>(null)
     val lastDiff: StateFlow<ScanDiffResult?> = _lastDiff.asStateFlow()
@@ -225,6 +229,7 @@ class NetworkRepository(context: Context) {
     suspend fun scanDevices() = withContext(Dispatchers.IO) {
         if (_isScanning.value) return@withContext
         _isScanning.value = true
+        _scanCoverage.value = ScanCoverage()
         try {
             refreshNetworkInfo()
             val networkInfo = _networkInfo.value
@@ -252,6 +257,13 @@ class NetworkRepository(context: Context) {
             }).toSet()
 
             val now = System.currentTimeMillis()
+            _scanCoverage.value = ScanCoverage(
+                subnetCidr = subnet?.let { "${it.networkAddressString()}/${it.prefixLength}" }.orEmpty(),
+                checkedAddresses = candidates.size,
+                totalUsableAddresses = subnet?.usableHostCount ?: 0L,
+                truncated = subnet != null && candidates.size.toLong() < subnet.usableHostCount,
+                scannedAt = now
+            )
             val onlineDevices = coroutineScope {
                 allIps.map { ip ->
                     async {

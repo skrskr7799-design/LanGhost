@@ -108,6 +108,19 @@ fun DashboardScreen(
                 }
             }
 
+            if (state.scanCoverage.scannedAt > 0L) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (state.scanCoverage.truncated) Warning.copy(alpha = 0.12f) else Surface), shape = RoundedCornerShape(12.dp)) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Покрытие сканирования", color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                        if (state.scanCoverage.totalUsableAddresses > 0L) {
+                            Text("${state.scanCoverage.checkedAddresses} из ${state.scanCoverage.totalUsableAddresses} адресов · ${state.scanCoverage.coveragePercent}%", color = TextPrimary, style = MaterialTheme.typography.bodyMedium)
+                            if (state.scanCoverage.subnetCidr.isNotBlank()) Text("Подсеть ${state.scanCoverage.subnetCidr}", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                            if (state.scanCoverage.truncated) Text("Подсеть слишком большая для полного прохода. Проверена приоритетная часть диапазона.", color = Warning, style = MaterialTheme.typography.bodySmall)
+                        } else Text("Не удалось определить диапазон IPv4 для оценки покрытия.", color = Warning, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+
             Text("Действия", style = MaterialTheme.typography.titleMedium, color = TextSecondary)
 
             ActionButton("Сканировать", if (state.lastScanTime > 0) "Готово" else "Найти хосты", Icons.Default.Radar, { viewModel.startScan() }, !state.isScanning)
