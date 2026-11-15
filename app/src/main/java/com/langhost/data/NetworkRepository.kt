@@ -8,7 +8,6 @@ import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
-import android.net.NetworkRequest
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -144,10 +143,9 @@ class NetworkRepository(context: Context) {
     // Register callbacks only after every StateFlow used by refreshNetworkInfo() is initialized.
     init {
         runCatching {
-            val request = NetworkRequest.Builder()
-                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-                .build()
-            connectivityManager.registerNetworkCallback(request, wifiNetworkCallback)
+            // Observe the system default network across Wi-Fi, Ethernet, VPN and
+            // other transports; a Wi-Fi-only request misses default-route changes.
+            connectivityManager.registerDefaultNetworkCallback(wifiNetworkCallback)
         }
     }
 
