@@ -13,6 +13,10 @@ jobs:
     name: Build and Release APK
     runs-on: ubuntu-latest
 
+    env:
+      ANDROID_HOME: ${{ github.workspace }}/android-sdk
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,15 +27,27 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept licenses and install SDK packages
+      - name: Install Android commandlinetools
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          cd /tmp
+          curl -fsSL -o cmdtools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q cmdtools.zip
+          rm -rf $ANDROID_HOME/cmdline-tools/latest
+          mkdir -p $ANDROID_HOME/cmdline-tools/latest
+          mv cmdline-tools/* $ANDROID_HOME/cmdline-tools/latest/
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
 
-      - name: Create local.properties
+      - name: Install SDK packages
+        run: |
+          yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses >/dev/null || true
+          sdkmanager --sdk_root=$ANDROID_HOME \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "platform-tools"
+
+      - name: local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
 
       - name: Setup Gradle 8.9
@@ -46,6 +62,8 @@ jobs:
         id: apk
         run: |
           APK=$(find app/build/outputs/apk -name "*.apk" -type f | head -n 1)
+          echo "APK=$APK"
+          test -n "$APK" && test -f "$APK"
           echo "path=$APK" >> $GITHUB_OUTPUT
           ls -la "$APK"
 
@@ -62,10 +80,9 @@ jobs:
           tag_name: v0.4.${{ github.run_number }}
           name: LanGhost v0.4.${{ github.run_number }}
           body: |
-            Автосборка debug APK из `main`.
-            Установка: скачай APK ниже → разреши неизвестные источники → установи.
+            Debug APK (автосборка).
+            Скачай APK → установи с разрешением неизвестных источников.
           files: ${{ steps.apk.outputs.path }}
-          draft: false
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
