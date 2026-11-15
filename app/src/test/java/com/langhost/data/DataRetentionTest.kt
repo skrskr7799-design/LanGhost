@@ -14,6 +14,22 @@ class DataRetentionTest {
     }
 
     @Test
+    fun deviceCustomizationsArePrunedWithExpiredKnownIdentities() {
+        val retainedIds = listOf("aa:bb:cc@home", "ip:home:192.168.1.10")
+        val existingKeys = setOf(
+            deviceCustomizationKeyName(retainedIds[0]),
+            deviceCustomizationKeyName(retainedIds[1]),
+            deviceCustomizationKeyName("old:device@old-network"),
+            "unrelated_setting"
+        )
+
+        assertEquals(
+            setOf(deviceCustomizationKeyName("old:device@old-network")),
+            staleDeviceCustomizationKeys(existingKeys, retainedIds)
+        )
+    }
+
+    @Test
     fun pingHistoryRetentionKeepsMostRecentlyUpdatedIps() {
         assertEquals(
             setOf("ping_b", "ping_c"),
