@@ -51,6 +51,7 @@ class DevicePreferences(private val context: Context) {
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
+            AppLog.warning(AppLog.Component.DEVICE_PREFERENCES, AppLog.Event.CUSTOMIZATION_READ_FALLBACK)
             DeviceCustomization()
         }
     }
@@ -114,6 +115,7 @@ class DevicePreferences(private val context: Context) {
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
+            AppLog.warning(AppLog.Component.DEVICE_PREFERENCES, AppLog.Event.KNOWN_IDS_READ_FALLBACK)
             emptySet()
         }
     }
