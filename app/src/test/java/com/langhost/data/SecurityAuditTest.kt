@@ -23,6 +23,7 @@ class SecurityAuditTest {
 
         assertNull(report.score)
         assertFalse(report.deviceScanCompleted)
+        assertFalse(report.serviceScanCompleted)
         assertTrue(report.findings.any { it.title == "Недостаточно данных для общей оценки" })
     }
 
