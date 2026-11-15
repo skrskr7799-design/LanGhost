@@ -8,7 +8,7 @@ import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -91,14 +91,40 @@ private fun PhoneNavHost() {
 
 @Composable
 private fun TabletNavHost() {
-    var selectedDeviceIp by remember { mutableStateOf<String?>(null) }
+    val navController = rememberNavController()
+    var selectedDeviceIp by rememberSaveable { mutableStateOf<String?>(null) }
 
     Row(modifier = Modifier.fillMaxSize()) {
-        DevicesScreen(
-            onBack = { selectedDeviceIp = null },
-            onDeviceClick = { ip -> selectedDeviceIp = ip },
+        // Left: secondary nav via NavHost for settings/wifi, or devices list
+        NavHost(
+            navController = navController,
+            startDestination = Routes.DEVICES,
             modifier = Modifier.weight(0.4f)
-        )
+        ) {
+            composable(Routes.DEVICES) {
+                DevicesScreen(
+                    onBack = { selectedDeviceIp = null },
+                    onDeviceClick = { ip -> selectedDeviceIp = ip }
+                )
+            }
+            composable(Routes.SETTINGS) {
+                SettingsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.NEARBY_WIFI) {
+                NearbyNetworksScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.DASHBOARD) {
+                DashboardScreen(
+                    onNavigateToDevices = {
+                        navController.navigate(Routes.DEVICES) {
+                            popUpTo(Routes.DASHBOARD) { inclusive = true }
+                        }
+                    },
+                    onNavigateToSettings = { navController.navigate(Routes.SETTINGS) },
+                    onNavigateToNearbyWifi = { navController.navigate(Routes.NEARBY_WIFI) }
+                )
+            }
+        }
 
         VerticalDivider(color = Divider, thickness = 1.dp)
 
@@ -110,9 +136,11 @@ private fun TabletNavHost() {
             )
         } else {
             DashboardScreen(
-                onNavigateToDevices = {},
-                onNavigateToSettings = {},
-                onNavigateToNearbyWifi = {},
+                onNavigateToDevices = {
+                    navController.navigate(Routes.DEVICES)
+                },
+                onNavigateToSettings = { navController.navigate(Routes.SETTINGS) },
+                onNavigateToNearbyWifi = { navController.navigate(Routes.NEARBY_WIFI) },
                 modifier = Modifier.weight(0.6f)
             )
         }
