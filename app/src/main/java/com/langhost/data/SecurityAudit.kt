@@ -83,7 +83,7 @@ object SecurityAudit {
         // Port findings are shown only when a fresh service scan belongs to this network.
         if (effectiveServiceScanCompleted) {
             devices.filter { it.isOnline }.forEach { device ->
-                val ports = device.openPorts.toSet()
+                val ports = device.auditedPorts.toSet()
                 if (23 in ports) {
                     findings += SecurityFinding(
                         SecurityFinding.Severity.HIGH,
