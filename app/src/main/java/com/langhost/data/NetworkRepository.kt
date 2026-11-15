@@ -380,7 +380,7 @@ class NetworkRepository(context: Context) {
             }).toSet()
 
             val now = System.currentTimeMillis()
-            _scanCoverage.value = ScanCoverage(
+            val completedCoverage = ScanCoverage(
                 subnetCidr = subnet?.let { "${it.networkAddressString()}/${it.prefixLength}" }.orEmpty(),
                 checkedAddresses = candidates.size,
                 totalUsableAddresses = subnet?.usableHostCount ?: 0L,
@@ -480,6 +480,8 @@ class NetworkRepository(context: Context) {
                     )
                 )
             }
+            // Cancelled or failed discovery must not be presented as completed security evidence.
+            _scanCoverage.value = completedCoverage
         } finally {
             _isScanning.value = false
             scanMutex.unlock()
