@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -78,6 +79,7 @@ private enum class TopologyPresentation(val label: String) {
     LIST("Список")
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopologyScreen(
     onBack: () -> Unit,
