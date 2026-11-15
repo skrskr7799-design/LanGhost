@@ -17,7 +17,25 @@ class DataRetentionTest {
     fun pingHistoryRetentionKeepsMostRecentlyUpdatedIps() {
         assertEquals(
             setOf("ping_b", "ping_c"),
-            retainPingHistoryKeys(mapOf("ping_a" to 10L, "ping_b" to 30L, "ping_c" to 20L), 2)
+            retainPingHistoryKeys(
+                mapOf("ping_a" to 10L, "ping_b" to 30L, "ping_c" to 20L),
+                maxKeys = 2,
+                now = 30L,
+                retentionMs = 30L
+            )
+        )
+    }
+
+    @Test
+    fun pingHistoryRetentionDropsExpiredIps() {
+        assertEquals(
+            setOf("ping_recent"),
+            retainPingHistoryKeys(
+                mapOf("ping_expired" to 1L, "ping_recent" to 90L),
+                maxKeys = 64,
+                now = 100L,
+                retentionMs = 20L
+            )
         )
     }
 }
