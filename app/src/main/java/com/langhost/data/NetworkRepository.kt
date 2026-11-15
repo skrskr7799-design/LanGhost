@@ -63,22 +63,34 @@ class NetworkRepository(context: Context) {
             object : ConnectivityManager.NetworkCallback(
                 ConnectivityManager.NetworkCallback.FLAG_INCLUDE_LOCATION_INFO
             ) {
+                override fun onAvailable(network: Network) {
+                    if (connectivityManager.activeNetwork == network) refreshNetworkInfo()
+                }
+
                 override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
                     cacheWifiInfo(network, capabilities)
+                    if (connectivityManager.activeNetwork == network) refreshNetworkInfo()
                 }
 
                 override fun onLost(network: Network) {
                     wifiInfoByNetwork.remove(network)
+                    refreshNetworkInfo()
                 }
             }
         } else {
             object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    if (connectivityManager.activeNetwork == network) refreshNetworkInfo()
+                }
+
                 override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
                     cacheWifiInfo(network, capabilities)
+                    if (connectivityManager.activeNetwork == network) refreshNetworkInfo()
                 }
 
                 override fun onLost(network: Network) {
                     wifiInfoByNetwork.remove(network)
+                    refreshNetworkInfo()
                 }
             }
         }
@@ -138,14 +150,14 @@ class NetworkRepository(context: Context) {
         try {
             val network = connectivityManager.activeNetwork
             if (network == null) {
-                _networkInfo.value = NetworkInfo()
+                publishNetworkInfo(NetworkInfo())
                 return
             }
 
             val capabilities = connectivityManager.getNetworkCapabilities(network)
             val linkProperties = connectivityManager.getLinkProperties(network)
             if (capabilities == null || linkProperties == null) {
-                _networkInfo.value = NetworkInfo()
+                publishNetworkInfo(NetworkInfo())
                 return
             }
 
@@ -192,7 +204,7 @@ class NetworkRepository(context: Context) {
             val netmask = prefixLength?.let(::prefixToNetmask) ?: "0.0.0.0"
             val ip = localAddress?.hostAddress ?: "0.0.0.0"
 
-            _networkInfo.value = NetworkInfo(
+            publishNetworkInfo(NetworkInfo(
                 ssid = ssid,
                 bssid = bssid,
                 signalDbm = wifiInfo?.rssi?.takeIf { it in -127..0 } ?: 0,
@@ -208,10 +220,39 @@ class NetworkRepository(context: Context) {
                 networkId = wifiInfo?.networkId ?: -1,
                 isConnected = localAddress != null && (isWifi ||
                     capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
-            )
+            ))
         } catch (_: Exception) {
-            _networkInfo.value = NetworkInfo()
+            publishNetworkInfo(NetworkInfo())
         }
+    }
+
+    private fun networkScope(info: NetworkInfo): String? {
+        if (!info.isConnected) return null
+        return NetworkIdentity.scopeId(
+            ssid = info.ssid,
+            gateway = info.gateway,
+            ipAddress = info.ipAddress,
+            netmask = info.netmask
+        )
+    }
+
+    private fun currentNetworkScope(): String? = networkScope(_networkInfo.value)
+
+    private fun publishNetworkInfo(next: NetworkInfo) {
+        val previousScope = networkScope(_networkInfo.value)
+        val nextScope = networkScope(next)
+        if (previousScope != nextScope) {
+            // Do not carry device, port, or nearby-AP evidence across logical networks.
+            _devices.value = emptyList()
+            _lastDiff.value = null
+            _lastScanTime.value = 0L
+            _scanCoverage.value = ScanCoverage()
+            _securityPortsScanCompleted.value = false
+            _nearbyNetworks.value = emptyList()
+            _nearbyScanCompleted.value = false
+            _nearbyScanTime.value = 0L
+        }
+        _networkInfo.value = next
     }
 
     @SuppressLint("MissingPermission")
@@ -385,7 +426,8 @@ class NetworkRepository(context: Context) {
                 checkedAddresses = candidates.size,
                 totalUsableAddresses = subnet?.usableHostCount ?: 0L,
                 truncated = subnet != null && candidates.size.toLong() < subnet.usableHostCount,
-                scannedAt = now
+                scannedAt = now,
+                networkScope = networkScope
             )
             val onlineDevices = HostDiscovery.mapBounded(
                 items = allIps.toList(),
@@ -463,6 +505,8 @@ class NetworkRepository(context: Context) {
                     .thenBy { it.ip }
             )
 
+            if (currentNetworkScope() != networkScope) return@withContext
+
             _lastDiff.value = ScanDiff.updateAndDiff(result, networkScope)
             _devices.value = result
             _lastScanTime.value = now
@@ -481,7 +525,9 @@ class NetworkRepository(context: Context) {
                 )
             }
             // Cancelled or failed discovery must not be presented as completed security evidence.
-            _scanCoverage.value = completedCoverage
+            if (currentNetworkScope() == networkScope) {
+                _scanCoverage.value = completedCoverage
+            }
         } finally {
             _isScanning.value = false
             scanMutex.unlock()
@@ -549,9 +595,14 @@ class NetworkRepository(context: Context) {
         _isSecurityScanning.value = true
         _securityPortsScanCompleted.value = false
         try {
-            if (_scanCoverage.value.checkedAddresses <= 0) return@withContext 0
+            refreshNetworkInfo()
+            val scanScope = currentNetworkScope() ?: return@withContext 0
+            val coverage = _scanCoverage.value
+            if (coverage.checkedAddresses <= 0 || coverage.networkScope != scanScope) return@withContext 0
 
-            val targets = _devices.value.filter { it.isOnline && !it.isLocalDevice }
+            val targets = _devices.value.filter {
+                it.networkScope == scanScope && it.isOnline && !it.isLocalDevice
+            }
             val scanned = HostDiscovery.mapBounded(
                 items = targets,
                 maxConcurrency = SECURITY_HOST_SCAN_CONCURRENCY
@@ -559,6 +610,9 @@ class NetworkRepository(context: Context) {
                 val ports = scanPorts(device.ip, SECURITY_AUDIT_PORTS)
                 device.withUpdatedPorts(ports)
             }
+
+            // A network switch during the port scan invalidates its results.
+            if (currentNetworkScope() != scanScope) return@withContext 0
 
             val updatedById = scanned.associateBy { it.stableId }
             scanned.forEach { devicesCache[it.stableId] = it }
