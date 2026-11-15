@@ -671,14 +671,15 @@ class NetworkRepository(context: Context) {
             refreshNetworkInfo()
             if (currentNetworkScope() != scanScope) return@withContext 0
 
-            val auditedPortsById = scanned.associate { it.stableId to (it.ip to it.auditedPorts) }
+            val scannedById = scanned.associateBy { it.stableId }
             // Merge only the dedicated audit result into the latest device snapshots. A manual
-            // detail scan or customization may have updated the same device while this scan ran.
+            // detail scan, DHCP address change or customization may have updated the device
+            // while this scan ran; endpoint identity must still match before evidence is attached.
             _devices.update { current ->
                 current.map { device ->
-                    val scannedEndpoint = auditedPortsById[device.stableId]
-                    if (device.networkScope == scanScope && scannedEndpoint?.first == device.ip) {
-                        device.copy(auditedPorts = scannedEndpoint.second)
+                    val scannedDevice = scannedById[device.stableId]
+                    if (scannedDevice != null && device.hasSameEndpointAs(scannedDevice)) {
+                        device.copy(auditedPorts = scannedDevice.auditedPorts)
                     } else device
                 }
             }
@@ -765,9 +766,7 @@ class NetworkRepository(context: Context) {
         ensureCurrentNetworkScope(device.networkScope)
         val (nb, http) = DeviceProbe.enrichHostnamesAndFingerprint(device.ip, device.openPorts)
         ensureCurrentNetworkScope(device.networkScope)
-        val current = _devices.value.firstOrNull {
-            it.stableId == device.stableId && it.networkScope == device.networkScope && it.ip == device.ip
-        } ?: return
+        val current = _devices.value.firstOrNull { device.hasSameEndpointAs(it) } ?: return
         val hostname = current.hostname.ifBlank { nb }
         val updated = current.copy(
             hostname = hostname,
@@ -778,7 +777,7 @@ class NetworkRepository(context: Context) {
         devicesCache[updated.stableId] = updated
         _devices.update { list ->
             list.map {
-                if (it.stableId == device.stableId && it.networkScope == device.networkScope && it.ip == device.ip) updated else it
+                if (device.hasSameEndpointAs(it)) updated else it
             }
         }
     }
