@@ -23,7 +23,7 @@ class ExportHelperTest {
     @Test
     fun csvCellNeutralizesFormulaAfterLeadingWhitespace() {
         assertEquals("\"'  =1+1\"", ExportHelper.escapeCsvCell("  =1+1"))
-        assertEquals("\"'\\t=cmd\"", ExportHelper.escapeCsvCell("\t=cmd"))
+        assertEquals("\"'\t=cmd\"", ExportHelper.escapeCsvCell("\t=cmd"))
     }
 
     @Test
