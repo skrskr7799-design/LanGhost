@@ -217,11 +217,21 @@ fun SecurityScreen(
                             )
                         }
                         Text(
-                            if (report.serviceScanCompleted) "Проверка сервисов завершена"
-                            else "Проверка сервисов ещё не выполнена или устарела",
+                            when {
+                                !report.serviceScanCompleted -> "Проверка сервисов ещё не выполнена или устарела"
+                                report.serviceEvidenceAdequate -> "Проверка сервисов завершена · результаты подтверждены"
+                                else -> "Проверка завершена, но часть результатов неопределённа"
+                            },
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextTertiary
+                            color = if (report.serviceEvidenceAdequate) Success else Warning
                         )
+                        if (report.serviceScanCompleted) {
+                            Text(
+                                "Порты: открыто ${report.openPortCount} · закрыто ${report.closedPortCount} · фильтрация/таймаут ${report.filteredPortCount} · неизвестно ${report.unknownPortCount}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
                     }
                 }
             }
