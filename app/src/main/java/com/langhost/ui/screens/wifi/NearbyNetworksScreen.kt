@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.langhost.data.NetworkRepository
+import com.langhost.data.model.WifiNetwork
 import com.langhost.ui.theme.*
 import kotlinx.coroutines.launch
 

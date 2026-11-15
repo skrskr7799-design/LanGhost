@@ -88,17 +88,17 @@ object SecurityAudit {
 
         // A second BSSID with the same SSID is normal in mesh and multi-AP networks.
         // Only report a difference when both security modes are known and clearly distinct.
-        val currentFamily = securityFamily(currentSecurity)
+        val currentFamilies = securityFamilies(currentSecurity)
         val securityMismatches = if (
-            currentSsid.isNotBlank() && currentSsid != "—" && currentFamily != "UNKNOWN"
+            currentSsid.isNotBlank() && currentSsid != "—" && currentFamilies.isNotEmpty()
         ) {
             nearby.filter { accessPoint ->
-                val candidateFamily = securityFamily(accessPoint.security)
+                val candidateFamilies = securityFamilies(accessPoint.security)
                 accessPoint.ssid.equals(currentSsid, ignoreCase = true) &&
                     accessPoint.bssid.isNotBlank() &&
                     !accessPoint.bssid.equals(currentBssid, ignoreCase = true) &&
-                    candidateFamily != "UNKNOWN" &&
-                    candidateFamily != currentFamily
+                    candidateFamilies.isNotEmpty() &&
+                    candidateFamilies.intersect(currentFamilies).isEmpty()
             }
         } else {
             emptyList()
@@ -160,18 +160,17 @@ object SecurityAudit {
         )
     }
 
-    private fun securityFamily(value: String): String {
+    private fun securityFamilies(value: String): Set<String> {
         val normalized = value.trim().uppercase()
         return when {
-            normalized == "OPEN" -> "OPEN"
-            normalized == "WEP" -> "WEP"
-            normalized.contains("WPA3") || normalized.contains("SAE") -> "WPA3"
-            normalized == "WPA" -> "WPA"
-            normalized == "WPA2" || normalized == "WPA2-PSK" -> "WPA2"
-            // Android's generic PSK/EAP values do not reliably distinguish WPA from WPA2.
-            normalized.contains("PSK") || normalized.contains("ENTERPRISE") ||
-                normalized == "OWE" || normalized == "—" || normalized.isBlank() -> "UNKNOWN"
-            else -> "UNKNOWN"
+            normalized == "OPEN" -> setOf("OPEN")
+            normalized == "WEP" -> setOf("WEP")
+            normalized == "OWE" -> setOf("OWE")
+            normalized.contains("WPA2/WPA3") -> setOf("WPA2", "WPA3")
+            normalized.contains("WPA3") || normalized.contains("SAE") -> setOf("WPA3")
+            normalized == "WPA2" || normalized.startsWith("WPA2-") -> setOf("WPA2")
+            normalized == "WPA" -> setOf("WPA")
+            else -> emptySet()
         }
     }
 }

@@ -109,6 +109,24 @@ class SecurityAuditTest {
     }
 
     @Test
+    fun transitionModeIsCompatibleWithItsWpa2AndWpa3Members() {
+        val nearby = listOf(
+            WifiNetwork("Home", "BB:BB:BB:BB:BB:BB", -45, 2412, 1, "WPA2/WPA3")
+        )
+        val report = SecurityAudit.analyze(
+            devices = emptyList(),
+            currentSsid = "Home",
+            currentBssid = "AA:AA:AA:AA:AA:AA",
+            nearby = nearby,
+            currentSecurity = "WPA2",
+            scanCoverage = ScanCoverage("192.168.1.0/24", 254, 254),
+            nearbyScanCompleted = true
+        )
+
+        assertTrue(report.securityMismatches.isEmpty())
+    }
+
+    @Test
     fun genericPskDoesNotTriggerUnsupportedSecurityMismatch() {
         val nearby = listOf(
             WifiNetwork("Home", "BB:BB:BB:BB:BB:BB", -45, 2412, 1, "WPA3")

@@ -32,4 +32,8 @@ class WifiSecurityTest {
         assertEquals("Unknown", WifiSecurity.classify(""))
         assertEquals("Unknown", WifiSecurity.classify("[UNKNOWN]"))
     }
+
+    @Test fun doesNotGuessWpaGenerationFromAmbiguousEnterpriseCapabilities() {
+        assertEquals("Unknown", WifiSecurity.classify("[RSN-EAP-CCMP][ESS]"))
+    }
 }

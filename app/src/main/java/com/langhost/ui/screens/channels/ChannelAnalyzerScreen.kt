@@ -1,12 +1,6 @@
 package com.langhost.ui.screens.channels
 
 import android.Manifest
-import android.annotation.SuppressLint
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.net.wifi.WifiManager
 import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -31,10 +25,7 @@ import com.langhost.data.ChannelLoad
 import com.langhost.data.NetworkRepository
 import com.langhost.data.model.WifiNetwork
 import com.langhost.ui.theme.*
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -44,7 +35,7 @@ fun ChannelAnalyzerScreen(onBack: () -> Unit) {
     val repo = remember { NetworkRepository.getInstance(context) }
     val network by repo.networkInfo.collectAsState()
 
-    var networks by remember { mutableStateOf<List<WifiNetwork>>(emptyList()) }
+    val networks by repo.nearbyNetworks.collectAsState()
     var scanning by remember { mutableStateOf(false) }
 
     val permissions = buildList {
@@ -64,8 +55,13 @@ fun ChannelAnalyzerScreen(onBack: () -> Unit) {
         }
         scope.launch {
             scanning = true
-            networks = scanWifi(context)
-            scanning = false
+            try {
+                repo.scanNearbyNetworks()
+            } catch (_: SecurityException) {
+            } catch (_: Exception) {
+            } finally {
+                scanning = false
+            }
         }
     }
 
@@ -157,55 +153,3 @@ private fun ChannelBar(load: ChannelLoad, isBest: Boolean) {
     }
 }
 
-@SuppressLint("MissingPermission")
-private suspend fun scanWifi(context: Context): List<WifiNetwork> {
-    val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-    val results = suspendCancellableCoroutine { cont ->
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(ctx: Context?, intent: Intent?) {
-                try { context.unregisterReceiver(this) } catch (_: Exception) {}
-                @Suppress("DEPRECATION")
-                if (cont.isActive) cont.resume(wifiManager.scanResults ?: emptyList())
-            }
-        }
-        val filter = IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("UnspecifiedRegisterReceiverFlag")
-            context.registerReceiver(receiver, filter)
-        }
-        @Suppress("DEPRECATION")
-        if (!wifiManager.startScan()) {
-            try { context.unregisterReceiver(receiver) } catch (_: Exception) {}
-            @Suppress("DEPRECATION")
-            if (cont.isActive) cont.resume(wifiManager.scanResults ?: emptyList())
-        }
-        cont.invokeOnCancellation {
-            try { context.unregisterReceiver(receiver) } catch (_: Exception) {}
-        }
-    }
-    val list = if (results.isEmpty()) {
-        delay(1500)
-        @Suppress("DEPRECATION")
-        wifiManager.scanResults ?: emptyList()
-    } else results
-
-    return list.map { r ->
-        val freq = r.frequency
-        val ch = when {
-            freq in 2412..2484 -> (freq - 2412) / 5 + 1
-            freq in 5170..5825 -> (freq - 5170) / 5 + 34
-            else -> 0
-        }
-        val caps = r.capabilities ?: ""
-        val sec = when {
-            caps.contains("SAE") || caps.contains("WPA3") -> "WPA3"
-            caps.contains("WPA2") -> "WPA2"
-            caps.contains("WPA") -> "WPA"
-            caps.contains("WEP") -> "WEP"
-            else -> "Open"
-        }
-        WifiNetwork(r.SSID ?: "", r.BSSID ?: "", r.level, freq, ch, sec)
-    }.distinctBy { it.bssid }
-}

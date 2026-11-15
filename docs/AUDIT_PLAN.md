@@ -75,7 +75,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [ ] Verify contrast, touch targets, TalkBack semantics and localization.
 
 ### Phase 6 — Automated and device testing
-- [x] Add initial unit tests for pure network calculations, identity merging, scoring, diff and discovery orchestration (35 tests passed in CI on 1df8efe; 7 Wi-Fi security classifier tests added afterward and await CI).
+- [x] Add initial unit tests for pure network calculations, identity merging, scoring, diff and discovery orchestration (35 tests passed in CI on 1df8efe; 8 Wi-Fi security classifier tests and one transition-mode regression test added afterward and await CI).
 - [ ] Add repository/integration tests for persistence, scanning orchestration and failure cases.
 - [ ] Add Compose UI tests for critical flows and permission states.
 - [ ] Run Android Lint and dependency/security checks in CI.
@@ -120,7 +120,7 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | BUILD-001 | Build | Baseline Kotlin compilation failed on invalid Compose named arguments | Blocker | Baseline Actions run #33; corrected LockGate.kt and SecurityScreen.kt; validation runs #2 and #3 succeeded | Resolved on audit branch; verify again after later code changes |
 | BUILD-002 | Build | Gradle Wrapper scripts/JAR absent from reviewed repository tree | High | Recursive tree at baseline commit; official Wrapper files and Gradle 8.9 distribution checksum added and verified in CI | Resolved on working branch; main unchanged |
 | BUILD-003 | CI | Legacy build workflow grants contents:write to the whole job and publishes a prerelease on every successful main push | Medium | Replaced with branch/PR build workflow and tag-only release workflow; verify permissions and release behavior during final CI review | Resolved on working branch; main unchanged |
-| TEST-001 | Testing | No unit or instrumentation test source files are present in the repository tree | High | Added 42 JUnit tests authored across Device, NetworkInfo, ChannelAnalyzer, SecurityAudit, ScanDiff, ScanCoverage, HostDiscovery, Ipv4Subnet, NetworkIdentity, WifiChannel and WifiSecurity; 35 passed in CI, latest 7 await CI | Partially resolved on working branch; CI confirmation pending |
+| TEST-001 | Testing | No unit or instrumentation test source files are present in the repository tree | High | Added 44 JUnit tests authored across Device, NetworkInfo, ChannelAnalyzer, SecurityAudit, ScanDiff, ScanCoverage, HostDiscovery, Ipv4Subnet, NetworkIdentity, WifiChannel and WifiSecurity; 35 passed in CI, latest 7 await CI | Partially resolved on working branch; CI confirmation pending |
 | NET-001 | Discovery | IPv4 scan built a /24-style prefix from the first three octets | High | Ipv4Subnet validates masks and handles unsigned IPv4, /31, /32 and bounded enumeration | Implemented; physical-network validation pending |
 | NET-002 | Discovery | Host probes were launched without explicit concurrency limit and had no total per-host time budget | Medium | Candidate cap 1,024, bounded batches of 32, per-host TCP budget, bounded device enrichment and port scanning (16), cancellation propagation, bounded HTTP fingerprint response | Implemented on branch; CI/device validation pending |
 | NET-003 | Network info | Wi-Fi connection data used deprecated WifiManager.connectionInfo and inferred security from Android version | Medium | Migrated to ConnectivityManager/LinkProperties and WifiInfo.currentSecurityType where available, with location-aware callback on API 31+ | Implemented on branch; physical-device validation pending |
@@ -130,7 +130,7 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | DATA-002 | Change tracking | ScanDiff kept one process-global previous map, not scoped to a network | Medium | ScanDiff now stores bounded per-network snapshots; switching networks no longer emits false disappearance events | Implemented on branch; regression tests added |
 | DATA-003 | Widget | Widget scan starts a coroutine from BroadcastReceiver without goAsync() or a durable work handoff | Medium | ScanWidgetProvider.onReceive() | Open |
 | DATA-004 | Export | CSV fields are quoted but embedded double quotes are not escaped | Medium | ExportHelper.exportDevicesAsCsv() | Open |
-| NET-004 | Wi-Fi scan | Nearby-network scan could wait indefinitely for the results broadcast | High | Shared repository scanner now has a 10-second timeout, unregisters its receiver on completion/cancellation and distinguishes fresh results from cached results. Channel analyzer path still needs separate review | Partially resolved on branch |
+| NET-004 | Wi-Fi scan | Nearby-network scan could wait indefinitely for the results broadcast | High | Shared repository scanner now has a 10-second timeout, unregisters its receiver on completion/cancellation and distinguishes fresh results from cached results. Channel analyzer now consumes the shared bounded repository scanner | Partially resolved on branch |
 | WIFI-001 | Channel analysis | Channel analysis omits 6 GHz and most DFS channels; 5 GHz scoring only counts exact-channel APs and ignores channel width/overlap | Medium | ChannelAnalyzer.analyze() fixed common5 list and frequency filters | Open |
 | UI-001 | Topology | Canvas writes Compose state during drawing and renders inferred gateway-to-every-device edges as if they were topology | Medium | TopologyCanvas() mutates positions in Canvas draw scope and connects every ring node to gateway | Open |
 | UI-002 | Design | Dashboard is a long stack of action rows; theme is dark-only and screens mostly use repeated generic cards | Medium | DashboardScreen.kt, Theme.kt and screen implementations | Open |
@@ -144,7 +144,7 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 
 ## Latest Wi-Fi integration notes
 
-- Nearby Wi-Fi scan results, completion state and last fresh-scan timestamp are owned by `NetworkRepository` and shared through StateFlow.
+- Nearby Wi-Fi scan results, completion state and last fresh-scan timestamp are owned by `NetworkRepository` and shared through StateFlow across the nearby-network, security and channel-analysis screens.
 - A 10-second timeout and cancellation cleanup prevent a missing scan-results broadcast from leaving the UI waiting forever.
 - Android cached scan results may be displayed, but only `EXTRA_RESULTS_UPDATED=true` advances the fresh-scan timestamp. A previous fresh scan is considered usable for five minutes.
 - Security screen can request the necessary Wi-Fi permissions and launch the same repository scan without navigating away.
