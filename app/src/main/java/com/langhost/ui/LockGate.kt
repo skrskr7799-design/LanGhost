@@ -33,7 +33,7 @@ fun LockGate(content: @Composable () -> Unit) {
     }
 
     if (!checked) {
-        Box(Modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Primary)
         }
         return
