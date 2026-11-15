@@ -275,3 +275,10 @@ Device snapshot construction has been moved into the platform-independent `Devic
 ## Phase 4 — Device enrichment validation checkpoint — 2026-11-15
 
 The `DeviceEnrichmentEngine` extraction and its network-scoped customization migration tests passed full CI run [#43710316789](https://github.com/skrskr7799-design/LanGhost/actions/runs/43710316789) on commit `653d4995485039640ed05ed1a52036370ae47005`. Android Lint, unit tests, Debug APK, Release APK and APK artifact upload all succeeded. Customization migration is restricted to the previous network-scoped key format; unscoped MAC/IP/BSSID fallbacks are deliberately excluded to prevent preferences from leaking between unrelated networks. The next Phase 4 boundary is the pure device lifecycle/reconciliation logic currently embedded in `NetworkRepository.scanDevices()`.
+
+
+## Phase 4 — Device lifecycle reconciliation checkpoint — 2026-11-15
+
+The `DeviceLifecycleEngine` extraction passed full CI run [#43710995249](https://github.com/skrskr7799-design/LanGhost/actions/runs/43710995249) on commit `4681cb013c6700c2a501b8d81a770dfe1ba97721`. Android Lint, unit tests, Debug APK, Release APK and artifact upload all succeeded. The pure engine now owns deterministic reconciliation of discovered snapshots and cached devices: it retains same-network offline devices within the existing 24-hour window, prefers the newest discovered snapshot per stable identity, rejects other network scopes, resolves duplicate identities deterministically and preserves the existing ordering policy. The repository retains cache access, persistence and atomic network-scope publication. Regression tests cover retention, online replacement, scope isolation, deterministic deduplication and expiry.
+
+Phase 4 continues with a focused audit of remaining `NetworkRepository` responsibilities and persistence/state boundaries. Do not start the Phase 5 visual redesign until the architecture audit, tests, documentation and full CI are complete.
