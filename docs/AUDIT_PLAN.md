@@ -44,19 +44,19 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [ ] Test across different routers, subnet sizes, Android versions and network conditions (including mesh roaming and MAC randomization).
 
 ### Phase 3 — Security, privacy and permissions
-- [ ] Audit manifest permissions and request each permission only when needed. Fine and coarse location are now requested together for Wi-Fi scan flows; notification permission is requested only when enabling new-device notifications. Further API-level device validation remains open.
-- [ ] Review cleartext traffic, TLS, external endpoints, redirects, response-size limits and timeouts.
-- [ ] Audit local data storage, backup/export paths, logs and sensitive identifiers.
-- [ ] Verify biometric/app-lock behavior across lifecycle, process recreation and unavailable hardware.
+- [x] Audit manifest permissions and request each permission only when needed. Fine and coarse location are requested together for Wi-Fi scan flows; notification permission is requested only when enabling it. API-level device validation remains in Phase 6.
+- [x] Review cleartext traffic, TLS, external endpoints, redirects, response-size limits and timeouts. Global cleartext is disabled; public-IP requests are HTTPS-only, size-bounded and cancellation-aware.
+- [x] Audit local data storage, backup/export paths, logs and sensitive identifiers. Android backup is disabled; FileProvider is restricted to share artifacts; notifications omit device identifiers; history retention is bounded.
+- [x] Verify biometric/app-lock behavior across lifecycle, process recreation and unavailable hardware at source level. Physical-device validation remains in Phase 6.
 - [x] Review widget/receiver exposure and exported component requirements; widget updates remain on the exported AppWidgetProvider, while the scan action moved to a non-exported receiver with goAsync().
 - [x] Reassess security scoring and threat heuristics; scores are withheld until device discovery, bounded service-port checks and a fresh nearby-Wi-Fi scan have completed. Current Wi-Fi security is included. Further calibration remains open.
 - [x] Remove the assumption that a repeated SSID on another BSSID is an Evil Twin; compare only known, clearly different security families and label the result as a low-confidence configuration signal. Real-world mesh validation remains open.
-- [ ] Document what is and is not detectable on stock Android.
+- [x] Document what is and is not detectable on stock Android; physical-device validation remains in Phase 6.
 
 ### Phase 4 — Architecture, data and background work
 - [ ] Review repository boundaries, state ownership, ViewModels and dependency construction.
 - [ ] Define durable models and persistence for devices, scan history, ping history and profiles.
-- [ ] Define full retention/cleanup for per-device customization keys. The known-device index is now capped at 512 entries and ping histories at 64 IP keys, pruning the least recently sampled histories.
+- [ ] Define full retention/cleanup for per-device customization keys. The known-device index is capped at 512 entries; ping history retains 100 samples per IP, 64 IP keys and a 30-day window.
 - [x] Fix WorkManager cancellation propagation and request notification permission only when the notification feature is enabled. Scheduling constraints, battery impact and device validation remain open.
 - [ ] Verify widget refresh and asynchronous broadcast lifecycle.
 - [ ] Review error handling, offline behavior, concurrency safety and process-death recovery.
@@ -64,6 +64,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 
 ### Phase 5 — Full UI/UX and visual redesign
 - [ ] Audit all screens, navigation paths, empty/loading/error states and interaction consistency.
+- [ ] Implement consistent privacy masking for MAC/IP/BSSID in device views, screenshots, reports and exports; the previous nonfunctional toggle was removed until the behavior is implemented.
 - [ ] Define a coherent design system: color, typography, spacing, shapes, elevation, icons and reusable components.
 - [ ] Redesign dashboard around clear network status, actionable insights and live/refreshable data.
 - [ ] Improve device list/detail, topology, Wi-Fi analysis, security, tools, profiles and settings.
@@ -74,7 +75,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [ ] Verify contrast, touch targets, TalkBack semantics and localization.
 
 ### Phase 6 — Automated and device testing
-- [x] Add unit tests for pure network calculations, identity merging, scoring, diff, discovery orchestration, public-IP response limits, CSV safety and retention bounds (61 tests total on the current branch; CI confirmation pending).
+- [x] Add unit tests for pure network calculations, identity merging, scoring, diff, discovery orchestration, public-IP response limits, CSV safety and retention bounds (65 tests total on the current branch; CI confirmation pending).
 - [ ] Add repository/integration tests for persistence, scanning orchestration and failure cases.
 - [ ] Add Compose UI tests for critical flows and permission states.
 - [ ] Run Android Lint and dependency/security checks in CI.
@@ -133,9 +134,9 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | PERM-001 | Permissions | Android 12+ location permission requests should request ACCESS_FINE_LOCATION and ACCESS_COARSE_LOCATION together | Medium | Three Wi-Fi scan screens requested fine only despite declaring coarse | Updated on working branch; API-level behavior validation pending |
 | PERM-002 | Permissions | CHANGE_WIFI_MULTICAST_STATE was declared but no MulticastLock usage exists | Low | Manifest permission had no corresponding code use | Removed on working branch |
 | WORK-001 | Background work | WatchWorker caught coroutine CancellationException as a generic Exception and returned retry | Medium | WatchWorker.doWork() generic catch | Resolved on working branch; cancellation now propagates |
-| SEC-006 | Cleartext | Application globally enables cleartext traffic for local HTTP fingerprinting | Medium | Manifest previously allowed cleartext globally; local HTTP fingerprint used HttpURLConnection | Resolved on working branch: global cleartext is disabled; HTTP fingerprint uses a bounded raw socket only for RFC1918/link-local IPv4 targets, while HTTPS keeps platform TLS validation; physical-device validation pending
+| SEC-006 | Cleartext | Application globally enabled cleartext traffic for local HTTP fingerprinting | Medium | Manifest and DeviceProbe source review | Resolved on working branch: global cleartext is disabled; HTTP fingerprint uses a bounded raw socket only for RFC1918/link-local IPv4 targets, while HTTPS keeps platform TLS validation; physical-device validation pending |
 | PRIV-001 | External lookup | Public IP and approximate-location data were requested automatically when opening the public-IP screen | Medium | PublicIpScreen launched PublicIpLookup from LaunchedEffect(Unit) | Resolved on working branch: lookup now requires an explicit tap after a disclosure; HTTPS requests disable redirects, cap responses at 16 KiB and disconnect reliably
-| PRIV-002 | Privacy UX | The “hide MAC and IP” preference is stored, but no consumers were identified in the reviewed UI/export paths | Medium | AppLockSettings.hideSensitive and SettingsScreen toggle exist; behavior is not demonstrated in current reviewed call sites | Open; wire centralized masking through device views, reports and exports, or remove the nonfunctional toggle until implemented
+| PRIV-002 | Privacy UX | The “hide MAC and IP” preference was exposed but had no consumers | Medium | AppLockSettings and SettingsScreen exposed a setting without masking UI/export values | Mitigated: nonfunctional toggle and unused API removed; consistent privacy masking is explicitly deferred to Phase 5 |
 | NET-004 | Wi-Fi scan | Nearby-network scan could wait indefinitely for the results broadcast | High | Shared repository scanner now has a 10-second timeout, unregisters its receiver on completion/cancellation and distinguishes fresh results from cached results. Channel analyzer now consumes the shared bounded repository scanner | Partially resolved on branch |
 | WIFI-001 | Channel analysis | Channel analysis omits 6 GHz and most DFS channels; 5 GHz scoring only counts exact-channel APs and ignores channel width/overlap | Medium | ChannelAnalyzer.analyze() fixed common5 list and frequency filters | Open |
 | UI-001 | Topology | Canvas writes Compose state during drawing and renders inferred gateway-to-every-device edges as if they were topology | Medium | TopologyCanvas() mutates positions in Canvas draw scope and connects every ring node to gateway | Open |
@@ -143,30 +144,36 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | SEC-003 | Security heuristics | Same SSID on another BSSID was treated as Evil Twin | High | Replaced with known-security-family mismatch signal; explicitly not proof of attack | Implemented on branch; device validation pending |
 | SEC-004 | Security scoring | Current Wi-Fi encryption was not included in security findings | High | Current security mode now flags Open, WEP and legacy WPA where Android exposes enough evidence; generic PSK remains unknown rather than guessed | Implemented on branch; device validation pending |
 | DATA-005 | Persistence | Known device IDs were only ever added to an unbounded DataStore set | Medium | DevicePreferences.saveKnownIds() previously unioned every ID forever | Resolved on working branch: ordered index is migrated from the legacy set and capped at 512 recently seen IDs; customization records are intentionally retained pending a separate user-data retention policy |
-| DATA-006 | Persistence | Ping history was capped per IP, but per-IP DataStore keys had no retention/cleanup policy | Low | PingHistoryStore.addSample() capped samples but never removed unused IP keys | Resolved on working branch: retain the 64 most recently sampled IP histories and prune older DataStore keys on each write |
+| DATA-006 | Persistence | Ping history was capped per IP, but per-IP DataStore keys had no retention/cleanup policy | Low | PingHistoryStore.addSample() | Resolved in source: 100 samples per IP, a 30-day window and a maximum of 64 IP histories; expired samples are hidden on read and old keys are pruned on write |
 | MODEL-001 | Classification | Randomized/local MAC detection missed locally administered addresses whose low nibble is odd | Low | Device.isRandomMacAddress() now tests the IEEE U/L bit directly | Resolved on branch; tests added |
 | UI-003 | Lock UX | Biometric lock could be enabled without checking authenticator availability; LockGate failed open if Activity was unavailable and did not re-lock on background | Medium | SettingsScreen toggled the setting directly; LockGate set unlocked=true when context was not FragmentActivity and kept unlocked state in memory | Implemented on working branch: settings checks biometric/PIN availability; LockGate fails closed, reports prompt errors, observes the setting and re-locks on Activity ON_STOP; physical-device validation remains open |
+| SEC-007 | External lookup | Public-IP response values were not validated as IP literals and blocking requests could delay cancellation | Low | PublicIpInfo.kt response parsing and blocking HttpURLConnection calls | Resolved in source: validates IPv4/IPv6 literals, uses interruptible IO, bounded response size, request timeouts, no redirects and disconnect in finally |
+| SEC-008 | File sharing | FileProvider exposed the entire application cache directory to URI-granted recipients | Medium | res/xml/file_paths.xml exposed cache path "." | Resolved in source: FileProvider exposes only cache/shared; generated share files older than 24 hours are pruned |
+| SEC-009 | Notifications | New-device notifications exposed device names and local IP addresses on lock screens | Low | NotificationHelper included device name and IP in notification text | Resolved in source: notifications contain generic network-change text only and use private lock-screen visibility |
+| SEC-010 | Scan evidence | Cancelled discovery could publish non-zero coverage before enrichment and persistence completed | Medium | NetworkRepository.scanDevices() updated scanCoverage before bounded enrichment completed | Resolved in source: coverage is published only after discovery, enrichment and persistence finish; cancelled scans remain incomplete |
 | DOC-001 | Docs | README feature list and roadmap are stale relative to source tree | Low | Compare README with current modules/screens | Open |
 
 ## Persistence and app-lock notes
 
 - Known-device ID history is migrated from the legacy set to an ordered JSON index capped at 512 entries. Old per-device customization records are not automatically deleted, to avoid silently losing favorites, notes or names.
-- Ping history retains at most 100 samples per IP and 64 IP histories; older per-IP DataStore keys are pruned when a new sample is saved.
+- Ping history retains at most 100 samples per IP, a 30-day window and 64 IP histories; expired samples are hidden on read and expired/least-recently-used keys are pruned on each write.
 - App lock checks authenticator availability before enabling, fails closed if the host Activity or prompt is unavailable, reacts to setting changes and re-locks when the Activity stops. Device credential / biometric lifecycle behavior still needs physical-device validation.
 
 ## External network and export privacy notes
 
 - Opening the public-IP screen no longer triggers a network request. The user must press the explicit lookup button after seeing a disclosure.
 - The primary ipapi.co endpoint receives the public IP and returns provider/approximate-location data. The fallback api.ipify.org endpoint is called only if the primary lookup fails and receives the same public source IP but returns only the address.
-- Both lookups use HTTPS, reject redirects/non-2xx responses, cap bodies at 16 KiB, disconnect connections in finally and propagate coroutine cancellation.
-- CSV export now escapes embedded quotes and neutralizes formula-like values before sharing. Reports and exports remain user-initiated share-sheet actions.
+- Both lookups use HTTPS, reject redirects/non-2xx responses, cap bodies at 16 KiB, disconnect connections in finally and propagate coroutine cancellation. Returned IP values are validated as IPv4/IPv6 literals without resolving hostnames.
+- CSV export escapes embedded quotes, neutralizes formula-like values after leading whitespace and preserves commas inside quoted cells. Reports and exports remain user-initiated share-sheet actions.
+- FileProvider exposes only the dedicated cache/shared directory; old generated share artifacts are deleted after 24 hours.
+- New-device notifications contain no device name, IP or MAC and use private lock-screen visibility.
 
 ## Permission and receiver audit notes
 
 - Wi-Fi scan screens request fine and coarse location together; Android 13+ additionally requests Nearby Wi-Fi Devices. Permission prompts remain tied to a user-initiated Wi-Fi scan.
 - Notification permission is requested only when the user enables new-device notifications, not merely when background monitoring is enabled.
 - The exported AppWidgetProvider handles system widget updates only. Its scan button targets a separate non-exported receiver, which uses `goAsync()` and always finishes the pending result.
-- Removed the unused CHANGE_WIFI_MULTICAST_STATE manifest permission. Global cleartext allowance remains an open item because local HTTP fingerprinting currently depends on it.
+- Removed the unused CHANGE_WIFI_MULTICAST_STATE manifest permission. Global cleartext traffic is disabled; local HTTP fingerprinting uses a bounded raw TCP socket only for RFC1918/link-local IPv4 targets. HTTPS fingerprinting retains platform certificate validation.
 
 ## Latest Wi-Fi and security-service integration notes
 
@@ -183,3 +190,10 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 A phase is complete only when findings are recorded and resolved or explicitly accepted with rationale; relevant tests/checks pass; CI result is reviewed; documentation is updated; and no unrelated regression is knowingly left behind.
 
 The roadmap is a living document. Reorder work when new evidence justifies it, while keeping the buildable baseline and user data safe.
+
+
+## Security audit source closure — 2026-11-15
+
+Source-level hardening is complete on `work/foundation-stabilization`. This does not replace Phase 6 device validation: Android Wi-Fi scan throttling, permission behavior, biometric lifecycle behavior, VPN routing and router-specific service visibility still require physical-device testing.
+
+Security scores remain evidence-based. Device scan coverage is published only after discovery, enrichment and persistence complete; a cancelled or failed run cannot be counted as completed evidence. User-authored device customizations are intentionally retained locally rather than silently discarded. The old sensitive-data toggle was removed because it did not mask any UI; consistent masking is planned for Phase 5.
