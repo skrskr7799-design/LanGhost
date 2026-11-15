@@ -42,6 +42,7 @@ class WatchWorker(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
+            AppLog.warning(AppLog.Component.WATCH_WORKER, AppLog.Event.BACKGROUND_SCAN_RETRY)
             Result.retry()
         }
     }
