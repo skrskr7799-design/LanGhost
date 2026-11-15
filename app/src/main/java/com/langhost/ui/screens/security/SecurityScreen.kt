@@ -227,6 +227,11 @@ fun SecurityScreen(
                         )
                         if (report.serviceScanCompleted) {
                             Text(
+                                "Удалённых устройств проверено: ${report.auditedTargetCount}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                            Text(
                                 "Порты: открыто ${report.openPortCount} · закрыто ${report.closedPortCount} · фильтрация/таймаут ${report.filteredPortCount} · неизвестно ${report.unknownPortCount}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary
