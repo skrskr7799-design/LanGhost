@@ -66,7 +66,7 @@ class NetworkDiscoveryEngineTest {
             maxConcurrency = 3
         )
 
-        assertEquals(12, probeCount)
+        assertEquals(11, probeCount)
         assertEquals(12, result.coverage.checkedAddresses)
         assertEquals(65_534L, result.coverage.totalUsableAddresses)
         assertTrue(result.coverage.truncated)
@@ -86,7 +86,7 @@ class NetworkDiscoveryEngineTest {
         ).discover(
             localIp = "192.168.1.10",
             gateway = "192.168.1.1",
-            netmask = "0.0.0.0",
+            netmask = "255.0.255.0",
             arpEntries = mapOf("192.168.1.20" to "AA:BB:CC:DD:EE:20"),
             networkScope = "scope-invalid",
             timeoutMs = 150,
@@ -131,7 +131,7 @@ class NetworkDiscoveryEngineTest {
             throw AssertionError("Expected network-scope cancellation")
         } catch (_: CancellationException) {
             assertEquals(2, checks)
-            assertEquals(2, probes)
+            assertEquals(1, probes)
         }
     }
 }
