@@ -30,26 +30,27 @@ data class PingStats(
 )
 
 class PingHistoryStore(private val context: Context) {
+    private companion object {
+        const val MAX_SAMPLES_PER_IP = 100
+        const val MAX_TRACKED_IPS = 64
+        const val HISTORY_RETENTION_MS = 30L * 24 * 60 * 60 * 1000
+    }
 
     private fun key(ip: String) = stringPreferencesKey("ping_${ip.replace('.', '_')}")
 
     fun historyFlow(ip: String): Flow<List<PingSample>> = context.pingDataStore.data.map { prefs ->
-        parse(prefs[key(ip)])
+        val cutoff = System.currentTimeMillis() - HISTORY_RETENTION_MS
+        parse(prefs[key(ip)]).filter { it.timestamp >= cutoff }
     }
 
     suspend fun addSample(ip: String, latencyMs: Long?) {
         context.pingDataStore.edit { prefs ->
-            val current = parse(prefs[key(ip)]).toMutableList()
-            current.add(PingSample(System.currentTimeMillis(), latencyMs))
-            val trimmed = if (current.size > 100) current.takeLast(100) else current
-            val arr = JSONArray()
-            trimmed.forEach { s ->
-                arr.put(JSONObject().apply {
-                    put("t", s.timestamp)
-                    if (s.latencyMs != null) put("ms", s.latencyMs) else put("ms", JSONObject.NULL)
-                })
-            }
-            prefs[key(ip)] = arr.toString()
+            val now = System.currentTimeMillis()
+            val cutoff = now - HISTORY_RETENTION_MS
+            val currentKey = key(ip)
+            val current = parse(prefs[currentKey]).filter { it.timestamp >= cutoff }.toMutableList()
+            current.add(PingSample(now, latencyMs))
+            prefs[currentKey] = serialize(current.takeLast(MAX_SAMPLES_PER_IP))
 
             val histories = prefs.asMap().entries.mapNotNull { (preferenceKey, value) ->
                 if (preferenceKey.name.startsWith("ping_") && value is String) {
@@ -58,9 +59,13 @@ class PingHistoryStore(private val context: Context) {
                     null
                 }
             }
-            val retainedKeys = retainPingHistoryKeys(histories.toMap())
-            histories.asSequence()
-                .map { it.first }
+            val retainedKeys = retainPingHistoryKeys(
+                histories.toMap(),
+                maxKeys = MAX_TRACKED_IPS,
+                now = now,
+                retentionMs = HISTORY_RETENTION_MS
+            )
+            histories.asSequence().map { it.first }
                 .filterNot { it in retainedKeys }
                 .forEach { prefs.remove(stringPreferencesKey(it)) }
         }
@@ -94,6 +99,17 @@ class PingHistoryStore(private val context: Context) {
         )
     }
 
+    private fun serialize(samples: List<PingSample>): String {
+        val array = JSONArray()
+        samples.forEach { sample ->
+            array.put(JSONObject().apply {
+                put("t", sample.timestamp)
+                if (sample.latencyMs != null) put("ms", sample.latencyMs) else put("ms", JSONObject.NULL)
+            })
+        }
+        return array.toString()
+    }
+
     private fun parse(raw: String?): List<PingSample> {
         if (raw.isNullOrBlank()) return emptyList()
         return try {
@@ -109,9 +125,17 @@ class PingHistoryStore(private val context: Context) {
     }
 }
 
-internal fun retainPingHistoryKeys(historyTimestamps: Map<String, Long>, maxKeys: Int = 64): Set<String> {
+internal fun retainPingHistoryKeys(
+    historyTimestamps: Map<String, Long>,
+    maxKeys: Int = 64,
+    now: Long = System.currentTimeMillis(),
+    retentionMs: Long = 30L * 24 * 60 * 60 * 1000
+): Set<String> {
     require(maxKeys > 0)
+    require(retentionMs > 0)
+    val cutoff = now - retentionMs
     return historyTimestamps.entries
+        .filter { it.value >= cutoff }
         .sortedWith(compareByDescending<Map.Entry<String, Long>> { it.value }.thenBy { it.key })
         .take(maxKeys)
         .map { it.key }
