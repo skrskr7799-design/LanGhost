@@ -14,6 +14,7 @@ import android.os.Build
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,7 +35,14 @@ fun SecurityScreen(
     val context = LocalContext.current
     val repo = remember { NetworkRepository.getInstance(context) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { repo.refreshNetworkInfo() }
+    var evidenceNow by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        repo.refreshNetworkInfo()
+        while (true) {
+            delay(15_000L)
+            evidenceNow = System.currentTimeMillis()
+        }
+    }
     var isWifiScanning by remember { mutableStateOf(false) }
     val wifiPermissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -59,9 +67,13 @@ fun SecurityScreen(
     val nearbyScanCompleted by repo.nearbyScanCompleted.collectAsState()
     val nearbyScanTime by repo.nearbyScanTime.collectAsState()
     val serviceScanCompleted by repo.securityPortsScanCompleted.collectAsState()
+    val serviceScanTime by repo.securityPortsScanTime.collectAsState()
     val isSecurityScanning by repo.isSecurityScanning.collectAsState()
     val isDeviceScanning by repo.isScanning.collectAsState()
-    val report = remember(devices, network, currentNetworkScope, nearbyNetworks, nearbyScanCompleted, scanCoverage, serviceScanCompleted) {
+    val report = remember(
+        devices, network, currentNetworkScope, nearbyNetworks, nearbyScanCompleted,
+        nearbyScanTime, scanCoverage, serviceScanCompleted, serviceScanTime, evidenceNow
+    ) {
         SecurityAudit.analyze(
             devices = devices,
             currentSsid = network.ssid,
@@ -71,7 +83,10 @@ fun SecurityScreen(
             scanCoverage = scanCoverage,
             nearbyScanCompleted = nearbyScanCompleted,
             serviceScanCompleted = serviceScanCompleted,
-            currentNetworkScope = currentNetworkScope
+            currentNetworkScope = currentNetworkScope,
+            nearbyScanTime = nearbyScanTime,
+            serviceScanTime = serviceScanTime,
+            now = evidenceNow
         )
     }
     val score = report.score
