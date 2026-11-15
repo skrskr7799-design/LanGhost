@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
 import com.langhost.MainActivity
+import com.langhost.data.NetworkRepository
 import com.langhost.R
 
 class ScanWidgetProvider : AppWidgetProvider() {
