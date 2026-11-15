@@ -2,6 +2,9 @@ package com.langhost.data
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -13,6 +16,7 @@ import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
 import com.langhost.data.model.NetworkInfo
 import com.langhost.data.model.ScanCoverage
+import com.langhost.data.model.WifiNetwork
 import com.langhost.data.network.Ipv4Subnet
 import com.langhost.data.network.NetworkIdentity
 import com.langhost.data.network.WifiChannel
@@ -23,6 +27,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import java.io.BufferedReader
@@ -30,6 +36,8 @@ import java.io.FileReader
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.resume
 import java.util.concurrent.ConcurrentHashMap
 
 class NetworkRepository(context: Context) {
@@ -108,6 +116,15 @@ class NetworkRepository(context: Context) {
 
     private val _lastDiff = MutableStateFlow<ScanDiffResult?>(null)
     val lastDiff: StateFlow<ScanDiffResult?> = _lastDiff.asStateFlow()
+
+    private val _nearbyNetworks = MutableStateFlow<List<WifiNetwork>>(emptyList())
+    val nearbyNetworks: StateFlow<List<WifiNetwork>> = _nearbyNetworks.asStateFlow()
+
+    private val _nearbyScanCompleted = MutableStateFlow(false)
+    val nearbyScanCompleted: StateFlow<Boolean> = _nearbyScanCompleted.asStateFlow()
+
+    private val _nearbyScanTime = MutableStateFlow(0L)
+    val nearbyScanTime: StateFlow<Long> = _nearbyScanTime.asStateFlow()
 
     @SuppressLint("MissingPermission", "HardwareIds")
     fun refreshNetworkInfo() {
@@ -189,6 +206,85 @@ class NetworkRepository(context: Context) {
             _networkInfo.value = NetworkInfo()
         }
     }
+
+    @SuppressLint("MissingPermission")
+    suspend fun scanNearbyNetworks(): List<WifiNetwork> = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        val batch = withTimeoutOrNull(10_000L) {
+            suspendCancellableCoroutine { continuation ->
+                val finished = AtomicBoolean(false)
+                lateinit var receiver: BroadcastReceiver
+                var registered = false
+
+                fun unregister() {
+                    if (registered) {
+                        registered = false
+                        runCatching { appContext.unregisterReceiver(receiver) }
+                    }
+                }
+
+                fun finish(results: List<android.net.wifi.ScanResult>, updated: Boolean) {
+                    if (finished.compareAndSet(false, true)) {
+                        unregister()
+                        if (continuation.isActive) continuation.resume(WifiScanBatch(results, updated))
+                    }
+                }
+
+                receiver = object : BroadcastReceiver() {
+                    override fun onReceive(context: Context?, intent: Intent?) {
+                        val updated = intent?.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false) == true
+                        finish(wifiManager.scanResults ?: emptyList(), updated)
+                    }
+                }
+
+                val filter = IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    appContext.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                } else {
+                    @Suppress("UnspecifiedRegisterReceiverFlag")
+                    appContext.registerReceiver(receiver, filter)
+                }
+                registered = true
+                continuation.invokeOnCancellation {
+                    if (finished.compareAndSet(false, true)) unregister()
+                }
+
+                @Suppress("DEPRECATION")
+                val started = wifiManager.startScan()
+                if (!started) {
+                    @Suppress("DEPRECATION")
+                    finish(wifiManager.scanResults ?: emptyList(), false)
+                }
+            }
+        } ?: WifiScanBatch(wifiManager.scanResults ?: emptyList(), false)
+
+        val currentBssid = _networkInfo.value.bssid.takeIf { it.isNotBlank() && it != "—" }
+        val mapped = batch.results.map { result ->
+            val frequency = result.frequency
+            WifiNetwork(
+                ssid = result.SSID.orEmpty(),
+                bssid = result.BSSID.orEmpty(),
+                signalDbm = result.level,
+                frequencyMhz = frequency,
+                channel = WifiChannel.fromFrequencyMhz(frequency),
+                security = WifiSecurity.classify(result.capabilities.orEmpty()),
+                isCurrent = !result.BSSID.isNullOrBlank() && result.BSSID == currentBssid
+            )
+        }.filter { it.bssid.isNotBlank() }
+            .distinctBy { it.bssid }
+            .sortedByDescending { it.signalDbm }
+
+        _nearbyNetworks.value = mapped
+        if (batch.updated) _nearbyScanTime.value = now
+        _nearbyScanCompleted.value = batch.updated ||
+            (_nearbyScanTime.value > 0L && now - _nearbyScanTime.value <= NEARBY_SCAN_FRESHNESS_MS)
+        mapped
+    }
+
+    private data class WifiScanBatch(
+        val results: List<android.net.wifi.ScanResult>,
+        val updated: Boolean
+    )
 
     private fun wifiSecurityType(wifiInfo: WifiInfo?): String {
         if (wifiInfo == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return "—"
@@ -499,6 +595,7 @@ class NetworkRepository(context: Context) {
         private const val MAX_CONCURRENT_HOST_PROBES = 32
         private const val DEVICE_ENRICHMENT_CONCURRENCY = 16
         private const val PORT_SCAN_CONCURRENCY = 16
+        private const val NEARBY_SCAN_FRESHNESS_MS = 5 * 60 * 1000L
 
         val COMMON_PORTS = listOf(
             21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143,

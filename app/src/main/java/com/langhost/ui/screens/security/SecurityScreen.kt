@@ -9,6 +9,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import android.Manifest
+import android.os.Build
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -20,19 +26,29 @@ import com.langhost.data.SecurityFinding
 import com.langhost.data.model.WifiNetwork
 import com.langhost.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun SecurityScreen(
-    onBack: () -> Unit,
-    nearbyNetworks: List<WifiNetwork> = emptyList(),
-    nearbyScanCompleted: Boolean = false
+    onBack: () -> Unit
 ) {
     val context = LocalContext.current
     val repo = remember { NetworkRepository.getInstance(context) }
+    val scope = rememberCoroutineScope()
+    var isWifiScanning by remember { mutableStateOf(false) }
+    val wifiPermissions = buildList {
+        add(Manifest.permission.ACCESS_FINE_LOCATION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            add(Manifest.permission.NEARBY_WIFI_DEVICES)
+        }
+    }
+    val wifiPermissionState = rememberMultiplePermissionsState(wifiPermissions)
     val devices by repo.devices.collectAsState()
     val network by repo.networkInfo.collectAsState()
     val diff by repo.lastDiff.collectAsState()
     val scanCoverage by repo.scanCoverage.collectAsState()
+    val nearbyNetworks by repo.nearbyNetworks.collectAsState()
+    val nearbyScanCompleted by repo.nearbyScanCompleted.collectAsState()
+    val nearbyScanTime by repo.nearbyScanTime.collectAsState()
     val report = remember(devices, network, nearbyNetworks, nearbyScanCompleted, scanCoverage) {
         SecurityAudit.analyze(
             devices = devices,
@@ -94,6 +110,46 @@ fun SecurityScreen(
                                 "Покрытие подсети: ${report.coveragePercent}%",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                if (!wifiPermissionState.allPermissionsGranted) {
+                                    wifiPermissionState.launchMultiplePermissionRequest()
+                                } else {
+                                    scope.launch {
+                                        isWifiScanning = true
+                                        try {
+                                            repo.scanNearbyNetworks()
+                                        } catch (_: SecurityException) {
+                                            // Permissions may be revoked after the UI check.
+                                        } catch (_: Exception) {
+                                            // A platform scan may fail or be throttled.
+                                        } finally {
+                                            isWifiScanning = false
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = !isWifiScanning
+                        ) {
+                            if (isWifiScanning) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                            }
+                            Text(if (isWifiScanning) "Сканирование Wi-Fi…" else "Проверить соседние сети")
+                        }
+                        if (nearbyScanCompleted && nearbyScanTime > 0L) {
+                            Text(
+                                "Последнее свежее сканирование: " +
+                                    java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                                        .format(java.util.Date(nearbyScanTime)),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextTertiary
                             )
                         }
                     }

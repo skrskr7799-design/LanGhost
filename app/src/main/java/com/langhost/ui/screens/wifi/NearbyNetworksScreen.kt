@@ -1,12 +1,7 @@
 package com.langhost.ui.screens.wifi
 
 import android.Manifest
-import android.annotation.SuppressLint
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.net.wifi.WifiManager
 import android.os.Build
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,12 +20,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
-import com.langhost.data.model.WifiNetwork
+import com.langhost.data.NetworkRepository
 import com.langhost.ui.theme.*
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -39,7 +31,9 @@ fun NearbyNetworksScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var networks by remember { mutableStateOf<List<WifiNetwork>>(emptyList()) }
+    val repo = remember { NetworkRepository.getInstance(context) }
+    val networks by repo.nearbyNetworks.collectAsState()
+    val scanCompleted by repo.nearbyScanCompleted.collectAsState()
     var isScanning by remember { mutableStateOf(false) }
 
     val permissions = buildList {
@@ -58,9 +52,9 @@ fun NearbyNetworksScreen(
         scope.launch {
             isScanning = true
             try {
-                networks = scanNearbyNetworks(context)
+                repo.scanNearbyNetworks()
             } catch (_: SecurityException) {
-                networks = emptyList()
+            } catch (_: Exception) {
             } finally {
                 isScanning = false
             }
@@ -101,7 +95,11 @@ fun NearbyNetworksScreen(
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Icon(Icons.Default.Wifi, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(48.dp))
-                    Text("Сети ещё не отсканированы", style = MaterialTheme.typography.titleMedium, color = TextSecondary)
+                    Text(
+                        if (scanCompleted) "Нет доступных результатов сканирования" else "Сети ещё не отсканированы",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = TextSecondary
+                    )
                     Text("Нажмите на радар для поиска соседних Wi-Fi", style = MaterialTheme.typography.bodyMedium, color = TextTertiary)
                     Spacer(Modifier.height(8.dp))
                     Button(onClick = { doScan() }, colors = ButtonDefaults.buttonColors(containerColor = Primary)) {
@@ -202,96 +200,3 @@ private fun WifiNetworkCard(network: WifiNetwork) {
     }
 }
 
-@SuppressLint("MissingPermission")
-private suspend fun scanNearbyNetworks(context: Context): List<WifiNetwork> {
-    val appContext = context.applicationContext
-    val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-
-    // The broadcast is not guaranteed to arrive (for example, scan throttling or platform quirks).
-    // Bound the wait and fall back to the most recent platform-provided results.
-    val broadcastResults = withTimeoutOrNull(1_500L) {
-        suspendCancellableCoroutine { cont ->
-            val receiver = object : BroadcastReceiver() {
-                override fun onReceive(ctx: Context?, intent: Intent?) {
-                    try {
-                        appContext.unregisterReceiver(this)
-                    } catch (_: Exception) {
-                    }
-                    @Suppress("DEPRECATION")
-                    val list = wifiManager.scanResults ?: emptyList()
-                    if (cont.isActive) cont.resume(list)
-                }
-            }
-
-            val filter = IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    appContext.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-                } else {
-                    @Suppress("UnspecifiedRegisterReceiverFlag")
-                    appContext.registerReceiver(receiver, filter)
-                }
-            } catch (error: Exception) {
-                if (cont.isActive) cont.resume(emptyList())
-                return@suspendCancellableCoroutine
-            }
-
-            cont.invokeOnCancellation {
-                try {
-                    appContext.unregisterReceiver(receiver)
-                } catch (_: Exception) {
-                }
-            }
-
-            @Suppress("DEPRECATION")
-            val started = runCatching { wifiManager.startScan() }.getOrDefault(false)
-            if (!started) {
-                try {
-                    appContext.unregisterReceiver(receiver)
-                } catch (_: Exception) {
-                }
-                @Suppress("DEPRECATION")
-                if (cont.isActive) cont.resume(wifiManager.scanResults ?: emptyList())
-            }
-        }
-    }
-
-    @Suppress("DEPRECATION")
-    val finalResults = broadcastResults?.takeIf { it.isNotEmpty() }
-        ?: (wifiManager.scanResults ?: emptyList())
-
-    val currentBssid = try {
-        wifiManager.connectionInfo?.bssid
-    } catch (_: Exception) {
-        null
-    }
-
-    return finalResults
-        .map { result ->
-            val freq = result.frequency
-            val channel = when {
-                freq in 2412..2484 -> (freq - 2412) / 5 + 1
-                freq in 5170..5825 -> (freq - 5170) / 5 + 34
-                else -> 0
-            }
-            val caps = result.capabilities ?: ""
-            val security = when {
-                caps.contains("SAE") || caps.contains("WPA3") -> "WPA3"
-                caps.contains("WPA2") -> "WPA2"
-                caps.contains("WPA") -> "WPA"
-                caps.contains("WEP") -> "WEP"
-                else -> "Open"
-            }
-            WifiNetwork(
-                ssid = result.SSID ?: "",
-                bssid = result.BSSID ?: "",
-                signalDbm = result.level,
-                frequencyMhz = freq,
-                channel = channel,
-                security = security,
-                isCurrent = result.BSSID != null && result.BSSID == currentBssid
-            )
-        }
-        .distinctBy { it.bssid }
-        .sortedByDescending { it.signalDbm }
-}
