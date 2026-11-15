@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -49,12 +50,27 @@ class PingHistoryStore(private val context: Context) {
                 })
             }
             prefs[key(ip)] = arr.toString()
+
+            val histories = prefs.asMap().entries.mapNotNull { (preferenceKey, value) ->
+                if (preferenceKey.name.startsWith("ping_") && value is String) {
+                    preferenceKey.name to (parse(value).maxOfOrNull { it.timestamp } ?: Long.MIN_VALUE)
+                } else {
+                    null
+                }
+            }
+            val retainedKeys = retainPingHistoryKeys(histories.toMap())
+            histories.asSequence()
+                .map { it.first }
+                .filterNot { it in retainedKeys }
+                .forEach { prefs.remove(stringPreferencesKey(it)) }
         }
     }
 
     suspend fun getStats(ip: String): PingStats {
         val samples = try {
             historyFlow(ip).first()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             emptyList()
         }
@@ -91,4 +107,13 @@ class PingHistoryStore(private val context: Context) {
             emptyList()
         }
     }
+}
+
+internal fun retainPingHistoryKeys(historyTimestamps: Map<String, Long>, maxKeys: Int = 64): Set<String> {
+    require(maxKeys > 0)
+    return historyTimestamps.entries
+        .sortedWith(compareByDescending<Map.Entry<String, Long>> { it.value }.thenBy { it.key })
+        .take(maxKeys)
+        .map { it.key }
+        .toSet()
 }

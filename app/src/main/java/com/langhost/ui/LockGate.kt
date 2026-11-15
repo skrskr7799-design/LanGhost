@@ -12,6 +12,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.langhost.data.AppLockSettings
 import com.langhost.ui.theme.*
 import kotlinx.coroutines.flow.first
@@ -20,7 +22,7 @@ import kotlinx.coroutines.flow.first
 fun LockGate(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val settings = remember { AppLockSettings(context) }
-    var enabled by remember { mutableStateOf(false) }
+    val enabled by settings.biometricEnabled.collectAsState(initial = false)
     var unlocked by remember { mutableStateOf(false) }
     var checked by remember { mutableStateOf(false) }
     var authError by remember { mutableStateOf<String?>(null) }
@@ -28,9 +30,28 @@ fun LockGate(content: @Composable () -> Unit) {
         BiometricManager.Authenticators.DEVICE_CREDENTIAL
 
     LaunchedEffect(Unit) {
-        enabled = settings.biometricEnabled.first()
+        settings.biometricEnabled.first()
         checked = true
-        if (!enabled) unlocked = true
+    }
+
+    LaunchedEffect(enabled) {
+        unlocked = !enabled
+    }
+
+    val activity = context as? FragmentActivity
+    DisposableEffect(activity, enabled) {
+        if (activity == null || !enabled) {
+            onDispose { }
+        } else {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_STOP) {
+                    unlocked = false
+                    authError = null
+                }
+            }
+            activity.lifecycle.addObserver(observer)
+            onDispose { activity.lifecycle.removeObserver(observer) }
+        }
     }
 
     if (!checked) {
