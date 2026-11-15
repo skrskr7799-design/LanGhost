@@ -98,7 +98,7 @@ class SecurityAuditTest {
     }
 
     @Test
-    fun reportsTelnetAndIncludesItInScore() {
+    fun reportsOpenTcpPortAsUnconfirmedProtocolAndUsesMediumSeverity() {
         val device = Device(
             ip = "192.168.1.10",
             openPorts = listOf(22, 80, 443),
@@ -116,10 +116,59 @@ class SecurityAuditTest {
             serviceScanCompleted = true
         )
 
-        assertEquals(75, report.score)
-        assertTrue(report.findings.any { it.title == "Доступен Telnet" })
+        assertEquals(88, report.score)
+        val finding = report.findings.single { it.title == "Открыт TCP-порт 23 (обычно Telnet)" }
+        assertEquals(SecurityFinding.Severity.MEDIUM, finding.severity)
+        assertTrue(finding.detail.contains("протокол не идентифицирован"))
+        assertTrue(finding.detail.contains("Если это Telnet"))
     }
 
+
+
+    @Test
+    fun freshPortEvidenceDoesNotClaimProtocolWasIdentified() {
+        val now = System.currentTimeMillis()
+        val results = listOf(
+            23 to PortAuditStatus.OPEN,
+            80 to PortAuditStatus.CLOSED,
+            443 to PortAuditStatus.CLOSED,
+            139 to PortAuditStatus.CLOSED,
+            445 to PortAuditStatus.CLOSED,
+            3389 to PortAuditStatus.CLOSED
+        ).map { (port, status) -> PortAuditResult(port, status) }
+        val device = Device(
+            ip = "192.168.1.10",
+            lastSeen = now,
+            networkScope = "home-scope",
+            auditedPortResults = results
+        )
+        val report = SecurityAudit.analyze(
+            devices = listOf(device),
+            currentSsid = "Home",
+            currentBssid = "AA:AA:AA:AA:AA:AA",
+            nearby = emptyList(),
+            currentSecurity = "WPA2",
+            scanCoverage = ScanCoverage(
+                subnetCidr = "192.168.1.0/24",
+                checkedAddresses = 254,
+                totalUsableAddresses = 254,
+                scannedAt = now,
+                networkScope = "home-scope"
+            ),
+            nearbyScanCompleted = true,
+            serviceScanCompleted = true,
+            currentNetworkScope = "home-scope",
+            nearbyScanTime = now,
+            serviceScanTime = now,
+            now = now
+        )
+
+        val finding = report.findings.single { it.title == "Открыт TCP-порт 23 (обычно Telnet)" }
+        assertEquals(88, report.score)
+        assertTrue(finding.detail.contains("TCP handshake"))
+        assertTrue(finding.detail.contains("протокол не идентифицирован"))
+        assertFalse(finding.title.contains("Доступен Telnet"))
+    }
 
     @Test
     fun doesNotUseScanEvidenceFromAnotherNetwork() {
