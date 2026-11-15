@@ -1,9 +1,20 @@
 package com.langhost.data
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class DataRetentionTest {
+    @Test(expected = CancellationException::class)
+    fun settingsReadDoesNotConvertCancellationIntoDefaults() = runBlocking {
+        firstOrDefaultOnFailure(
+            flow<AppSettingsData> { throw CancellationException("test cancellation") },
+            AppSettingsData()
+        )
+    }
+
     @Test
     fun knownDeviceIdsAreDeduplicatedAndBoundedByRecency() {
         assertEquals(
