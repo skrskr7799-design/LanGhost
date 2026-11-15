@@ -15,6 +15,7 @@ import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
 import com.langhost.data.model.NetworkInfo
 import com.langhost.data.model.PortAuditResult
+import com.langhost.data.model.SecurityPortAuditPolicy
 import com.langhost.data.model.PortAuditStatus
 import com.langhost.data.model.ScanCoverage
 import com.langhost.data.model.WifiNetwork
@@ -687,7 +688,7 @@ class NetworkRepository(context: Context) {
                 maxConcurrency = SECURITY_HOST_SCAN_CONCURRENCY,
                 beforeBatch = { ensureCurrentNetworkScope(scanScope) }
             ) { device ->
-                val evidence = scanSecurityPortEvidence(device.ip, SECURITY_AUDIT_PORTS, scanScope)
+                val evidence = scanSecurityPortEvidence(device.ip, SecurityPortAuditPolicy.ports, scanScope)
                 // Keep focused security evidence separate from the broader device-detail inventory.
                 device.copy(
                     auditedPorts = evidence.filter { it.status == PortAuditStatus.OPEN }.map { it.port },
@@ -908,7 +909,6 @@ class NetworkRepository(context: Context) {
         private const val DEVICE_ENRICHMENT_CONCURRENCY = 16
         private const val PORT_SCAN_CONCURRENCY = 16
         private const val SECURITY_HOST_SCAN_CONCURRENCY = 4
-        private val SECURITY_AUDIT_PORTS = listOf(23, 80, 443, 139, 445, 3389)
         private const val NEARBY_SCAN_FRESHNESS_MS = 5 * 60 * 1000L
 
         val COMMON_PORTS = listOf(
