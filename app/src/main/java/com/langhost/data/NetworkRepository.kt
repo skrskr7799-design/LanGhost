@@ -611,7 +611,14 @@ class NetworkRepository(context: Context) {
             refreshNetworkInfo()
             val scanScope = currentNetworkScope() ?: return@withContext 0
             val coverage = _scanCoverage.value
-            if (coverage.checkedAddresses <= 0 || coverage.networkScope != scanScope) return@withContext 0
+            val now = System.currentTimeMillis()
+            val coverageFresh = coverage.scannedAt > 0L && now >= coverage.scannedAt &&
+                now - coverage.scannedAt <= NEARBY_SCAN_FRESHNESS_MS
+            if (
+                coverage.checkedAddresses <= 0 ||
+                coverage.networkScope != scanScope ||
+                !coverageFresh
+            ) return@withContext 0
 
             val targets = _devices.value.filter {
                 it.networkScope == scanScope && it.isOnline && !it.isLocalDevice
