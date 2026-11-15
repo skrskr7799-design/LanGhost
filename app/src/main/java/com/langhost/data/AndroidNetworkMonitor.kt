@@ -66,9 +66,11 @@ internal class AndroidNetworkMonitor(
         }
 
     fun start() {
-        runCatching {
+        try {
             // Observe the default route across Wi-Fi, Ethernet, VPN and other transports.
             connectivityManager.registerDefaultNetworkCallback(callback)
+        } catch (_: Exception) {
+            AppLog.warning(AppLog.Component.NETWORK_MONITOR, AppLog.Event.CALLBACK_REGISTRATION_FAILED)
         }
     }
 
@@ -160,6 +162,7 @@ internal class AndroidNetworkMonitor(
                 activeNetwork = network
             )
         } catch (_: Exception) {
+            AppLog.warning(AppLog.Component.NETWORK_MONITOR, AppLog.Event.SNAPSHOT_READ_FAILED)
             AndroidNetworkSnapshot(NetworkInfo(), connectivityManager.activeNetwork)
         }
     }
