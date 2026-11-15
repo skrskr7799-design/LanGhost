@@ -49,6 +49,7 @@ class NetworkProbeEngineTest {
                 ports = listOf(server.localPort),
                 expectedNetworkScope = "old-network"
             )
+            Unit
         }
     }
 
