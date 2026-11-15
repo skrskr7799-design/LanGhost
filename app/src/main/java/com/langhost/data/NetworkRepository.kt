@@ -45,6 +45,13 @@ class NetworkRepository(context: Context) {
     @Volatile private var publishedActiveNetwork: Network? = null
     private val wifiNetworkCallback = createWifiNetworkCallback()
     private val devicePreferences = DevicePreferences(appContext)
+    private val deviceEnrichmentEngine = DeviceEnrichmentEngine(
+        loadCustomization = { stableId, legacyIds ->
+            devicePreferences.getCustomizationOnce(stableId, legacyIds)
+        },
+        resolveHostname = { ip -> DeviceProbe.netBiosName(ip) },
+        lookupVendor = { mac -> lookupVendor(mac) }
+    )
 
     private fun createWifiNetworkCallback(): ConnectivityManager.NetworkCallback {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -410,66 +417,23 @@ class NetworkRepository(context: Context) {
                 maxConcurrency = DEVICE_ENRICHMENT_CONCURRENCY,
                 beforeBatch = { ensureCurrentNetworkScope(networkScope) }
             ) { ip ->
-                val mac = arpDevices[ip] ?: ""
                 val existingByIp = devicesCache.values.firstOrNull {
                     it.ip == ip && it.networkScope == networkScope
                 }
-                val macFinal = mac.ifBlank { existingByIp?.mac ?: "" }
-                val randomMac = Device.isRandomMacAddress(macFinal)
-                val stableId = when {
-                    macFinal.isNotBlank() -> "${macFinal.uppercase()}@${networkScope}"
-                    else -> "ip:${networkScope}:$ip"
-                }
-                val legacyIds = buildList {
-                    if (macFinal.isNotBlank() && legacyNetworkScope != networkScope) {
-                        add("${macFinal.uppercase()}@${legacyNetworkScope}")
-                    } else if (macFinal.isBlank() && legacyNetworkScope != networkScope) {
-                        add("ip:${legacyNetworkScope}:$ip")
-                    }
-                    if (macFinal.isNotBlank() && bssid.isNotBlank() && bssid != "—") {
-                        add("${macFinal.uppercase()}@${bssid.uppercase()}")
-                    }
-                    if (macFinal.isNotBlank()) add(macFinal.uppercase())
-                    add("ip:$ip")
-                }
-                val saved = devicePreferences.getCustomizationOnce(stableId, legacyIds)
-                val existing = devicesCache[stableId] ?: existingByIp
-                val firstSeen = when {
-                    saved.firstSeen > 0 -> saved.firstSeen
-                    existing != null && existing.firstSeen > 0 -> existing.firstSeen
-                    else -> now
-                }
-
-                // Avoid reverse-DNS lookups in the scan hot path: platform name resolution can
-                // block beyond coroutine timeouts. Use bounded NetBIOS discovery and cached data.
-                val hostname = DeviceProbe.netBiosName(ip).ifBlank { existing?.hostname ?: "" }
-
-                val vendor = if (randomMac) "Random MAC" else lookupVendor(macFinal)
-                val ports = existing?.openPorts ?: emptyList()
-                val type = Device.guessType(ports, vendor, hostname, ip == gateway)
-
-                Device(
+                val mac = arpDevices[ip].orEmpty().ifBlank { existingByIp?.mac.orEmpty() }
+                deviceEnrichmentEngine.enrich(
                     ip = ip,
-                    mac = macFinal,
-                    hostname = hostname.ifBlank { existing?.hostname ?: "" },
-                    vendor = vendor.ifBlank { existing?.vendor ?: "" },
-                    isLocalDevice = ip == localIp,
-                    isGateway = ip == gateway,
-                    firstSeen = firstSeen,
-                    lastSeen = now,
-                    openPorts = ports,
-                    osGuess = existing?.osGuess ?: Device.guessOs(ports, vendor, hostname),
-                    nickname = saved.nickname.ifBlank { existing?.nickname ?: "" },
-                    notes = saved.notes.ifBlank { existing?.notes ?: "" },
-                    isFavorite = saved.isFavorite || (existing?.isFavorite == true),
-                    isWatched = saved.isWatched || (existing?.isWatched == true),
-                    networkBssid = bssid,
+                    mac = mac,
+                    bssid = bssid,
                     networkScope = networkScope,
-                    deviceType = type,
-                    httpFingerprint = existing?.httpFingerprint ?: "",
-                    isRandomMac = randomMac,
-                    tags = existing?.tags ?: emptyList(),
-                    auditedPorts = existing?.auditedPorts ?: emptyList()
+                    legacyNetworkScope = legacyNetworkScope,
+                    localIp = localIp,
+                    gateway = gateway,
+                    existing = existingByIp,
+                    existingByStableId = devicesCache[
+                        if (mac.isNotBlank()) "${mac.uppercase()}@${networkScope}" else "ip:${networkScope}:$ip"
+                    ],
+                    now = now
                 )
             }
 
