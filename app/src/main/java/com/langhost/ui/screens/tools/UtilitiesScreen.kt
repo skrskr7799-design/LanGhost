@@ -13,9 +13,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.langhost.data.DeviceProbe
 import com.langhost.ui.theme.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.InetAddress
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -110,20 +112,45 @@ fun UtilitiesScreen(onBack: () -> Unit) {
     }
 }
 
+private suspend fun resolveHost(host: String): Array<InetAddress>? =
+    withTimeoutOrNull(4_000L) {
+        runInterruptible(Dispatchers.IO) { InetAddress.getAllByName(host) }
+    }
+
+private fun isValidHostInput(host: String): Boolean =
+    host.isNotBlank() &&
+        host.length <= 253 &&
+        !host.any(Char::isWhitespace) &&
+        host.none { it == '/' || it == '\\' }
+
 private suspend fun runPing(host: String): String {
-    if (host.isBlank()) return "Укажите хост"
-    val ms = DeviceProbe.tcpPing(host, 80) ?: DeviceProbe.tcpPing(host, 443)
+    if (!isValidHostInput(host)) return "Укажите корректный IP или доменное имя"
+    val addresses = try {
+        resolveHost(host) ?: return "Время ожидания DNS истекло"
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        return "Не удалось определить адрес хоста"
+    }
+    val address = addresses.firstOrNull()?.hostAddress
+        ?: return "DNS не вернул адресов"
+    val ms = DeviceProbe.tcpPing(address, 80) ?: DeviceProbe.tcpPing(address, 443)
     return if (ms != null) "TCP reachable ≈ ${ms} ms" else "Недоступен (TCP 80/443)"
 }
 
-private suspend fun runDns(host: String): String = withContext(Dispatchers.IO) {
-    try {
-        val all = InetAddress.getAllByName(host)
+private suspend fun runDns(host: String): String {
+    if (!isValidHostInput(host)) return "Укажите корректный IP или доменное имя"
+    return try {
+        val all = resolveHost(host) ?: return "Время ожидания DNS истекло"
+        if (all.isEmpty()) return "DNS не вернул адресов"
         buildString {
             appendLine("DNS: $host")
-            all.forEach { appendLine(it.hostAddress) }
+            all.take(16).forEach { appendLine(it.hostAddress) }
+            if (all.size > 16) appendLine("Показаны первые 16 адресов")
         }
-    } catch (e: Exception) {
-        "Ошибка: ${e.message}"
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        "Не удалось выполнить DNS-запрос"
     }
 }
