@@ -228,7 +228,13 @@ object SecurityAudit {
         val high = findings.count { it.severity == SecurityFinding.Severity.HIGH }
         val medium = findings.count { it.severity == SecurityFinding.Severity.MEDIUM }
         val low = findings.count { it.severity == SecurityFinding.Severity.LOW }
-        val score = if (deviceScanCompleted && effectiveServiceScanCompleted && effectiveNearbyScanCompleted && currentSecurityKnown) {
+        val score = if (
+            deviceScanCompleted &&
+            serviceEvidenceAdequate &&
+            networkCoverageAdequate &&
+            effectiveNearbyScanCompleted &&
+            currentSecurityKnown
+        ) {
             (100 - high * 25 - medium * 12 - low * 4).coerceIn(0, 100)
         } else {
             null
