@@ -380,7 +380,7 @@ private fun ScanControl(
 
 @Composable
 private fun CoveragePanel(
-    checked: Long,
+    checked: Int,
     total: Long,
     percent: Int,
     subnet: String,
