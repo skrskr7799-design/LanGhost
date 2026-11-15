@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: langhost-validation-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     name: Build, test and lint
