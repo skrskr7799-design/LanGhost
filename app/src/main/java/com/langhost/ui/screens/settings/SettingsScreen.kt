@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.biometric.BiometricManager
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -73,6 +74,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     val biometric by viewModel.biometricEnabled.collectAsState()
     val hideSensitive by viewModel.hideSensitive.collectAsState()
     val scope = rememberCoroutineScope()
+    var biometricError by remember { mutableStateOf<String?>(null) }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -145,9 +147,22 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
 
             SettingsSection("Приватность") {
-                SettingsSwitch("Блокировка приложения", "Биометрия / PIN при входе", biometric) {
-                    viewModel.setBiometric(it)
+                SettingsSwitch("Блокировка приложения", "Биометрия / PIN при входе", biometric) { enabled ->
+                    if (!enabled) {
+                        biometricError = null
+                        viewModel.setBiometric(false)
+                    } else {
+                        val authenticators = BiometricManager.Authenticators.BIOMETRIC_WEAK or
+                            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                        if (BiometricManager.from(context).canAuthenticate(authenticators) == BiometricManager.BIOMETRIC_SUCCESS) {
+                            biometricError = null
+                            viewModel.setBiometric(true)
+                        } else {
+                            biometricError = "Сначала настройте биометрию или PIN/пароль блокировки устройства."
+                        }
+                    }
                 }
+                biometricError?.let { Text(it, color = Danger, style = MaterialTheme.typography.bodySmall) }
                 SettingsSwitch("Скрывать MAC и IP", "Для скриншотов (режим приватности)", hideSensitive) {
                     viewModel.setHideSensitive(it)
                 }

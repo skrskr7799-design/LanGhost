@@ -61,6 +61,15 @@ object ExportHelper {
         }
     }
 
+    internal fun escapeCsvCell(value: String): String {
+        val first = value.firstOrNull()
+        val dangerous = first == '=' || first == '+' || first == '@' ||
+            first == '\\t' || first == '\\r' ||
+            (first == '-' && value.getOrNull(1)?.isDigit() != true)
+        val safe = if (dangerous) "'$value" else value
+        return "\"" + safe.replace("\"", "\"\"") + "\""
+    }
+
     fun exportDevicesAsCsv(context: Context, devices: List<Device>): Intent? {
         return try {
             val timeStr = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.getDefault()).format(Date())
@@ -81,7 +90,7 @@ object ExportHelper {
                             d.openPorts.joinToString(";"),
                             d.isGateway.toString(),
                             d.isLocalDevice.toString()
-                        ).joinToString(",") { "\"$it\"" }
+                        ).joinToString(",") { escapeCsvCell(it) }
                     )
                 }
             }

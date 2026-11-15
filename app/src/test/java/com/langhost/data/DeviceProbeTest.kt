@@ -1,6 +1,7 @@
 package com.langhost.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.ByteBuffer
@@ -72,5 +73,19 @@ class DeviceProbeTest {
             put(question)
             put(answer)
         }.array()
+    }
+
+    @Test
+    fun plainHttpTargetMustBePrivateIpv4() {
+        assertTrue(DeviceProbe.isPrivateIpv4("192.168.1.20"))
+        assertTrue(DeviceProbe.isPrivateIpv4("10.0.0.2"))
+        assertTrue(DeviceProbe.isPrivateIpv4("172.16.0.1"))
+        assertTrue(DeviceProbe.isPrivateIpv4("172.31.255.254"))
+        assertTrue(DeviceProbe.isPrivateIpv4("169.254.1.1"))
+        assertFalse(DeviceProbe.isPrivateIpv4("8.8.8.8"))
+        assertFalse(DeviceProbe.isPrivateIpv4("172.32.0.1"))
+        assertFalse(DeviceProbe.isPrivateIpv4("192.169.1.1"))
+        assertFalse(DeviceProbe.isPrivateIpv4("localhost"))
+        assertFalse(DeviceProbe.isPrivateIpv4("192.168.1.999"))
     }
 }

@@ -136,50 +136,16 @@ object DeviceProbe {
 
         return candidates.minByOrNull { it.first }?.second.orEmpty()
     }
-    /** HTTP Server header + title snippet */
+    /** Plain HTTP fingerprints are limited to private IPv4 targets; HTTPS retains platform TLS validation. */
     suspend fun httpFingerprint(ip: String, port: Int = 80, https: Boolean = false): String =
         withContext(Dispatchers.IO) {
             withTimeoutOrNull(1500L) {
                 try {
-                    val scheme = if (https) "https" else "http"
-                    val url = URL("$scheme://$ip:$port/")
-                    val conn = (url.openConnection() as HttpURLConnection).apply {
-                        connectTimeout = 800
-                        readTimeout = 800
-                        instanceFollowRedirects = false
-                        useCaches = false
-                        requestMethod = "GET"
-                        setRequestProperty("User-Agent", "LanGhost/0.4")
-                        setRequestProperty("Connection", "close")
-                    }
-                    try {
-                        val server = conn.getHeaderField("Server") ?: ""
-                        val code = conn.responseCode
-                        val stream = if (code in 200..399) conn.inputStream else conn.errorStream
-                        val title = if (stream == null) {
-                            ""
-                        } else {
-                            val body = stream.bufferedReader().use { reader ->
-                                val output = StringBuilder()
-                                val buffer = CharArray(4096)
-                                val limit = 32 * 1024
-                                while (output.length < limit) {
-                                    val count = reader.read(buffer, 0, minOf(buffer.size, limit - output.length))
-                                    if (count < 0) break
-                                    output.append(buffer, 0, count)
-                                }
-                                output.toString()
-                            }
-                            Regex("<title[^>]*>([^<]+)</title>", RegexOption.IGNORE_CASE)
-                                .find(body)?.groupValues?.getOrNull(1)?.trim()?.take(60) ?: ""
-                        }
-                        listOfNotNull(
-                            server.takeIf { it.isNotBlank() }?.let { "Server: $it" },
-                            title.takeIf { it.isNotBlank() }?.let { "Title: $it" },
-                            "HTTP $code"
-                        ).joinToString(" · ")
-                    } finally {
-                        conn.disconnect()
+                    if (!https) {
+                        require(isPrivateIpv4(ip)) { "Plain HTTP is allowed only for private IPv4 targets" }
+                        fingerprintPlainHttp(ip, port)
+                    } else {
+                        fingerprintHttps(ip, port)
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
@@ -188,6 +154,84 @@ object DeviceProbe {
                 }
             } ?: ""
         }
+
+    internal fun isPrivateIpv4(value: String): Boolean {
+        val parts = value.split(".")
+        if (parts.size != 4) return false
+        val octets = parts.map { it.toIntOrNull()?.takeIf { n -> n in 0..255 } ?: return false }
+        val first = octets[0]
+        val second = octets[1]
+        return first == 10 ||
+            (first == 172 && second in 16..31) ||
+            (first == 192 && second == 168) ||
+            (first == 169 && second == 254)
+    }
+
+    private fun fingerprintPlainHttp(ip: String, port: Int): String {
+        require(port in 1..65535)
+        Socket().use { socket ->
+            socket.connect(InetSocketAddress(ip, port), 800)
+            socket.soTimeout = 800
+            socket.getOutputStream().write(
+                "GET / HTTP/1.1\r\nHost: $ip\r\nUser-Agent: LanGhost/0.4\r\nConnection: close\r\n\r\n"
+                    .toByteArray(Charsets.US_ASCII)
+            )
+            val response = socket.getInputStream().use { readBounded(it, 32 * 1024) }
+            return summarizeHttpResponse(response)
+        }
+    }
+
+    private fun fingerprintHttps(ip: String, port: Int): String {
+        require(port in 1..65535)
+        val connection = (URL("https://$ip:$port/").openConnection() as HttpURLConnection).apply {
+            connectTimeout = 800
+            readTimeout = 800
+            instanceFollowRedirects = false
+            useCaches = false
+            requestMethod = "GET"
+            setRequestProperty("User-Agent", "LanGhost/0.4")
+            setRequestProperty("Connection", "close")
+        }
+        try {
+            val status = connection.responseCode
+            val stream = if (status in 200..399) connection.inputStream else connection.errorStream
+            val body = stream?.use { readBounded(it, 32 * 1024) }.orEmpty()
+            val server = connection.getHeaderField("Server").orEmpty()
+            return summarizeHttpResponse("HTTP $status\r\nServer: $server\r\n\r\n$body")
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun readBounded(input: java.io.InputStream, limit: Int): String {
+        val output = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(4096)
+        var total = 0
+        while (total < limit) {
+            val count = input.read(buffer, 0, minOf(buffer.size, limit - total))
+            if (count < 0) break
+            output.write(buffer, 0, count)
+            total += count
+        }
+        return output.toString(Charsets.UTF_8.name())
+    }
+
+    private fun summarizeHttpResponse(response: String): String {
+        val headerEnd = response.indexOf("\r\n\r\n")
+        val headers = if (headerEnd >= 0) response.substring(0, headerEnd) else response
+        val body = if (headerEnd >= 0) response.substring(headerEnd + 4) else ""
+        val status = Regex("^HTTP/\\S+\\s+(\\d{3})", RegexOption.IGNORE_CASE)
+            .find(headers)?.groupValues?.getOrNull(1)
+        val server = Regex("(?im)^Server:\\s*(.+)$")
+            .find(headers)?.groupValues?.getOrNull(1)?.trim().orEmpty()
+        val title = Regex("<title[^>]*>([^<]+)</title>", RegexOption.IGNORE_CASE)
+            .find(body)?.groupValues?.getOrNull(1)?.trim()?.take(60).orEmpty()
+        return listOfNotNull(
+            server.takeIf { it.isNotBlank() }?.let { "Server: $it" },
+            title.takeIf { it.isNotBlank() }?.let { "Title: $it" },
+            status?.let { "HTTP $it" }
+        ).joinToString(" · ")
+    }
 
     suspend fun enrichHostnamesAndFingerprint(ip: String, openPorts: List<Int>): Pair<String, String> {
         val netbios = netBiosName(ip)

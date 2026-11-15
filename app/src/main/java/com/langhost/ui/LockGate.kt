@@ -15,7 +15,6 @@ import androidx.fragment.app.FragmentActivity
 import com.langhost.data.AppLockSettings
 import com.langhost.ui.theme.*
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 
 @Composable
 fun LockGate(content: @Composable () -> Unit) {
@@ -24,7 +23,9 @@ fun LockGate(content: @Composable () -> Unit) {
     var enabled by remember { mutableStateOf(false) }
     var unlocked by remember { mutableStateOf(false) }
     var checked by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+    var authError by remember { mutableStateOf<String?>(null) }
+    val authenticators = BiometricManager.Authenticators.BIOMETRIC_WEAK or
+        BiometricManager.Authenticators.DEVICE_CREDENTIAL
 
     LaunchedEffect(Unit) {
         enabled = settings.biometricEnabled.first()
@@ -45,34 +46,50 @@ fun LockGate(content: @Composable () -> Unit) {
     }
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(24.dp)
+        ) {
             Text("LanGhost", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
             Text("Разблокируйте приложение", color = TextSecondary)
+            authError?.let { Text(it, color = Danger, style = MaterialTheme.typography.bodySmall) }
             Button(
                 onClick = {
                     val activity = context as? FragmentActivity
                     if (activity == null) {
-                        unlocked = true
+                        authError = "Не удалось открыть системную проверку. Приложение остаётся заблокированным."
                         return@Button
                     }
-                    val prompt = BiometricPrompt(
-                        activity,
-                        ContextCompat.getMainExecutor(context),
-                        object : BiometricPrompt.AuthenticationCallback() {
-                            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                                unlocked = true
+                    val availability = BiometricManager.from(context).canAuthenticate(authenticators)
+                    if (availability != BiometricManager.BIOMETRIC_SUCCESS) {
+                        authError = "Биометрия или PIN устройства сейчас недоступны. Проверьте настройки блокировки устройства."
+                        return@Button
+                    }
+                    try {
+                        val prompt = BiometricPrompt(
+                            activity,
+                            ContextCompat.getMainExecutor(context),
+                            object : BiometricPrompt.AuthenticationCallback() {
+                                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                                    authError = null
+                                    unlocked = true
+                                }
+
+                                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                                    authError = "Проверка не выполнена. Попробуйте ещё раз."
+                                }
                             }
-                        }
-                    )
-                    val info = BiometricPrompt.PromptInfo.Builder()
-                        .setTitle("LanGhost")
-                        .setSubtitle("Биометрия или PIN устройства")
-                        .setAllowedAuthenticators(
-                            BiometricManager.Authenticators.BIOMETRIC_WEAK or
-                                BiometricManager.Authenticators.DEVICE_CREDENTIAL
                         )
-                        .build()
-                    prompt.authenticate(info)
+                        val info = BiometricPrompt.PromptInfo.Builder()
+                            .setTitle("LanGhost")
+                            .setSubtitle("Биометрия или PIN устройства")
+                            .setAllowedAuthenticators(authenticators)
+                            .build()
+                        prompt.authenticate(info)
+                    } catch (_: Exception) {
+                        authError = "Не удалось запустить системную проверку. Приложение остаётся заблокированным."
+                    }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Primary)
             ) {

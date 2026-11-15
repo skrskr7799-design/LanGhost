@@ -128,12 +128,12 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | DATA-001 | Fingerprinting | HTTP response body was read without a byte limit | Medium | HTTP fingerprint now reads at most 32 KB, uses bounded timeouts, disables redirects/cache and disconnects in finally | Implemented on branch; CI/device validation pending |
 | DATA-002 | Change tracking | ScanDiff kept one process-global previous map, not scoped to a network | Medium | ScanDiff now stores bounded per-network snapshots; switching networks no longer emits false disappearance events | Implemented on branch; regression tests added |
 | DATA-003 | Widget | Widget scan started a coroutine from an exported BroadcastReceiver without goAsync() | Medium | Scan action moved to a dedicated non-exported WidgetScanReceiver; goAsync() is finished in finally | Resolved on working branch; CI/device validation pending |
-| DATA-004 | Export | CSV fields are quoted but embedded double quotes are not escaped | Medium | ExportHelper.exportDevicesAsCsv() | Open |
+| DATA-004 | Export | CSV fields were quoted but embedded double quotes were not escaped; spreadsheet formula injection was not neutralized | Medium | ExportHelper.exportDevicesAsCsv() | Resolved on working branch: RFC4180 quote escaping plus formula-prefix neutralization; regression tests added |
 | SEC-005 | Components | Exported AppWidgetProvider accepted a custom scan action from arbitrary external broadcasts | Medium | ACTION_SCAN was included in the exported receiver intent filter | Resolved on working branch; scan action now targets an exported=false receiver |
 | PERM-001 | Permissions | Android 12+ location permission requests should request ACCESS_FINE_LOCATION and ACCESS_COARSE_LOCATION together | Medium | Three Wi-Fi scan screens requested fine only despite declaring coarse | Updated on working branch; API-level behavior validation pending |
 | PERM-002 | Permissions | CHANGE_WIFI_MULTICAST_STATE was declared but no MulticastLock usage exists | Low | Manifest permission had no corresponding code use | Removed on working branch |
 | WORK-001 | Background work | WatchWorker caught coroutine CancellationException as a generic Exception and returned retry | Medium | WatchWorker.doWork() generic catch | Resolved on working branch; cancellation now propagates |
-| SEC-006 | Cleartext | Application globally enables cleartext traffic for local HTTP fingerprinting | Medium | android:usesCleartextTraffic=true; DeviceProbe.httpFingerprint() supports local HTTP | Open; evaluate replacing HTTP URLConnection with a private-address-only socket implementation and keep HTTPS certificate validation
+| SEC-006 | Cleartext | Application globally enables cleartext traffic for local HTTP fingerprinting | Medium | Manifest previously allowed cleartext globally; local HTTP fingerprint used HttpURLConnection | Resolved on working branch: global cleartext is disabled; HTTP fingerprint uses a bounded raw socket only for RFC1918/link-local IPv4 targets, while HTTPS keeps platform TLS validation; physical-device validation pending
 | NET-004 | Wi-Fi scan | Nearby-network scan could wait indefinitely for the results broadcast | High | Shared repository scanner now has a 10-second timeout, unregisters its receiver on completion/cancellation and distinguishes fresh results from cached results. Channel analyzer now consumes the shared bounded repository scanner | Partially resolved on branch |
 | WIFI-001 | Channel analysis | Channel analysis omits 6 GHz and most DFS channels; 5 GHz scoring only counts exact-channel APs and ignores channel width/overlap | Medium | ChannelAnalyzer.analyze() fixed common5 list and frequency filters | Open |
 | UI-001 | Topology | Canvas writes Compose state during drawing and renders inferred gateway-to-every-device edges as if they were topology | Medium | TopologyCanvas() mutates positions in Canvas draw scope and connects every ring node to gateway | Open |
@@ -143,8 +143,15 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | DATA-005 | Persistence | Known device IDs are only ever added to a DataStore set and are never pruned | Medium | Still accumulates; retention/pruning policy remains open | Open |
 | DATA-006 | Persistence | Ping history is capped per IP, but old per-IP DataStore keys have no retention/cleanup policy | Low | PingHistoryStore.addSample() caps sample count but never removes unused keys | Open |
 | MODEL-001 | Classification | Randomized/local MAC detection missed locally administered addresses whose low nibble is odd | Low | Device.isRandomMacAddress() now tests the IEEE U/L bit directly | Resolved on branch; tests added |
-| UI-003 | Lock UX | Biometric lock can be enabled without checking authenticator availability or handling prompt errors/cancellation with a recovery path | Medium | SettingsScreen toggles boolean directly; LockGate callback only handles success | Open |
+| UI-003 | Lock UX | Biometric lock could be enabled without checking authenticator availability; LockGate failed open if Activity was unavailable | Medium | SettingsScreen toggled the setting directly; LockGate set unlocked=true when context was not FragmentActivity | Partially resolved on working branch: settings checks biometric/PIN availability; LockGate now fails closed and surfaces prompt errors; lifecycle re-lock and physical-device validation remain open |
 | DOC-001 | Docs | README feature list and roadmap are stale relative to source tree | Low | Compare README with current modules/screens | Open |
+
+## External network and export privacy notes
+
+- Opening the public-IP screen no longer triggers a network request. The user must press the explicit lookup button after seeing a disclosure.
+- The primary ipapi.co endpoint receives the public IP and returns provider/approximate-location data. The fallback api.ipify.org endpoint is called only if the primary lookup fails and receives the same public source IP but returns only the address.
+- Both lookups use HTTPS, reject redirects/non-2xx responses, cap bodies at 16 KiB, disconnect connections in finally and propagate coroutine cancellation.
+- CSV export now escapes embedded quotes and neutralizes formula-like values before sharing. Reports and exports remain user-initiated share-sheet actions.
 
 ## Permission and receiver audit notes
 
