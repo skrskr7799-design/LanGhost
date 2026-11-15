@@ -44,11 +44,11 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [ ] Test across different routers, subnet sizes, Android versions and network conditions (including mesh roaming and MAC randomization).
 
 ### Phase 3 — Security, privacy and permissions
-- [ ] Audit manifest permissions and request each permission only when needed.
+- [ ] Audit manifest permissions and request each permission only when needed. Fine and coarse location are now requested together for Wi-Fi scan flows; notification permission is requested only when enabling new-device notifications. Further API-level device validation remains open.
 - [ ] Review cleartext traffic, TLS, external endpoints, redirects, response-size limits and timeouts.
 - [ ] Audit local data storage, backup/export paths, logs and sensitive identifiers.
 - [ ] Verify biometric/app-lock behavior across lifecycle, process recreation and unavailable hardware.
-- [ ] Review widget/receiver exposure and exported component requirements.
+- [x] Review widget/receiver exposure and exported component requirements; widget updates remain on the exported AppWidgetProvider, while the scan action moved to a non-exported receiver with goAsync().
 - [x] Reassess security scoring and threat heuristics; scores are withheld until device discovery, bounded service-port checks and a fresh nearby-Wi-Fi scan have completed. Current Wi-Fi security is included. Further calibration remains open.
 - [x] Remove the assumption that a repeated SSID on another BSSID is an Evil Twin; compare only known, clearly different security families and label the result as a low-confidence configuration signal. Real-world mesh validation remains open.
 - [ ] Document what is and is not detectable on stock Android.
@@ -57,7 +57,7 @@ There are no artificial constraints requiring us to preserve the current impleme
 - [ ] Review repository boundaries, state ownership, ViewModels and dependency construction.
 - [ ] Define durable models and persistence for devices, scan history, ping history and profiles.
 - [ ] Bound history/cache growth and define retention/cleanup behavior.
-- [ ] Review WorkManager constraints, scheduling, cancellation, notification permissions and battery impact.
+- [x] Fix WorkManager cancellation propagation and request notification permission only when the notification feature is enabled. Scheduling constraints, battery impact and device validation remain open.
 - [ ] Verify widget refresh and asynchronous broadcast lifecycle.
 - [ ] Review error handling, offline behavior, concurrency safety and process-death recovery.
 - [ ] Add structured logging that does not leak sensitive network data.
@@ -127,8 +127,13 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | SEC-002 | Security score | A clean score could be shown without scan evidence | High | Score is now null until device-scan coverage, service-port scan and fresh nearby-Wi-Fi scan are all complete; missing evidence is explicitly disclosed | Implemented on branch; scoring calibration remains open |
 | DATA-001 | Fingerprinting | HTTP response body was read without a byte limit | Medium | HTTP fingerprint now reads at most 32 KB, uses bounded timeouts, disables redirects/cache and disconnects in finally | Implemented on branch; CI/device validation pending |
 | DATA-002 | Change tracking | ScanDiff kept one process-global previous map, not scoped to a network | Medium | ScanDiff now stores bounded per-network snapshots; switching networks no longer emits false disappearance events | Implemented on branch; regression tests added |
-| DATA-003 | Widget | Widget scan starts a coroutine from BroadcastReceiver without goAsync() or a durable work handoff | Medium | ScanWidgetProvider.onReceive() | Open |
+| DATA-003 | Widget | Widget scan started a coroutine from an exported BroadcastReceiver without goAsync() | Medium | Scan action moved to a dedicated non-exported WidgetScanReceiver; goAsync() is finished in finally | Resolved on working branch; CI/device validation pending |
 | DATA-004 | Export | CSV fields are quoted but embedded double quotes are not escaped | Medium | ExportHelper.exportDevicesAsCsv() | Open |
+| SEC-005 | Components | Exported AppWidgetProvider accepted a custom scan action from arbitrary external broadcasts | Medium | ACTION_SCAN was included in the exported receiver intent filter | Resolved on working branch; scan action now targets an exported=false receiver |
+| PERM-001 | Permissions | Android 12+ location permission requests should request ACCESS_FINE_LOCATION and ACCESS_COARSE_LOCATION together | Medium | Three Wi-Fi scan screens requested fine only despite declaring coarse | Updated on working branch; API-level behavior validation pending |
+| PERM-002 | Permissions | CHANGE_WIFI_MULTICAST_STATE was declared but no MulticastLock usage exists | Low | Manifest permission had no corresponding code use | Removed on working branch |
+| WORK-001 | Background work | WatchWorker caught coroutine CancellationException as a generic Exception and returned retry | Medium | WatchWorker.doWork() generic catch | Resolved on working branch; cancellation now propagates |
+| SEC-006 | Cleartext | Application globally enables cleartext traffic for local HTTP fingerprinting | Medium | android:usesCleartextTraffic=true; DeviceProbe.httpFingerprint() supports local HTTP | Open; evaluate replacing HTTP URLConnection with a private-address-only socket implementation and keep HTTPS certificate validation
 | NET-004 | Wi-Fi scan | Nearby-network scan could wait indefinitely for the results broadcast | High | Shared repository scanner now has a 10-second timeout, unregisters its receiver on completion/cancellation and distinguishes fresh results from cached results. Channel analyzer now consumes the shared bounded repository scanner | Partially resolved on branch |
 | WIFI-001 | Channel analysis | Channel analysis omits 6 GHz and most DFS channels; 5 GHz scoring only counts exact-channel APs and ignores channel width/overlap | Medium | ChannelAnalyzer.analyze() fixed common5 list and frequency filters | Open |
 | UI-001 | Topology | Canvas writes Compose state during drawing and renders inferred gateway-to-every-device edges as if they were topology | Medium | TopologyCanvas() mutates positions in Canvas draw scope and connects every ring node to gateway | Open |
@@ -140,6 +145,13 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | MODEL-001 | Classification | Randomized/local MAC detection missed locally administered addresses whose low nibble is odd | Low | Device.isRandomMacAddress() now tests the IEEE U/L bit directly | Resolved on branch; tests added |
 | UI-003 | Lock UX | Biometric lock can be enabled without checking authenticator availability or handling prompt errors/cancellation with a recovery path | Medium | SettingsScreen toggles boolean directly; LockGate callback only handles success | Open |
 | DOC-001 | Docs | README feature list and roadmap are stale relative to source tree | Low | Compare README with current modules/screens | Open |
+
+## Permission and receiver audit notes
+
+- Wi-Fi scan screens request fine and coarse location together; Android 13+ additionally requests Nearby Wi-Fi Devices. Permission prompts remain tied to a user-initiated Wi-Fi scan.
+- Notification permission is requested only when the user enables new-device notifications, not merely when background monitoring is enabled.
+- The exported AppWidgetProvider handles system widget updates only. Its scan button targets a separate non-exported receiver, which uses `goAsync()` and always finishes the pending result.
+- Removed the unused CHANGE_WIFI_MULTICAST_STATE manifest permission. Global cleartext allowance remains an open item because local HTTP fingerprinting currently depends on it.
 
 ## Latest Wi-Fi and security-service integration notes
 

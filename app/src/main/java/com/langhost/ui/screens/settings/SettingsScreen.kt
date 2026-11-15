@@ -2,6 +2,7 @@ package com.langhost.ui.screens.settings
 
 import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -11,6 +12,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -20,9 +24,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
 import com.langhost.data.AppLockSettings
 import com.langhost.data.AppSettings
 import com.langhost.data.AppSettingsData
@@ -55,7 +56,7 @@ class SettingsViewModel(
     fun setHideSensitive(v: Boolean) = viewModelScope.launch { lockSettings.setHideSensitive(v) }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -73,9 +74,11 @@ fun SettingsScreen(onBack: () -> Unit) {
     val hideSensitive by viewModel.hideSensitive.collectAsState()
     val scope = rememberCoroutineScope()
 
-    val notificationPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS)
-    } else null
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) viewModel.setNotifyNew(true)
+    }
 
     Scaffold(
         topBar = {
@@ -103,14 +106,25 @@ fun SettingsScreen(onBack: () -> Unit) {
                 ) { enabled ->
                     viewModel.setWatchMode(enabled)
                     if (enabled) {
-                        if (notificationPermission != null && !notificationPermission.status.isGranted) {
-                            notificationPermission.launchPermissionRequest()
-                        }
                         WatchWorker.start(context)
-                    } else WatchWorker.stop(context)
+                    } else {
+                        WatchWorker.stop(context)
+                    }
                 }
-                SettingsSwitch("Уведомления о новых устройствах", "Неизвестные хосты", settings.notifyNewDevices) {
-                    viewModel.setNotifyNew(it)
+                SettingsSwitch("Уведомления о новых устройствах", "Требуется разрешение на Android 13+", settings.notifyNewDevices) { enabled ->
+                    if (!enabled) {
+                        viewModel.setNotifyNew(false)
+                    } else if (
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.POST_NOTIFICATIONS
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        viewModel.setNotifyNew(true)
+                    }
                 }
             }
 
