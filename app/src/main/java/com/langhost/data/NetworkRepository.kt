@@ -163,7 +163,7 @@ class NetworkRepository(context: Context) {
             val capabilities = connectivityManager.getNetworkCapabilities(network)
             val linkProperties = connectivityManager.getLinkProperties(network)
             if (capabilities == null || linkProperties == null) {
-                publishNetworkInfo(NetworkInfo(), null)
+                publishNetworkInfo(NetworkInfo(), network)
                 return
             }
 
@@ -229,7 +229,7 @@ class NetworkRepository(context: Context) {
                     capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
             ), network)
         } catch (_: Exception) {
-            publishNetworkInfo(NetworkInfo(), null)
+            publishNetworkInfo(NetworkInfo(), connectivityManager.activeNetwork)
         }
     }
 
@@ -260,6 +260,9 @@ class NetworkRepository(context: Context) {
 
     private fun publishNetworkInfo(next: NetworkInfo, activeNetwork: Network?) {
         synchronized(networkStateLock) {
+            // Concurrent refreshes can finish out of order. Never let a snapshot for an
+            // older Android Network overwrite the currently active default network.
+            if (connectivityManager.activeNetwork != activeNetwork) return
             val previousScope = networkScope(_networkInfo.value)
             val nextScope = networkScope(next)
             if (previousScope != nextScope) {
