@@ -8,11 +8,12 @@ import org.junit.Test
 
 class DataRetentionTest {
     @Test(expected = CancellationException::class)
-    fun settingsReadDoesNotConvertCancellationIntoDefaults() = runBlocking {
+    fun settingsReadDoesNotConvertCancellationIntoDefaults(): Unit = runBlocking {
         firstOrDefaultOnFailure(
             flow<AppSettingsData> { throw CancellationException("test cancellation") },
             AppSettingsData()
         )
+        Unit
     }
 
     @Test
