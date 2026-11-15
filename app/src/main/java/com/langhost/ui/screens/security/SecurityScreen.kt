@@ -61,7 +61,7 @@ fun SecurityScreen(
                     colors = CardDefaults.cardColors(containerColor = Surface),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Column(Modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Оценка сети", style = MaterialTheme.typography.titleMedium, color = TextSecondary)
                         Text(
                             text = "${report.score}",
@@ -88,7 +88,7 @@ fun SecurityScreen(
                         colors = CardDefaults.cardColors(containerColor = Danger.copy(alpha = 0.12f)),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Column(Modifier = Modifier.padding(14.dp)) {
+                        Column(modifier = Modifier.padding(14.dp)) {
                             Text(twin.ssid, fontWeight = FontWeight.Medium, color = TextPrimary)
                             Text("${twin.bssid} · ${twin.security} · ${twin.signalDbm} dBm", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         }
