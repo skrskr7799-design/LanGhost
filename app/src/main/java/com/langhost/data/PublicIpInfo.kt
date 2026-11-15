@@ -4,6 +4,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
@@ -27,7 +28,7 @@ object PublicIpLookup {
     suspend fun fetch(): PublicNetworkInfo = withContext(Dispatchers.IO) {
         withTimeoutOrNull(5_500L) {
             val primary = try {
-                request("https://ipapi.co/json/", 2_500)
+                runInterruptible(Dispatchers.IO) { request("https://ipapi.co/json/", 2_500) }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -49,7 +50,9 @@ object PublicIpLookup {
     private suspend fun fallback(): PublicNetworkInfo {
         currentCoroutineContext().ensureActive()
         return try {
-            parseFallbackResponse(request("https://api.ipify.org?format=json", 1_500))
+            parseFallbackResponse(
+                runInterruptible(Dispatchers.IO) { request("https://api.ipify.org?format=json", 1_500) }
+            )
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -95,7 +98,7 @@ object PublicIpLookup {
     internal fun parsePrimaryResponse(body: String): PublicNetworkInfo {
         val json = JSONObject(body)
         return PublicNetworkInfo(
-            ip = json.optString("ip", ""),
+            ip = json.optString("ip", "").takeIf(::isIpLiteral).orEmpty(),
             isp = json.optString("org", json.optString("asn", "")),
             org = json.optString("org", ""),
             country = json.optString("country_name", json.optString("country", "")),
@@ -105,5 +108,20 @@ object PublicIpLookup {
     }
 
     internal fun parseFallbackResponse(body: String): PublicNetworkInfo =
-        PublicNetworkInfo(ip = JSONObject(body).optString("ip", ""))
+        PublicNetworkInfo(ip = JSONObject(body).optString("ip", "").takeIf(::isIpLiteral).orEmpty())
+
+    internal fun isIpLiteral(value: String): Boolean {
+        if (value.isBlank() || value.length > 45) return false
+        val octets = value.split('.')
+        if (octets.size == 4 && octets.all { part ->
+                part.isNotEmpty() && part.length <= 3 &&
+                    !(part.length > 1 && part.startsWith('0')) &&
+                    part.all { it in '0'..'9' } &&
+                    part.toIntOrNull()?.let { it in 0..255 } == true
+            }
+        ) return true
+        if (!value.contains(':') || !value.all { it in "0123456789abcdefABCDEF:." }) return false
+        return runCatching { java.net.InetAddress.getByName(value) is java.net.Inet6Address }
+            .getOrDefault(false)
+    }
 }
