@@ -15,6 +15,8 @@ import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -190,7 +192,7 @@ private fun AppNavGraph(
         }
         composable(Routes.DEVICES) {
             DevicesScreen(
-                onBack = { navController.navigate(Routes.DASHBOARD) { launchSingleTop = true } },
+                onBack = { navController.popBackStack(Routes.DASHBOARD, false) },
                 onDeviceClick = { navController.navigate(Routes.deviceDetail(it)) }
             )
         }
