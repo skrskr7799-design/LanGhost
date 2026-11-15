@@ -240,7 +240,7 @@ class SecurityAuditTest {
 
         assertNull(report.score)
         assertFalse(report.serviceScanCompleted)
-        assertTrue(report.findings.any { it.title == "Проверка сервисов не выполнена" })
+        assertTrue(report.findings.any { it.title == "Проверка сервисов не выполнена или устарела" })
     }
 
     @Test
