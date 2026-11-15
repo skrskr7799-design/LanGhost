@@ -259,6 +259,9 @@ class NetworkRepository(context: Context) {
         val nextScope = networkScope(next)
         if (previousScope != nextScope) {
             // Do not carry device, port, or nearby-AP evidence across logical networks.
+            // Device customizations live in DataStore; the in-memory cache is scoped and bounded
+            // to the active network so moving between many networks cannot grow it indefinitely.
+            devicesCache.entries.removeAll { it.value.networkScope != nextScope }
             _devices.value = emptyList()
             _lastDiff.value = null
             _lastScanTime.value = 0L
@@ -644,7 +647,9 @@ class NetworkRepository(context: Context) {
                 beforeBatch = { ensureCurrentNetworkScope(scanScope) }
             ) { device ->
                 val ports = scanPorts(device.ip, SECURITY_AUDIT_PORTS, scanScope)
-                device.withUpdatedPorts(ports)
+                // Keep the focused security evidence separate: this smaller port set must not
+                // overwrite the broader manual/device-detail port inventory.
+                device.copy(auditedPorts = ports)
             }
 
             // A network switch during the port scan invalidates its results.
