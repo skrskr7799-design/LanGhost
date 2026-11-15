@@ -34,9 +34,9 @@ data class ChannelAdvice(
 object ChannelAnalyzer {
     private val preferred24 = listOf(1, 6, 11)
     private val channels5 = buildList {
-        addAll((36..64 step 4))
-        addAll((100..144 step 4))
-        addAll((149..177 step 4))
+        addAll((36..64 step 4).toList())
+        addAll((100..144 step 4).toList())
+        addAll((149..177 step 4).toList())
     }
     private val channels6 = (1..233 step 4).toList()
 
