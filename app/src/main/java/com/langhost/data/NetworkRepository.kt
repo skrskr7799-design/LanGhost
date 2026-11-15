@@ -24,11 +24,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
 import java.io.BufferedReader
 import java.io.FileReader
-import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.concurrent.TimeUnit
@@ -307,11 +305,7 @@ class NetworkRepository(context: Context) {
                     else -> now
                 }
 
-                var hostname = withTimeoutOrNull(250L) { resolveHostname(ip) } ?: ""
-                if (hostname.isBlank()) {
-                    hostname = DeviceProbe.netBiosName(ip).ifBlank { existing?.hostname ?: "" }
-                }
-
+                // Avoid reverse-DNS lookups in the scan hot path: platform name resolution can\n                // block beyond coroutine timeouts. Use bounded NetBIOS discovery and cached data.\n                val hostname = DeviceProbe.netBiosName(ip).ifBlank { existing?.hostname ?: "" }\n
                 val vendor = if (randomMac) "Random MAC" else lookupVendor(macFinal)
                 val ports = existing?.openPorts ?: emptyList()
                 val type = Device.guessType(ports, vendor, hostname, ip == gateway)
@@ -422,13 +416,6 @@ class NetworkRepository(context: Context) {
             }
         }
         false
-    }
-
-    private fun resolveHostname(ip: String): String = try {
-        val host = InetAddress.getByName(ip).canonicalHostName
-        if (host != null && host != ip && !host.matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+"))) host else ""
-    } catch (_: Exception) {
-        ""
     }
 
     private fun lookupVendor(mac: String): String {
