@@ -35,6 +35,7 @@ fun DashboardScreen(
     onNavigateToWol: () -> Unit = {},
     onNavigateToChannels: () -> Unit = {},
     onNavigateToPublicIp: () -> Unit = {},
+    onNavigateToProfiles: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: DashboardViewModel = viewModel()
 ) {
@@ -80,7 +81,18 @@ fun DashboardScreen(
                 }
             }
 
-            NetworkStatusCard(network)
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Default.Wifi, null, tint = if (network.isConnected) Primary else TextTertiary)
+                        Text(if (network.isConnected) network.ssid else "Нет подключения", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                    }
+                    HorizontalDivider(color = Divider)
+                    InfoRow("Канал", if (network.channel > 0) network.channel.toString() else "—")
+                    InfoRow("Шлюз", network.gateway)
+                    InfoRow("IP", network.ipAddress)
+                }
+            }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 StatCard("Онлайн", state.devices.count { it.isOnline }.let { if (state.devices.isNotEmpty()) it.toString() else "—" }, Icons.Default.Devices, Modifier.weight(1f))
@@ -91,41 +103,24 @@ fun DashboardScreen(
                 Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = SurfaceVariant), shape = RoundedCornerShape(12.dp)) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Primary)
-                        Text("Сканирование сети...", color = TextPrimary)
+                        Text("Сканирование...", color = TextPrimary)
                     }
                 }
             }
 
             Text("Действия", style = MaterialTheme.typography.titleMedium, color = TextSecondary)
 
-            ActionButton("Сканировать сеть", if (state.lastScanTime > 0) "Готово" else "Найти устройства", Icons.Default.Radar, { viewModel.startScan() }, !state.isScanning)
+            ActionButton("Сканировать", if (state.lastScanTime > 0) "Готово" else "Найти хосты", Icons.Default.Radar, { viewModel.startScan() }, !state.isScanning)
             ActionButton("Устройства", if (state.devices.isNotEmpty()) "${state.devices.count { it.isOnline }} / ${state.devices.size}" else "Список", Icons.Default.Devices, onNavigateToDevices)
             ActionButton("Топология", "Карта сети", Icons.Default.Hub, onNavigateToTopology)
-            ActionButton("Каналы Wi-Fi", "Загруженность и рекомендация", Icons.Default.BarChart, onNavigateToChannels)
-            ActionButton("Внешняя сеть", "Публичный IP и провайдер", Icons.Default.Public, onNavigateToPublicIp)
-            ActionButton("Аудит безопасности", "Оценка и evil twin", Icons.Default.Shield, onNavigateToSecurity)
+            ActionButton("Каналы Wi-Fi", "Загруженность", Icons.Default.BarChart, onNavigateToChannels)
+            ActionButton("Внешняя сеть", "Публичный IP", Icons.Default.Public, onNavigateToPublicIp)
+            ActionButton("Профили сетей", "Дом / Работа / Кафе", Icons.Default.Folder, onNavigateToProfiles)
+            ActionButton("Аудит безопасности", "Оценка сети", Icons.Default.Shield, onNavigateToSecurity)
             ActionButton("Соседние сети", "Wi-Fi вокруг", Icons.Default.WifiFind, onNavigateToNearbyWifi)
-            ActionButton("WoL профили", "Пробуждение ПК", Icons.Default.Power, onNavigateToWol)
+            ActionButton("WoL профили", "Пробуждение", Icons.Default.Power, onNavigateToWol)
             ActionButton("Утилиты", "Ping, DNS", Icons.Default.Build, onNavigateToUtilities)
-            ActionButton("Настройки", "Параметры", Icons.Default.Settings, onNavigateToSettings)
-        }
-    }
-}
-
-@Composable
-private fun NetworkStatusCard(network: com.langhost.data.model.NetworkInfo) {
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Default.Wifi, null, tint = if (network.isConnected) Primary else TextTertiary)
-                Text(if (network.isConnected) network.ssid else "Нет подключения", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold)
-            }
-            HorizontalDivider(color = Divider)
-            InfoRow("BSSID", network.bssid)
-            InfoRow("Сигнал", if (network.signalDbm != 0) "${network.signalDbm} dBm" else "—")
-            InfoRow("Канал", if (network.channel > 0) network.channel.toString() else "—")
-            InfoRow("Шлюз", network.gateway)
-            InfoRow("IP", network.ipAddress)
+            ActionButton("Настройки", "Блокировка, отчёт, Watch", Icons.Default.Settings, onNavigateToSettings)
         }
     }
 }
@@ -151,7 +146,7 @@ private fun NetworkStatusCard(network: com.langhost.data.model.NetworkInfo) {
     Card(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface, disabledContainerColor = Surface.copy(alpha = 0.6f)), shape = RoundedCornerShape(12.dp)) {
         Row(modifier = Modifier.padding(14.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Box(modifier = Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(Primary.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
-                Icon(icon, null, tint = Primary)
+                Icon(icon, null co, tint = Primary)
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)

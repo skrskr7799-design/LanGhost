@@ -22,6 +22,7 @@ import com.langhost.ui.screens.dashboard.DashboardScreen
 import com.langhost.ui.screens.device.DeviceDetailScreen
 import com.langhost.ui.screens.devices.DevicesScreen
 import com.langhost.ui.screens.internet.PublicIpScreen
+import com.langhost.ui.screens.profiles.NetworkProfilesScreen
 import com.langhost.ui.screens.security.SecurityScreen
 import com.langhost.ui.screens.settings.SettingsScreen
 import com.langhost.ui.screens.tools.UtilitiesScreen
@@ -42,6 +43,7 @@ object Routes {
     const val WOL = "wol"
     const val CHANNELS = "channels"
     const val PUBLIC_IP = "public_ip"
+    const val PROFILES = "profiles"
 
     fun deviceDetail(ip: String) = "device/${ip.replace('.', '_')}"
     fun decodeIp(encoded: String) = encoded.replace('_', '.')
@@ -49,8 +51,7 @@ object Routes {
 
 @Composable
 fun LanGhostNavHost(windowSizeClass: WindowSizeClass? = null) {
-    val isExpanded = windowSizeClass?.widthSizeClass == WindowWidthSizeClass.Expanded
-    if (isExpanded) TabletNavHost() else PhoneNavHost()
+    if (windowSizeClass?.widthSizeClass == WindowWidthSizeClass.Expanded) TabletNavHost() else PhoneNavHost()
 }
 
 @Composable
@@ -67,17 +68,15 @@ private fun PhoneNavHost() {
                 onNavigateToTopology = { navController.navigate(Routes.TOPOLOGY) },
                 onNavigateToWol = { navController.navigate(Routes.WOL) },
                 onNavigateToChannels = { navController.navigate(Routes.CHANNELS) },
-                onNavigateToPublicIp = { navController.navigate(Routes.PUBLIC_IP) }
+                onNavigateToPublicIp = { navController.navigate(Routes.PUBLIC_IP) },
+                onNavigateToProfiles = { navController.navigate(Routes.PROFILES) }
             )
         }
         composable(Routes.DEVICES) {
-            DevicesScreen(
-                onBack = { navController.popBackStack() },
-                onDeviceClick = { ip -> navController.navigate(Routes.deviceDetail(ip)) }
-            )
+            DevicesScreen(onBack = { navController.popBackStack() }, onDeviceClick = { navController.navigate(Routes.deviceDetail(it)) })
         }
-        composable(Routes.DEVICE_DETAIL, arguments = listOf(navArgument("deviceIp") { type = NavType.StringType })) { entry ->
-            DeviceDetailScreen(Routes.decodeIp(entry.arguments?.getString("deviceIp") ?: ""), onBack = { navController.popBackStack() })
+        composable(Routes.DEVICE_DETAIL, arguments = listOf(navArgument("deviceIp") { type = NavType.StringType })) { e ->
+            DeviceDetailScreen(Routes.decodeIp(e.arguments?.getString("deviceIp") ?: ""), onBack = { navController.popBackStack() })
         }
         composable(Routes.SETTINGS) { SettingsScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.NEARBY_WIFI) { NearbyNetworksScreen(onBack = { navController.popBackStack() }) }
@@ -89,6 +88,7 @@ private fun PhoneNavHost() {
         composable(Routes.WOL) { WolProfilesScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.CHANNELS) { ChannelAnalyzerScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.PUBLIC_IP) { PublicIpScreen(onBack = { navController.popBackStack() }) }
+        composable(Routes.PROFILES) { NetworkProfilesScreen(onBack = { navController.popBackStack() }) }
     }
 }
 
@@ -111,19 +111,7 @@ private fun TabletNavHost() {
             composable(Routes.WOL) { WolProfilesScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.CHANNELS) { ChannelAnalyzerScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.PUBLIC_IP) { PublicIpScreen(onBack = { navController.popBackStack() }) }
-            composable(Routes.DASHBOARD) {
-                DashboardScreen(
-                    onNavigateToDevices = { navController.navigate(Routes.DEVICES) },
-                    onNavigateToSettings = { navController.navigate(Routes.SETTINGS) },
-                    onNavigateToNearbyWifi = { navController.navigate(Routes.NEARBY_WIFI) },
-                    onNavigateToSecurity = { navController.navigate(Routes.SECURITY) },
-                    onNavigateToUtilities = { navController.navigate(Routes.UTILITIES) },
-                    onNavigateToTopology = { navController.navigate(Routes.TOPOLOGY) },
-                    onNavigateToWol = { navController.navigate(Routes.WOL) },
-                    onNavigateToChannels = { navController.navigate(Routes.CHANNELS) },
-                    onNavigateToPublicIp = { navController.navigate(Routes.PUBLIC_IP) }
-                )
-            }
+            composable(Routes.PROFILES) { NetworkProfilesScreen(onBack = { navController.popBackStack() }) }
         }
         VerticalDivider(color = Divider, thickness = 1.dp)
         if (selectedDeviceIp != null) {
@@ -139,6 +127,7 @@ private fun TabletNavHost() {
                 onNavigateToWol = { navController.navigate(Routes.WOL) },
                 onNavigateToChannels = { navController.navigate(Routes.CHANNELS) },
                 onNavigateToPublicIp = { navController.navigate(Routes.PUBLIC_IP) },
+                onNavigateToProfiles = { navController.navigate(Routes.PROFILES) },
                 modifier = Modifier.weight(0.6f)
             )
         }
