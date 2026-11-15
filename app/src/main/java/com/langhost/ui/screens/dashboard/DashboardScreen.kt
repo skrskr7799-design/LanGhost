@@ -33,18 +33,18 @@ fun DashboardScreen(
     onNavigateToUtilities: () -> Unit = {},
     onNavigateToTopology: () -> Unit = {},
     onNavigateToWol: () -> Unit = {},
+    onNavigateToChannels: () -> Unit = {},
+    onNavigateToPublicIp: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: DashboardViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
     val network = state.networkInfo
-
     val permissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.NEARBY_WIFI_DEVICES)
     }
     val permissionState = rememberMultiplePermissionsState(permissions)
-
     LaunchedEffect(Unit) {
         if (!permissionState.allPermissionsGranted) permissionState.launchMultiplePermissionRequest()
     }
@@ -55,12 +55,8 @@ fun DashboardScreen(
             TopAppBar(
                 title = { Text("LanGhost", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) },
                 actions = {
-                    IconButton(onClick = { viewModel.refreshNetworkInfo() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Обновить", tint = TextPrimary)
-                    }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Настройки", tint = TextPrimary)
-                    }
+                    IconButton(onClick = { viewModel.refreshNetworkInfo() }) { Icon(Icons.Default.Refresh, "Обновить", tint = TextPrimary) }
+                    IconButton(onClick = onNavigateToSettings) { Icon(Icons.Default.Settings, "Настройки", tint = TextPrimary) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Background, titleContentColor = TextPrimary)
             )
@@ -69,19 +65,15 @@ fun DashboardScreen(
     ) { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (!permissionState.allPermissionsGranted) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Warning.copy(alpha = 0.15f)),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Warning.copy(alpha = 0.15f)), shape = RoundedCornerShape(12.dp)) {
                     Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Default.Warning, null, tint = Warning)
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Нужны разрешения", color = TextPrimary, fontWeight = FontWeight.Medium)
-                            Text("Для SSID и сканирования нужна точная геолокация.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                            Text("Для SSID и сканирования нужна геолокация.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         }
                         TextButton(onClick = { permissionState.launchMultiplePermissionRequest() }) { Text("Разрешить") }
                     }
@@ -99,21 +91,23 @@ fun DashboardScreen(
                 Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = SurfaceVariant), shape = RoundedCornerShape(12.dp)) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Primary)
-                        Text("Сканирование сети...", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                        Text("Сканирование сети...", color = TextPrimary)
                     }
                 }
             }
 
-            Text("Действия", style = MaterialTheme.typography.titleMedium, color = TextSecondary, modifier = Modifier.padding(top = 8.dp))
+            Text("Действия", style = MaterialTheme.typography.titleMedium, color = TextSecondary)
 
-            ActionButton("Сканировать сеть", if (state.lastScanTime > 0) "Последнее сканирование завершено" else "Найти все устройства", Icons.Default.Radar, { viewModel.startScan() }, !state.isScanning)
-            ActionButton("Устройства", if (state.devices.isNotEmpty()) "${state.devices.count { it.isOnline }} онлайн / ${state.devices.size} всего" else "Список устройств", Icons.Default.Devices, onNavigateToDevices)
-            ActionButton("Топология", "Карта сети: шлюз и хосты", Icons.Default.Hub, onNavigateToTopology)
-            ActionButton("Аудит безопасности", "Оценка сети, evil twin, порты", Icons.Default.Shield, onNavigateToSecurity)
-            ActionButton("Соседние сети", "Анализ Wi-Fi вокруг вас", Icons.Default.WifiFind, onNavigateToNearbyWifi)
-            ActionButton("WoL профили", "Пробуждение сохранённых устройств", Icons.Default.Power, onNavigateToWol)
-            ActionButton("Утилиты", "Ping, DNS lookup", Icons.Default.Build, onNavigateToUtilities)
-            ActionButton("Настройки", "Параметры приложения", Icons.Default.Settings, onNavigateToSettings)
+            ActionButton("Сканировать сеть", if (state.lastScanTime > 0) "Готово" else "Найти устройства", Icons.Default.Radar, { viewModel.startScan() }, !state.isScanning)
+            ActionButton("Устройства", if (state.devices.isNotEmpty()) "${state.devices.count { it.isOnline }} / ${state.devices.size}" else "Список", Icons.Default.Devices, onNavigateToDevices)
+            ActionButton("Топология", "Карта сети", Icons.Default.Hub, onNavigateToTopology)
+            ActionButton("Каналы Wi-Fi", "Загруженность и рекомендация", Icons.Default.BarChart, onNavigateToChannels)
+            ActionButton("Внешняя сеть", "Публичный IP и провайдер", Icons.Default.Public, onNavigateToPublicIp)
+            ActionButton("Аудит безопасности", "Оценка и evil twin", Icons.Default.Shield, onNavigateToSecurity)
+            ActionButton("Соседние сети", "Wi-Fi вокруг", Icons.Default.WifiFind, onNavigateToNearbyWifi)
+            ActionButton("WoL профили", "Пробуждение ПК", Icons.Default.Power, onNavigateToWol)
+            ActionButton("Утилиты", "Ping, DNS", Icons.Default.Build, onNavigateToUtilities)
+            ActionButton("Настройки", "Параметры", Icons.Default.Settings, onNavigateToSettings)
         }
     }
 }
@@ -121,21 +115,17 @@ fun DashboardScreen(
 @Composable
 private fun NetworkStatusCard(network: com.langhost.data.model.NetworkInfo) {
     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Default.Wifi, null, tint = if (network.isConnected) Primary else TextTertiary)
                 Text(if (network.isConnected) network.ssid else "Нет подключения", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold)
             }
             HorizontalDivider(color = Divider)
             InfoRow("BSSID", network.bssid)
-            InfoRow("Сигнал", if (network.signalDbm != 0) "${network.signalDbm} dBm (${network.frequencyBand})" else "—")
+            InfoRow("Сигнал", if (network.signalDbm != 0) "${network.signalDbm} dBm" else "—")
             InfoRow("Канал", if (network.channel > 0) network.channel.toString() else "—")
-            InfoRow("Скорость", if (network.linkSpeedMbps > 0) "${network.linkSpeedMbps} Мбит/с" else "—")
-            InfoRow("Защита", network.security)
             InfoRow("Шлюз", network.gateway)
-            InfoRow("Локальный IP", network.ipAddress)
-            InfoRow("Маска", network.netmask)
-            InfoRow("DNS", listOf(network.dns1, network.dns2).filter { it != "0.0.0.0" && it != "—" }.joinToString(" / ").ifBlank { "—" })
+            InfoRow("IP", network.ipAddress)
         }
     }
 }
@@ -149,8 +139,8 @@ private fun NetworkStatusCard(network: com.langhost.data.model.NetworkInfo) {
 
 @Composable private fun StatCard(title: String, value: String, icon: ImageVector, modifier: Modifier = Modifier) {
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(icon, null, tint = Primary, modifier = Modifier.size(20.dp))
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(icon, null, tint = Primary, modifier = Modifier.size(18.dp))
             Text(value, style = MaterialTheme.typography.headlineMedium, color = TextPrimary, fontWeight = FontWeight.Bold)
             Text(title, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
         }
@@ -159,8 +149,8 @@ private fun NetworkStatusCard(network: com.langhost.data.model.NetworkInfo) {
 
 @Composable private fun ActionButton(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit, enabled: Boolean = true) {
     Card(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface, disabledContainerColor = Surface.copy(alpha = 0.6f)), shape = RoundedCornerShape(12.dp)) {
-        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(Primary.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
+        Row(modifier = Modifier.padding(14.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Box(modifier = Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(Primary.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
                 Icon(icon, null, tint = Primary)
             }
             Column(modifier = Modifier.weight(1f)) {
