@@ -1,6 +1,6 @@
 # LanGhost — Engineering Roadmap & Audit Register
 
- > Status: Phase 1 and Phase 2 implementation complete; Phase 3 — Security Engine active
+> Status: Phase 1 and Phase 2 implementation complete; Phase 3 — Security Engine active
 > Baseline branch: main  
 > Baseline commit reviewed: c8e13219461fd1488ccbb83b4fa5ab721ba3eb62  
 > Working branch: work/network-engine
