@@ -118,7 +118,16 @@ object SecurityAudit {
                 it.isOnline && !it.isLocalDevice &&
                     (!requiresFreshness || it.networkScope == currentNetworkScope)
             }.forEach { device ->
-                val ports = device.auditedPorts.toSet()
+                // Production findings must be derived from this audit's fresh positive evidence,
+                // never from the legacy openPorts/auditedPorts cache carried across discovery refreshes.
+                val ports = if (requiresFreshness) {
+                    device.auditedPortResults
+                        .filter { it.status == PortAuditStatus.OPEN }
+                        .map { it.port }
+                        .toSet()
+                } else {
+                    device.auditedPorts.toSet()
+                }
                 if (23 in ports) {
                     findings += SecurityFinding(
                         SecurityFinding.Severity.HIGH,
