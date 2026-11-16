@@ -198,6 +198,14 @@ fun DevicesScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = TextTertiary
                             )
+                            if (state.scanCoverage.arpAvailable == false) {
+                                StatusBadge("ARP недоступен", StatusTone.Warning)
+                                Text(
+                                    "Android не предоставил доступ к таблице соседей. Сканирование продолжает использовать TCP и mDNS.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary
+                                )
+                            }
                         } else {
                             Text("Запустите сканирование, чтобы получить данные о покрытии сети.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         }
