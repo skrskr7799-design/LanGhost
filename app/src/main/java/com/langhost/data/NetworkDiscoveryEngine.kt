@@ -28,7 +28,8 @@ internal class NetworkDiscoveryEngine(
         maxConcurrency: Int,
         refreshArpEntries: suspend () -> Map<String, String> = { emptyMap() },
         discoverNsdServiceIps: suspend () -> Set<String> = { emptySet() },
-        discoverSsdpServiceIps: suspend () -> Set<String> = { emptySet() }
+        discoverSsdpServiceIps: suspend () -> Set<String> = { emptySet() },
+        discoverHostReachabilityIps: suspend (List<String>) -> Set<String> = { emptySet() }
     ): NetworkDiscoverySnapshot {
         require(maxTargets >= 0) { "maxTargets must not be negative" }
         require(maxConcurrency > 0) { "maxConcurrency must be positive" }
@@ -56,7 +57,7 @@ internal class NetworkDiscoveryEngine(
         // expose none of the probed TCP services are not silently omitted from inventory.
         // Scope checks on both sides prevent evidence from a previous network being committed.
         ensureCurrentNetworkScope(networkScope)
-        val (refreshedArpEntries, nsdServiceIps, ssdpServiceIps) = coroutineScope {
+        val supplemental = coroutineScope {
             val arpRefresh = async { refreshArpEntries() }
             val nsdDiscovery = async {
                 try {
@@ -78,19 +79,41 @@ internal class NetworkDiscoveryEngine(
                     emptySet()
                 }
             }
-            Triple(arpRefresh.await(), nsdDiscovery.await(), ssdpDiscovery.await())
+            val reachabilityDiscovery = async {
+                try {
+                    val unresolved = candidates.filter { it != localIp && it !in discoveredIps }
+                    if (subnet != null && unresolved.isNotEmpty()) {
+                        discoverHostReachabilityIps(unresolved)
+                    } else emptySet()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // The platform reachability API is best-effort and may be unavailable.
+                    emptySet()
+                }
+            }
+            SupplementalDiscoveryResults(
+                arpEntries = arpRefresh.await(),
+                nsdIps = nsdDiscovery.await(),
+                ssdpIps = ssdpDiscovery.await(),
+                reachabilityIps = reachabilityDiscovery.await()
+            )
         }
         ensureCurrentNetworkScope(networkScope)
         val scopedNsdServiceIps = subnet?.let { currentSubnet ->
             nsdServiceIps.asSequence().filter(currentSubnet::contains).take(MAX_NSD_HOSTS).toSet()
         }.orEmpty()
         val scopedSsdpServiceIps = subnet?.let { currentSubnet ->
-            ssdpServiceIps.asSequence().filter(currentSubnet::contains).take(MAX_SSDP_HOSTS).toSet()
+            supplemental.ssdpIps.asSequence().filter(currentSubnet::contains).take(MAX_SSDP_HOSTS).toSet()
+        }.orEmpty()
+        val scopedReachabilityIps = subnet?.let { currentSubnet ->
+            supplemental.reachabilityIps.asSequence().filter(currentSubnet::contains)
+                .take(MAX_REACHABILITY_HOSTS).toSet()
         }.orEmpty()
         val allArpEntries = (scopedArpEntries + (subnet?.let { currentSubnet ->
-            refreshedArpEntries.filterKeys(currentSubnet::contains)
+            supplemental.arpEntries.filterKeys(currentSubnet::contains)
         }.orEmpty()))
-        val endpoints = (allArpEntries.keys + discoveredIps + scopedNsdServiceIps + scopedSsdpServiceIps + setOf(localIp, gateway).filter {
+        val endpoints = (allArpEntries.keys + discoveredIps + scopedNsdServiceIps + scopedSsdpServiceIps + scopedReachabilityIps + setOf(localIp, gateway).filter {
             it != "0.0.0.0" && it != "—" && it.isNotBlank()
         }).toCollection(LinkedHashSet())
 
@@ -103,7 +126,8 @@ internal class NetworkDiscoveryEngine(
             arpObservedHosts = allArpEntries.size,
             tcpResponsiveHosts = (discoveredIps - localIp).size,
             dnsSdResolvedHosts = scopedNsdServiceIps.size,
-            ssdpResponsiveHosts = scopedSsdpServiceIps.size
+            ssdpResponsiveHosts = scopedSsdpServiceIps.size,
+            reachabilityResponsiveHosts = scopedReachabilityIps.size
         )
 
         return NetworkDiscoverySnapshot(
@@ -113,6 +137,7 @@ internal class NetworkDiscoveryEngine(
             arpAddresses = allArpEntries,
             nsdServiceIps = scopedNsdServiceIps,
             ssdpServiceIps = scopedSsdpServiceIps,
+            hostReachabilityIps = scopedReachabilityIps,
             coverage = coverage
         )
     }
@@ -120,6 +145,14 @@ internal class NetworkDiscoveryEngine(
 
 private const val MAX_NSD_HOSTS = 256
 private const val MAX_SSDP_HOSTS = 256
+private const val MAX_REACHABILITY_HOSTS = 1_024
+
+private data class SupplementalDiscoveryResults(
+    val arpEntries: Map<String, String>,
+    val nsdIps: Set<String>,
+    val ssdpIps: Set<String>,
+    val reachabilityIps: Set<String>
+)
 
 internal data class NetworkDiscoverySnapshot(
     val ips: Set<String>,
@@ -130,5 +163,7 @@ internal data class NetworkDiscoverySnapshot(
     val nsdServiceIps: Set<String>,
     /** Hosts that returned a valid SSDP/UPnP discovery response. */
     val ssdpServiceIps: Set<String>,
+    /** Hosts confirmed by the interface-bound best-effort reachability probe. */
+    val hostReachabilityIps: Set<String>,
     val coverage: ScanCoverage
 )
