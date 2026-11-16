@@ -127,11 +127,13 @@ Each slice must pass Lint, unit tests and Debug APK build; full CI (including Re
 ### Remaining visual acceptance work
 
 - [x] Complete a composition pass on the Tools hub, Ping/DNS and Public IP; avoid relying on color and shape changes alone.
-- [x] Build adaptive large-screen layouts with useful multi-pane content across the main operational workspaces.\n- [ ] Verify phone / tablet / landscape behavior on physical devices.
+- [x] Build adaptive large-screen layouts with useful multi-pane content across the main operational workspaces.
+- [ ] Verify phone / tablet / landscape behavior on physical devices.
 - [x] Unify permission, loading, stale, partial, empty and recoverable-error states with consistent hierarchy and retry affordances across the primary workflows.
 - [x] Added a persistent privacy preference and centralized masking for IP, MAC and BSSID across dashboard, device inventory/detail, topology list, Wi-Fi, security findings/diffs, network profiles, WoL profile display, public IP, DNS/Ping results, clipboard, TXT/CSV exports and shared reports.
 - [ ] Add purposeful transitions and scan feedback; keep motion restrained and respect reduced-motion / system animation settings where available.
-- [x] Add source-level accessibility semantics for page/section headings, status badges, live operation notices and selected primary-navigation tabs.\n- [ ] Verify touch targets, contrast, TalkBack behavior and system font scaling on physical devices.
+- [x] Add source-level accessibility semantics for page/section headings, status badges, live operation notices and selected primary-navigation tabs.
+- [ ] Verify touch targets, contrast, TalkBack behavior and system font scaling on physical devices.
 - [ ] Capture and review real screenshots on phone and tablet; visual sign-off remains a device-validation task in Phase 6.
 
 
