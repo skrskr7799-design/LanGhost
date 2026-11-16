@@ -15,6 +15,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.langhost.data.AppSettings
+import com.langhost.data.AppSettingsData
+import com.langhost.data.PrivacyFormatter
 import com.langhost.data.WakeOnLan
 import com.langhost.data.WolProfile
 import com.langhost.data.WolProfiles
@@ -28,6 +31,7 @@ import java.util.UUID
 fun WolProfilesScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val store = remember { WolProfiles(context) }
+    val appSettings by remember(context) { AppSettings(context.applicationContext).settingsFlow }.collectAsState(initial = AppSettingsData())
     val profiles by store.profilesFlow.collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
@@ -85,7 +89,7 @@ fun WolProfilesScreen(onBack: () -> Unit) {
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(p.name, fontWeight = FontWeight.Medium, color = TextPrimary)
-                                Text("${p.mac} → ${p.broadcastIp}:${p.port}", style = TechnicalTypography, color = TextSecondary)
+                                Text("${PrivacyFormatter.mac(p.mac, appSettings.maskNetworkIdentifiers)} → ${PrivacyFormatter.ip(p.broadcastIp, appSettings.maskNetworkIdentifiers)}:${p.port}", style = TechnicalTypography, color = TextSecondary)
                             }
                             IconButton(onClick = {
                                 scope.launch {
