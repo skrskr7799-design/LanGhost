@@ -28,6 +28,7 @@ import com.langhost.data.SecurityAudit
 import com.langhost.data.SecurityFinding
 import com.langhost.data.network.NetworkIdentity
 import com.langhost.ui.components.ContentPanel
+import com.langhost.ui.components.ErrorState
 import com.langhost.ui.components.MetricTile
 import com.langhost.ui.components.PageHeading
 import com.langhost.ui.components.SecurityScoreDial
@@ -318,12 +319,10 @@ fun SecurityScreen(onBack: () -> Unit) {
 
                 scanError?.let { message ->
                     item {
-                        ContentPanel {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Icon(Icons.Default.Warning, contentDescription = null, tint = Danger)
-                                Text(message, color = TextPrimary, style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
+                        ErrorState(
+                            title = "Операция не завершена",
+                            description = message
+                        )
                     }
                 }
 
