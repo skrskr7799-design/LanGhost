@@ -212,3 +212,11 @@ These screens now have distinct information hierarchies instead of being simple 
 - [x] Dashboard now distinguishes disconnected network state from an active connection and flags device inventory older than five minutes.
 - [x] Public IP lookup now uses shared error and partial-data notices; existing request controls remain the truthful retry path.
 - [ ] Continue the same state audit across diagnostic tools, topology, device details and network profiles.
+
+
+### 2026-11-16 — topology evidence and device port-scan states
+
+- [x] Added explicit topology notices for never-scanned, stale (older than five minutes) and truncated discovery evidence; retained the distinction between logical grouping and physically verified links.
+- [x] Device port scanning now distinguishes never-run from a completed scan with no detected open ports.
+- [x] Port-scan failures retain the last known result and expose a truthful shared error state with a working retry action.
+- [x] Active port checks use the shared loading treatment rather than an ambiguous empty-state message.
