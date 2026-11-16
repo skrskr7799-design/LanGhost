@@ -9,6 +9,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import java.net.ConnectException
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.concurrent.TimeUnit
@@ -24,8 +25,11 @@ internal class NetworkProbeEngine(
 ) {
     private val portProbeSemaphore = Semaphore(PORT_SCAN_CONCURRENCY)
 
-    suspend fun probeHost(ip: String, budgetMs: Int): Boolean = withContext(Dispatchers.IO) {
-        val portsToTry = intArrayOf(80, 443, 22, 445, 8080, 53)
+    suspend fun probeHost(
+        ip: String,
+        budgetMs: Int,
+        portsToTry: IntArray = DISCOVERY_PORTS
+    ): Boolean = withContext(Dispatchers.IO) {
         val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(budgetMs.coerceIn(100, 1_000).toLong())
 
         for (port in portsToTry) {
@@ -41,8 +45,11 @@ internal class NetworkProbeEngine(
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
+            } catch (_: ConnectException) {
+                // A TCP RST/refusal is positive evidence that a host (or active endpoint) responded.
+                return@withContext true
             } catch (_: Exception) {
-                // A closed or filtered port is not evidence that the host is offline.
+                // Timeouts and routing failures are unknown, not proof that the host is offline.
             }
         }
         false
@@ -120,6 +127,7 @@ internal class NetworkProbeEngine(
     }
 
     private companion object {
+        val DISCOVERY_PORTS = intArrayOf(80, 443, 22, 445, 8080, 53)
         const val PORT_SCAN_CONCURRENCY = 16
     }
 }
