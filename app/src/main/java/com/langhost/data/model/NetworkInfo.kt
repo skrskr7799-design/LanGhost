@@ -14,10 +14,13 @@ data class NetworkInfo(
     val dns1: String = "—",
     val dns2: String = "—",
     val networkId: Int = -1,
+    /** Active Android interface used to scope interface-specific observations such as ARP. */
+    val interfaceName: String = "",
     val isConnected: Boolean = false
 ) {
     val signalLevel: Int
         get() = when {
+            signalDbm == 0 -> 0 // 0 means unavailable in this model, not an exceptionally strong signal.
             signalDbm >= -50 -> 4
             signalDbm >= -60 -> 3
             signalDbm >= -70 -> 2

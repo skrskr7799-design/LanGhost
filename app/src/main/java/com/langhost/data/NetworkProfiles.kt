@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import com.langhost.data.model.NetworkInfo
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -15,43 +16,68 @@ private val Context.profilesDataStore: DataStore<Preferences> by preferencesData
 
 data class NetworkProfile(
     val id: String,
-    val name: String, // Home, Work, Cafe
+    val name: String,
     val bssid: String = "",
     val ssid: String = "",
     val notes: String = ""
 )
 
+
+enum class ProfileConnectionMatch { None, SsidOnly, Exact }
+
+fun matchNetworkProfile(profile: NetworkProfile, network: NetworkInfo): ProfileConnectionMatch {
+    val connectedSsid = network.ssid.takeIf { it.isNotBlank() && it != "—" }
+        ?: return ProfileConnectionMatch.None
+    if (!network.isConnected || profile.ssid.isBlank() || profile.ssid == "—") return ProfileConnectionMatch.None
+    if (profile.ssid != connectedSsid) return ProfileConnectionMatch.None
+
+    val profileBssid = profile.bssid.takeIf { it.isNotBlank() && it != "—" }
+    val networkBssid = network.bssid.takeIf { it.isNotBlank() && it != "—" }
+    if (profileBssid != null && networkBssid != null) {
+        return if (profileBssid.equals(networkBssid, ignoreCase = true)) {
+            ProfileConnectionMatch.Exact
+        } else {
+            ProfileConnectionMatch.None
+        }
+    }
+    return ProfileConnectionMatch.SsidOnly
+}
+
 class NetworkProfiles(private val context: Context) {
 
-    private val KEY = stringPreferencesKey("profiles")
-    private val KEY_ACTIVE = stringPreferencesKey("active_id")
+    private val keyProfiles = stringPreferencesKey("profiles")
+    private val keyActive = stringPreferencesKey("active_id")
 
     val profilesFlow: Flow<List<NetworkProfile>> = context.profilesDataStore.data.map { prefs ->
-        parse(prefs[KEY])
+        parse(prefs[keyProfiles])
     }
 
-    val activeIdFlow: Flow<String?> = context.profilesDataStore.data.map { it[KEY_ACTIVE] }
+    val activeIdFlow: Flow<String?> = context.profilesDataStore.data.map { it[keyActive] }
 
     suspend fun add(profile: NetworkProfile) {
+        require(profile.id.isNotBlank() && profile.id.length <= MAX_PROFILE_ID_LENGTH)
+        require(profile.name.isNotBlank())
         context.profilesDataStore.edit { prefs ->
-            val list = parse(prefs[KEY]).toMutableList()
-            list.removeAll { it.id == profile.id }
-            list.add(profile)
-            prefs[KEY] = toJson(list)
+            val retained = retainNetworkProfiles(
+                existing = parse(prefs[keyProfiles]),
+                incoming = listOf(profile)
+            )
+            prefs[keyProfiles] = toJson(retained)
         }
     }
 
     suspend fun remove(id: String) {
         context.profilesDataStore.edit { prefs ->
-            val list = parse(prefs[KEY]).filter { it.id != id }
-            prefs[KEY] = toJson(list)
-            if (prefs[KEY_ACTIVE] == id) prefs.remove(KEY_ACTIVE)
+            val list = parse(prefs[keyProfiles]).filter { it.id != id }
+            prefs[keyProfiles] = toJson(list)
+            if (prefs[keyActive] == id) prefs.remove(keyActive)
         }
     }
 
     suspend fun setActive(id: String?) {
         context.profilesDataStore.edit { prefs ->
-            if (id == null) prefs.remove(KEY_ACTIVE) else prefs[KEY_ACTIVE] = id
+            val exists = id != null && parse(prefs[keyProfiles]).any { it.id == id }
+            if (exists) prefs[keyActive] = id!! else prefs.remove(keyActive)
         }
     }
 
@@ -59,16 +85,20 @@ class NetworkProfiles(private val context: Context) {
         if (raw.isNullOrBlank()) return emptyList()
         return try {
             val arr = JSONArray(raw)
-            (0 until arr.length()).mapNotNull { i ->
+            val parsed = (0 until arr.length()).mapNotNull { i ->
                 val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                val id = o.optString("id")
+                val name = o.optString("name")
+                if (id.isBlank() || name.isBlank()) return@mapNotNull null
                 NetworkProfile(
-                    id = o.optString("id"),
-                    name = o.optString("name"),
+                    id = id,
+                    name = name,
                     bssid = o.optString("bssid"),
                     ssid = o.optString("ssid"),
                     notes = o.optString("notes")
                 )
             }
+            retainNetworkProfiles(emptyList(), parsed)
         } catch (_: Exception) {
             emptyList()
         }
@@ -87,4 +117,32 @@ class NetworkProfiles(private val context: Context) {
         }
         return arr.toString()
     }
+
+    private companion object {
+        const val MAX_PROFILE_ID_LENGTH = 128
+    }
+}
+
+internal fun retainNetworkProfiles(
+    existing: List<NetworkProfile>,
+    incoming: List<NetworkProfile>,
+    maxProfiles: Int = 32
+): List<NetworkProfile> {
+    require(maxProfiles > 0)
+    val ordered = linkedMapOf<String, NetworkProfile>()
+    (existing + incoming).forEach { profile ->
+        val id = profile.id.trim()
+        val name = profile.name.trim()
+        if (id.isNotEmpty() && name.isNotEmpty()) {
+            ordered.remove(id)
+            ordered[id] = profile.copy(
+                id = id,
+                name = name.take(80),
+                bssid = profile.bssid.take(64),
+                ssid = profile.ssid.take(256),
+                notes = profile.notes.take(2048)
+            )
+        }
+    }
+    return ordered.values.toList().takeLast(maxProfiles)
 }

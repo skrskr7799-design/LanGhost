@@ -1,37 +1,67 @@
 package com.langhost.data
 
-import android.annotation.SuppressLint
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
 import android.net.wifi.WifiManager
-import android.os.Build
 import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
 import com.langhost.data.model.NetworkInfo
+import com.langhost.data.model.SecurityPortAuditPolicy
+import com.langhost.data.model.PortAuditStatus
+import com.langhost.data.model.ScanCoverage
+import com.langhost.data.model.WifiNetwork
+import com.langhost.data.network.NetworkIdentity
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
 import java.io.BufferedReader
 import java.io.FileReader
-import java.net.InetAddress
-import java.net.InetSocketAddress
-import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
 
 class NetworkRepository(context: Context) {
 
     private val appContext = context.applicationContext
+    private val connectivityManager = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+    private val wifiScanCoordinator = WifiScanCoordinator(
+        AndroidWifiScanPlatform(appContext, wifiManager) {
+            _networkInfo.value.bssid.takeIf { it.isNotBlank() && it != "—" }
+        }
+    )
+    private val networkStateLock = Any()
+    @Volatile private var publishedActiveNetwork: Network? = null
+    private val networkMonitor = AndroidNetworkMonitor(connectivityManager, wifiManager) {
+        refreshNetworkInfo()
+    }
     private val devicePreferences = DevicePreferences(appContext)
+    private val deviceEnrichmentEngine = DeviceEnrichmentEngine(
+        loadCustomization = { stableId, legacyIds ->
+            devicePreferences.getCustomizationOnce(stableId, legacyIds)
+        },
+        resolveHostname = { ip -> DeviceProbe.netBiosName(ip) },
+        lookupVendor = { mac -> lookupVendor(mac) }
+    )
+
     private val appSettings = AppSettings(appContext)
 
     private val devicesCache = ConcurrentHashMap<String, Device>()
+    private val scanMutex = Mutex()
+    private val probeEngine = NetworkProbeEngine(
+        scanTimeoutMs = { appSettings.getOnce().scanTimeoutMs },
+        ensureCurrentNetworkScope = { expectedScope -> ensureCurrentNetworkScope(expectedScope) }
+    )
+    private val discoveryEngine = NetworkDiscoveryEngine(
+        probeHost = { ip, budgetMs -> probeEngine.probeHost(ip, budgetMs) },
+        ensureCurrentNetworkScope = { expectedScope -> ensureCurrentNetworkScope(expectedScope) }
+    )
+    private val deviceLifecycleEngine = DeviceLifecycleEngine()
 
     private val _networkInfo = MutableStateFlow(NetworkInfo())
     val networkInfo: StateFlow<NetworkInfo> = _networkInfo.asStateFlow()
@@ -45,68 +75,134 @@ class NetworkRepository(context: Context) {
     private val _lastScanTime = MutableStateFlow(0L)
     val lastScanTime: StateFlow<Long> = _lastScanTime.asStateFlow()
 
+    private val _scanCoverage = MutableStateFlow(ScanCoverage())
+    val scanCoverage: StateFlow<ScanCoverage> = _scanCoverage.asStateFlow()
+
     private val _lastDiff = MutableStateFlow<ScanDiffResult?>(null)
     val lastDiff: StateFlow<ScanDiffResult?> = _lastDiff.asStateFlow()
 
-    @SuppressLint("MissingPermission", "HardwareIds")
+    private val _nearbyNetworks = MutableStateFlow<List<WifiNetwork>>(emptyList())
+    val nearbyNetworks: StateFlow<List<WifiNetwork>> = _nearbyNetworks.asStateFlow()
+
+    private val _nearbyScanCompleted = MutableStateFlow(false)
+    val nearbyScanCompleted: StateFlow<Boolean> = _nearbyScanCompleted.asStateFlow()
+
+    private val _nearbyScanTime = MutableStateFlow(0L)
+    val nearbyScanTime: StateFlow<Long> = _nearbyScanTime.asStateFlow()
+
+    private val securityPortsScanMutex = Mutex()
+    private val _securityPortsScanCompleted = MutableStateFlow(false)
+    val securityPortsScanCompleted: StateFlow<Boolean> = _securityPortsScanCompleted.asStateFlow()
+    private val _securityPortsScanTime = MutableStateFlow(0L)
+    val securityPortsScanTime: StateFlow<Long> = _securityPortsScanTime.asStateFlow()
+
+    private val _isSecurityScanning = MutableStateFlow(false)
+    val isSecurityScanning: StateFlow<Boolean> = _isSecurityScanning.asStateFlow()
+
+    // Start Android callbacks only after every StateFlow is initialized.
+    init {
+        networkMonitor.start()
+    }
+
     fun refreshNetworkInfo() {
-        try {
-            val wifiInfo = wifiManager.connectionInfo
-            val dhcpInfo = wifiManager.dhcpInfo
-            val ssid = wifiInfo.ssid?.removeSurrounding("\"")
-                ?.takeIf { it.isNotBlank() && it != "<unknown ssid>" } ?: "—"
-            val bssid = wifiInfo.bssid ?: "—"
-            val frequency = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) wifiInfo.frequency else 0
-            val ip = intToIp(wifiInfo.ipAddress)
-            _networkInfo.value = NetworkInfo(
-                ssid = ssid,
-                bssid = bssid,
-                signalDbm = wifiInfo.rssi,
-                frequencyMhz = frequency,
-                linkSpeedMbps = wifiInfo.linkSpeed,
-                channel = frequencyToChannel(frequency),
-                security = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) "WPA2/WPA3" else "WPA/WPA2",
-                ipAddress = ip,
-                gateway = intToIp(dhcpInfo.gateway),
-                netmask = intToIp(dhcpInfo.netmask),
-                dns1 = intToIp(dhcpInfo.dns1),
-                dns2 = intToIp(dhcpInfo.dns2),
-                networkId = wifiInfo.networkId,
-                isConnected = wifiInfo.networkId != -1 && ip != "0.0.0.0"
-            )
-        } catch (_: Exception) {
-            _networkInfo.value = NetworkInfo()
+        val snapshot = networkMonitor.readSnapshot()
+        publishNetworkInfo(snapshot.info, snapshot.activeNetwork)
+    }
+
+    private fun networkScope(info: NetworkInfo): String? {
+        if (!info.isConnected) return null
+        return NetworkIdentity.scopeId(
+            ssid = info.ssid,
+            gateway = info.gateway,
+            ipAddress = info.ipAddress,
+            netmask = info.netmask
+        )
+    }
+
+    private fun currentNetworkScope(): String? = networkScope(_networkInfo.value)
+
+    /**
+     * Refreshes the active Android network before each bounded scan batch.
+     * A network switch cancels the operation instead of probing the old subnet
+     * or attaching old-network results to a new device with the same IP.
+     */
+    private suspend fun ensureCurrentNetworkScope(expectedScope: String) {
+        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+        refreshNetworkInfo()
+        if (currentNetworkScope() != expectedScope) {
+            throw CancellationException("Active network changed during scan")
         }
     }
 
-    private fun frequencyToChannel(freq: Int): Int = when {
-        freq in 2412..2484 -> (freq - 2412) / 5 + 1
-        freq in 5170..5825 -> (freq - 5170) / 5 + 34
-        else -> 0
-    }
-
-    private fun intToIp(value: Int): String {
-        if (value == 0) return "0.0.0.0"
-        return String.format("%d.%d.%d.%d", value and 0xff, value shr 8 and 0xff, value shr 16 and 0xff, value shr 24 and 0xff)
-    }
-
-    private fun hostRangeFromNetmask(netmask: String): IntRange {
-        return try {
-            val parts = netmask.split(".").map { it.toInt() }
-            if (parts.size != 4) return 1..254
-            var bits = 0
-            for (p in parts) bits += Integer.bitCount(p and 0xFF)
-            val hostBits = 32 - bits
-            if (hostBits <= 0 || hostBits > 16) return 1..254
-            1..(1 shl hostBits).minus(2).coerceAtMost(254)
-        } catch (_: Exception) {
-            1..254
+    private fun publishNetworkInfo(next: NetworkInfo, activeNetwork: Network?) {
+        synchronized(networkStateLock) {
+            // Concurrent refreshes can finish out of order. Never let a snapshot for an
+            // older Android Network overwrite the currently active default network.
+            if (connectivityManager.activeNetwork != activeNetwork) return
+            val previousScope = networkScope(_networkInfo.value)
+            val nextScope = networkScope(next)
+            if (previousScope != nextScope) {
+                // Do not carry device, port, or nearby-AP evidence across logical networks.
+                // Device customizations live in DataStore; the in-memory cache is scoped and bounded
+                // to the active network so moving between many networks cannot grow it indefinitely.
+                devicesCache.entries.removeAll { it.value.networkScope != nextScope }
+                _devices.value = emptyList()
+                _lastDiff.value = null
+                _lastScanTime.value = 0L
+                _scanCoverage.value = ScanCoverage()
+                _securityPortsScanCompleted.value = false
+                _securityPortsScanTime.value = 0L
+                _nearbyNetworks.value = emptyList()
+                _nearbyScanCompleted.value = false
+                _nearbyScanTime.value = 0L
+            }
+            publishedActiveNetwork = activeNetwork
+            _networkInfo.value = next
         }
+    }
+
+    /**
+     * Serializes evidence commits with network publication and verifies Android's
+     * current default Network as well as the logical scope. This closes the window
+     * where a callback is queued but an old scan publishes against the old snapshot.
+     */
+    private inline fun commitIfCurrentNetwork(expectedScope: String, action: () -> Unit): Boolean =
+        synchronized(networkStateLock) {
+            val activeNetwork = connectivityManager.activeNetwork
+            if (activeNetwork != publishedActiveNetwork || currentNetworkScope() != expectedScope) {
+                false
+            } else {
+                action()
+                true
+            }
+        }
+
+    suspend fun scanNearbyNetworks(): List<WifiNetwork> = withContext(Dispatchers.IO) {
+        refreshNetworkInfo()
+        val scanScope = currentNetworkScope()
+        val batch = wifiScanCoordinator.scan()
+
+        refreshNetworkInfo()
+        if (currentNetworkScope() != scanScope) return@withContext emptyList()
+
+        val completedAt = System.currentTimeMillis()
+        val committed = scanScope?.let { expected ->
+            commitIfCurrentNetwork(expected) {
+                _nearbyNetworks.value = batch.results
+                if (batch.updated) _nearbyScanTime.value = completedAt
+                _nearbyScanCompleted.value = batch.updated ||
+                    (_nearbyScanTime.value > 0L && completedAt - _nearbyScanTime.value <= NEARBY_SCAN_FRESHNESS_MS)
+            }
+        } ?: false
+        if (committed) batch.results else emptyList()
     }
 
     suspend fun scanDevices() = withContext(Dispatchers.IO) {
-        if (_isScanning.value) return@withContext
+        if (!scanMutex.tryLock()) return@withContext
         _isScanning.value = true
+        _scanCoverage.value = ScanCoverage()
+        _securityPortsScanCompleted.value = false
+        _securityPortsScanTime.value = 0L
         try {
             refreshNetworkInfo()
             val networkInfo = _networkInfo.value
@@ -119,89 +215,74 @@ class NetworkRepository(context: Context) {
             val localIp = networkInfo.ipAddress
             val gateway = networkInfo.gateway
             val bssid = networkInfo.bssid
-            val prefix = localIp.substringBeforeLast(".")
-            val range = hostRangeFromNetmask(networkInfo.netmask)
-
-            val arpDevices = readArpTable()
-            val discoveredIps = discoverHosts(prefix, localIp, range, timeoutMs)
-            val allIps = (arpDevices.keys + discoveredIps + setOf(localIp, gateway).filter {
-                it != "0.0.0.0" && it != "—" && it.isNotBlank()
-            }).toSet()
-
+            val networkScope = NetworkIdentity.scopeId(
+                ssid = networkInfo.ssid,
+                gateway = gateway,
+                ipAddress = localIp,
+                netmask = networkInfo.netmask
+            )
+            val legacyNetworkScope = NetworkIdentity.legacyScopeId(
+                ssid = networkInfo.ssid,
+                gateway = gateway,
+                ipAddress = localIp,
+                netmask = networkInfo.netmask
+            )
+            // Keep ARP parsing and interface selection in the Android repository;
+            // discovery orchestration itself is platform-independent and independently tested.
+            val discovery = discoveryEngine.discover(
+                localIp = localIp,
+                gateway = gateway,
+                netmask = networkInfo.netmask,
+                arpEntries = readArpTable(networkInfo.interfaceName),
+                networkScope = networkScope,
+                timeoutMs = timeoutMs,
+                maxTargets = MAX_DISCOVERY_TARGETS,
+                maxConcurrency = MAX_CONCURRENT_HOST_PROBES
+            )
+            val arpDevices = discovery.arpAddresses
+            val allIps = discovery.ips
             val now = System.currentTimeMillis()
-            val onlineDevices = coroutineScope {
-                allIps.map { ip ->
-                    async {
-                        val mac = arpDevices[ip] ?: ""
-                        val randomMac = Device.isRandomMacAddress(mac)
-                        val tempId = when {
-                            mac.isNotBlank() && bssid.isNotBlank() && bssid != "—" ->
-                                "${mac.uppercase()}@${bssid.uppercase()}"
-                            mac.isNotBlank() -> mac.uppercase()
-                            else -> "ip:$ip"
-                        }
-                        val saved = devicePreferences.getCustomizationOnce(tempId)
-                        val savedMac = if (mac.isNotBlank()) devicePreferences.getCustomizationOnce(mac.uppercase()) else DeviceCustomization()
-                        val existing = devicesCache[tempId]
-                        val firstSeen = when {
-                            saved.firstSeen > 0 -> saved.firstSeen
-                            existing != null && existing.firstSeen > 0 -> existing.firstSeen
-                            else -> now
-                        }
-
-                        var hostname = withTimeoutOrNull(250L) { resolveHostname(ip) } ?: ""
-                        if (hostname.isBlank()) {
-                            hostname = DeviceProbe.netBiosName(ip).ifBlank { existing?.hostname ?: "" }
-                        }
-
-                        val macFinal = mac.ifBlank { existing?.mac ?: "" }
-                        val vendor = if (randomMac) "Random MAC" else lookupVendor(macFinal)
-                        val ports = existing?.openPorts ?: emptyList()
-                        val type = Device.guessType(ports, vendor, hostname, ip == gateway)
-
-                        Device(
-                            ip = ip,
-                            mac = macFinal,
-                            hostname = hostname.ifBlank { existing?.hostname ?: "" },
-                            vendor = vendor.ifBlank { existing?.vendor ?: "" },
-                            isLocalDevice = ip == localIp,
-                            isGateway = ip == gateway,
-                            firstSeen = firstSeen,
-                            lastSeen = now,
-                            openPorts = ports,
-                            osGuess = existing?.osGuess ?: Device.guessOs(ports, vendor, hostname),
-                            nickname = saved.nickname.ifBlank { savedMac.nickname.ifBlank { existing?.nickname ?: "" } },
-                            notes = saved.notes.ifBlank { savedMac.notes.ifBlank { existing?.notes ?: "" } },
-                            isFavorite = saved.isFavorite || savedMac.isFavorite || (existing?.isFavorite == true),
-                            isWatched = saved.isWatched || savedMac.isWatched || (existing?.isWatched == true),
-                            networkBssid = bssid,
-                            deviceType = type,
-                            httpFingerprint = existing?.httpFingerprint ?: "",
-                            isRandomMac = randomMac,
-                            tags = existing?.tags ?: emptyList()
-                        ).also { devicesCache[it.stableId] = it }
-                    }
-                }.awaitAll()
+            val completedCoverage = discovery.coverage.copy(scannedAt = now)
+            val onlineDevices = HostDiscovery.mapBounded(
+                items = allIps.toList(),
+                maxConcurrency = DEVICE_ENRICHMENT_CONCURRENCY,
+                beforeBatch = { ensureCurrentNetworkScope(networkScope) }
+            ) { ip ->
+                val existingByIp = devicesCache.values.firstOrNull {
+                    it.ip == ip && it.networkScope == networkScope
+                }
+                val mac = arpDevices[ip].orEmpty().ifBlank { existingByIp?.mac.orEmpty() }
+                deviceEnrichmentEngine.enrich(
+                    ip = ip,
+                    mac = mac,
+                    bssid = bssid,
+                    networkScope = networkScope,
+                    legacyNetworkScope = legacyNetworkScope,
+                    localIp = localIp,
+                    gateway = gateway,
+                    existing = existingByIp,
+                    existingByStableId = devicesCache[
+                        if (mac.isNotBlank()) "${mac.uppercase()}@${networkScope}" else "ip:${networkScope}:$ip"
+                    ],
+                    now = now
+                )
             }
 
-            val onlineIds = onlineDevices.map { it.stableId }.toSet()
-            val offlineKept = devicesCache.values.filter { dev ->
-                dev.stableId !in onlineIds &&
-                    (dev.networkBssid == bssid || dev.networkBssid.isBlank()) &&
-                    (now - dev.lastSeen) < 24 * 60 * 60 * 1000
-            }
-
-            val result = (onlineDevices + offlineKept).sortedWith(
-                compareByDescending<Device> { it.isOnline }
-                    .thenByDescending { it.isGateway }
-                    .thenByDescending { it.isLocalDevice }
-                    .thenByDescending { it.isFavorite }
-                    .thenBy { it.ip }
+            val result = deviceLifecycleEngine.reconcile(
+                discoveredOnline = onlineDevices,
+                cachedDevices = devicesCache.values,
+                networkScope = networkScope,
+                now = now
             )
 
-            _lastDiff.value = ScanDiff.updateAndDiff(result)
-            _devices.value = result
-            _lastScanTime.value = now
+            refreshNetworkInfo()
+            val committed = commitIfCurrentNetwork(networkScope) {
+                _lastDiff.value = ScanDiff.updateAndDiff(result, networkScope)
+                _devices.value = result
+                _lastScanTime.value = now
+                onlineDevices.forEach { devicesCache[it.stableId] = it }
+            }
+            if (!committed) return@withContext
             devicePreferences.saveKnownIds(onlineDevices.map { it.stableId })
 
             onlineDevices.forEach { d ->
@@ -216,68 +297,26 @@ class NetworkRepository(context: Context) {
                     )
                 )
             }
+            // Cancelled or failed discovery must not be presented as completed security evidence.
+            refreshNetworkInfo()
+            commitIfCurrentNetwork(networkScope) {
+                _scanCoverage.value = completedCoverage.copy(scannedAt = System.currentTimeMillis())
+            }
         } finally {
             _isScanning.value = false
+            scanMutex.unlock()
         }
     }
 
-    private fun readArpTable(): Map<String, String> {
-        val result = mutableMapOf<String, String>()
-        try {
+    private fun readArpTable(interfaceName: String): Map<String, String> {
+        if (interfaceName.isBlank()) return emptyMap()
+        return try {
             BufferedReader(FileReader("/proc/net/arp")).use { reader ->
-                reader.readLine()
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    val parts = line!!.split(Regex("\\s+"))
-                    if (parts.size >= 4) {
-                        val ip = parts[0]
-                        val mac = parts[3]
-                        if (mac != "00:00:00:00:00:00" && mac.contains(":")) {
-                            result[ip] = mac.uppercase()
-                        }
-                    }
-                }
+                parseArpTable(reader.readText(), interfaceName)
             }
         } catch (_: Exception) {
+            emptyMap()
         }
-        return result
-    }
-
-    private suspend fun discoverHosts(prefix: String, localIp: String, range: IntRange, timeoutMs: Int): Set<String> =
-        coroutineScope {
-            val alive = ConcurrentHashMap.newKeySet<String>()
-            val portsToTry = listOf(80, 443, 8080, 22, 135, 445, 139, 53, 3389)
-            val t = timeoutMs.coerceIn(50, 500)
-            range.map { i ->
-                async(Dispatchers.IO) {
-                    val ip = "$prefix.$i"
-                    if (ip == localIp) {
-                        alive.add(ip)
-                        return@async
-                    }
-                    try {
-                        if (InetAddress.getByName(ip).isReachable(t)) {
-                            alive.add(ip)
-                            return@async
-                        }
-                        for (port in portsToTry) {
-                            try {
-                                Socket().use { it.connect(InetSocketAddress(ip, port), t); alive.add(ip); return@async }
-                            } catch (_: Exception) {
-                            }
-                        }
-                    } catch (_: Exception) {
-                    }
-                }
-            }.awaitAll()
-            alive
-        }
-
-    private fun resolveHostname(ip: String): String = try {
-        val host = InetAddress.getByName(ip).canonicalHostName
-        if (host != null && host != ip && !host.matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+"))) host else ""
-    } catch (_: Exception) {
-        ""
     }
 
     private fun lookupVendor(mac: String): String {
@@ -286,71 +325,195 @@ class NetworkRepository(context: Context) {
         return OUI_MAP[mac.take(8).uppercase()] ?: ""
     }
 
-    suspend fun scanPorts(ip: String, ports: List<Int> = COMMON_PORTS): List<Int> = withContext(Dispatchers.IO) {
-        val t = (appSettings.getOnce().scanTimeoutMs * 2).coerceIn(100, 800)
-        coroutineScope {
-            ports.map { port ->
-                async {
-                    try {
-                        Socket().use { it.connect(InetSocketAddress(ip, port), t); port }
-                    } catch (_: Exception) {
-                        null
+    /**
+     * Checks the small set of security-relevant TCP services on every currently discovered
+     * non-local host. Both host fan-out and per-host port fan-out are bounded.
+     */
+    suspend fun scanSecurityPorts(): Int = withContext(Dispatchers.IO) {
+        // Serialize subnet discovery and the dedicated service audit, while the semaphore
+        // below also caps sockets shared with manual device-detail scans.
+        if (!scanMutex.tryLock()) return@withContext 0
+        if (!securityPortsScanMutex.tryLock()) {
+            scanMutex.unlock()
+            return@withContext 0
+        }
+        _isSecurityScanning.value = true
+        _securityPortsScanCompleted.value = false
+        _securityPortsScanTime.value = 0L
+        try {
+            refreshNetworkInfo()
+            val scanScope = currentNetworkScope() ?: return@withContext 0
+            val coverage = _scanCoverage.value
+            val now = System.currentTimeMillis()
+            val coverageFresh = coverage.scannedAt > 0L && now >= coverage.scannedAt &&
+                now - coverage.scannedAt <= NEARBY_SCAN_FRESHNESS_MS
+            if (
+                coverage.checkedAddresses <= 0 ||
+                coverage.networkScope != scanScope ||
+                !coverageFresh
+            ) return@withContext 0
+
+            val targets = _devices.value.filter {
+                it.networkScope == scanScope && it.isOnline && !it.isLocalDevice
+            }
+            val scanned = HostDiscovery.mapBounded(
+                items = targets,
+                maxConcurrency = SECURITY_HOST_SCAN_CONCURRENCY,
+                beforeBatch = { ensureCurrentNetworkScope(scanScope) }
+            ) { device ->
+                val evidence = probeEngine.scanSecurityPortEvidence(device.ip, SecurityPortAuditPolicy.ports, scanScope)
+                // Keep focused security evidence separate from the broader device-detail inventory.
+                device.copy(
+                    auditedPorts = evidence.filter { it.status == PortAuditStatus.OPEN }.map { it.port },
+                    auditedPortResults = evidence
+                )
+            }
+
+            // A network switch during the port scan invalidates its results.
+            refreshNetworkInfo()
+            val scannedById = scanned.associateBy { it.stableId }
+            var auditedPortCount = 0
+            val committed = commitIfCurrentNetwork(scanScope) {
+                // Merge only the dedicated audit result into the latest device snapshots. A manual
+                // detail scan, DHCP address change or customization may have updated the device
+                // while this scan ran; endpoint identity must still match before evidence is attached.
+                _devices.update { current ->
+                    current.map { device ->
+                        val scannedDevice = scannedById[device.stableId]
+                        if (scannedDevice != null && device.hasSameEndpointAs(scannedDevice)) {
+                            device.copy(
+                                auditedPorts = scannedDevice.auditedPorts,
+                                auditedPortResults = scannedDevice.auditedPortResults
+                            )
+                        } else device
                     }
                 }
-            }.awaitAll().filterNotNull().sorted()
+                _devices.value.filter { it.networkScope == scanScope }.forEach { device ->
+                    devicesCache[device.stableId] = device
+                }
+                _securityPortsScanCompleted.value = true
+                _securityPortsScanTime.value = System.currentTimeMillis()
+                auditedPortCount = scanned.sumOf { it.auditedPorts.size }
+            }
+            if (committed) auditedPortCount else 0
+        } finally {
+            _isSecurityScanning.value = false
+            securityPortsScanMutex.unlock()
+            scanMutex.unlock()
         }
     }
 
-    /** After port scan: HTTP fingerprint + refresh type */
-    suspend fun enrichDevice(ip: String) {
-        val device = getDevice(ip) ?: return
-        val (nb, http) = DeviceProbe.enrichHostnamesAndFingerprint(ip, device.openPorts)
-        val hostname = device.hostname.ifBlank { nb }
-        val updated = device.copy(
-            hostname = hostname,
-            httpFingerprint = http.ifBlank { device.httpFingerprint },
-            osGuess = Device.guessOs(device.openPorts, device.vendor, hostname),
-            deviceType = Device.guessType(device.openPorts, device.vendor, hostname, device.isGateway)
-        )
-        devicesCache[updated.stableId] = updated
-        _devices.update { list -> list.map { if (it.ip == ip) updated else it } }
+    /**
+     * Scans only a device snapshot that still belongs to the active logical network.
+     * Returns null when the device became stale or the network changed during the scan.
+     */
+    suspend fun scanDevicePorts(device: Device): List<Int>? = withContext(Dispatchers.IO) {
+        refreshNetworkInfo()
+        val expectedScope = currentNetworkScope() ?: return@withContext null
+        if (device.networkScope != expectedScope) return@withContext null
+        val currentDevice = _devices.value.firstOrNull {
+            it.stableId == device.stableId && it.networkScope == expectedScope
+        } ?: return@withContext null
+
+        val ports = probeEngine.scanPorts(currentDevice.ip, COMMON_PORTS, expectedScope)
+        ensureCurrentNetworkScope(expectedScope)
+        val updated = updateDevicePorts(currentDevice.stableId, expectedScope, currentDevice.ip, ports)
+            ?: return@withContext null
+        ports
     }
 
-    suspend fun updateDevicePorts(ip: String, ports: List<Int>) {
-        _devices.update { list ->
-            list.map { device ->
-                if (device.ip == ip) {
-                    val updated = device.withUpdatedPorts(ports)
-                    devicesCache[updated.stableId] = updated
-                    updated
-                } else device
+    private suspend fun updateDevicePorts(
+        stableId: String,
+        expectedScope: String,
+        expectedIp: String,
+        ports: List<Int>
+    ): Device? {
+        ensureCurrentNetworkScope(expectedScope)
+        var updated: Device? = null
+        val committed = commitIfCurrentNetwork(expectedScope) {
+            val current = _devices.value.firstOrNull {
+                it.stableId == stableId && it.networkScope == expectedScope && it.ip == expectedIp
+            } ?: return@commitIfCurrentNetwork
+            val next = current.withUpdatedPorts(ports)
+            devicesCache[next.stableId] = next
+            _devices.update { list ->
+                list.map { if (it.hasSameEndpointAs(next)) next else it }
+            }
+            updated = next
+        }
+        if (committed) updated?.let { enrichDevice(it) }
+        return updated.takeIf { committed }
+    }
+
+    /** Enrichment results are committed only if the originating network/device is still current. */
+    private suspend fun enrichDevice(device: Device) {
+        ensureCurrentNetworkScope(device.networkScope)
+        val (nb, http) = DeviceProbe.enrichHostnamesAndFingerprint(device.ip, device.openPorts)
+        ensureCurrentNetworkScope(device.networkScope)
+        commitIfCurrentNetwork(device.networkScope) {
+            val current = _devices.value.firstOrNull { device.hasSameEndpointAs(it) } ?: return@commitIfCurrentNetwork
+            val hostname = current.hostname.ifBlank { nb }
+            val updated = current.copy(
+                hostname = hostname,
+                httpFingerprint = http.ifBlank { current.httpFingerprint },
+                osGuess = Device.guessOs(current.openPorts, current.vendor, hostname),
+                deviceType = Device.guessType(current.openPorts, current.vendor, hostname, current.isGateway)
+            )
+            devicesCache[updated.stableId] = updated
+            _devices.update { list ->
+                list.map {
+                    if (device.hasSameEndpointAs(it)) updated else it
+                }
             }
         }
-        enrichDevice(ip)
     }
 
     suspend fun updateDeviceCustomization(stableId: String, customization: DeviceCustomization) {
+        if (stableId.isBlank()) return
+
+        refreshNetworkInfo()
+        val expectedScope = currentNetworkScope()
+        val target = expectedScope?.let { scope ->
+            _devices.value.firstOrNull { it.stableId == stableId && it.networkScope == scope }
+        }
+
+        // Persist by stable identity even if the detail screen became stale, but never apply
+        // that old screen's edits to a different device that now owns the same IP address.
         devicePreferences.saveCustomization(stableId, customization)
-        _devices.update { list ->
-            list.map { device ->
-                if (device.stableId == stableId || device.ip == stableId.removePrefix("ip:")) {
-                    device.copy(
-                        nickname = customization.nickname,
-                        notes = customization.notes,
-                        isFavorite = customization.isFavorite,
-                        isWatched = customization.isWatched
-                    ).also { devicesCache[it.stableId] = it }
-                } else device
+        if (target == null || expectedScope == null) return
+
+        refreshNetworkInfo()
+        commitIfCurrentNetwork(expectedScope) {
+            _devices.update { list ->
+                list.map { device ->
+                    if (device.stableId == stableId && device.networkScope == expectedScope) {
+                        device.copy(
+                            nickname = customization.nickname,
+                            notes = customization.notes,
+                            isFavorite = customization.isFavorite,
+                            isWatched = customization.isWatched
+                        ).also { devicesCache[it.stableId] = it }
+                    } else device
+                }
             }
         }
     }
 
-    fun getDevice(ip: String): Device? =
-        _devices.value.find { it.ip == ip } ?: devicesCache.values.find { it.ip == ip }
+    fun getDevice(ip: String): Device? {
+        val scope = currentNetworkScope() ?: return null
+        return _devices.value.firstOrNull { it.ip == ip && it.networkScope == scope }
+            ?: devicesCache.values.firstOrNull { it.ip == ip && it.networkScope == scope }
+    }
 
     suspend fun getKnownIds(): Set<String> = devicePreferences.getKnownIds()
 
     companion object {
+        private const val MAX_DISCOVERY_TARGETS = 1024
+        private const val MAX_CONCURRENT_HOST_PROBES = 32
+        private const val DEVICE_ENRICHMENT_CONCURRENCY = 16
+        private const val SECURITY_HOST_SCAN_CONCURRENCY = 4
+        private const val NEARBY_SCAN_FRESHNESS_MS = 5 * 60 * 1000L
+
         val COMMON_PORTS = listOf(
             21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143,
             443, 445, 548, 993, 995, 1723, 3306, 3389, 5900, 8008, 8009, 8080, 8443, 9100

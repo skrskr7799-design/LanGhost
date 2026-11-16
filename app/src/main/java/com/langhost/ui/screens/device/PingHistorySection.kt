@@ -16,6 +16,9 @@ import com.langhost.data.DeviceProbe
 import com.langhost.data.PingHistoryStore
 import com.langhost.data.PingSample
 import com.langhost.ui.theme.*
+import com.langhost.ui.components.LoadingState
+import com.langhost.ui.components.ErrorState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
@@ -26,6 +29,7 @@ fun PingHistorySection(ip: String) {
     val stats = remember(samples) { store.computeStats(samples) }
     val scope = rememberCoroutineScope()
     var probing by remember { mutableStateOf(false) }
+    var probeError by remember { mutableStateOf<String?>(null) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -34,32 +38,43 @@ fun PingHistorySection(ip: String) {
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Ping-история", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                Text("История TCP-отклика", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                 Button(
                     onClick = {
                         scope.launch {
                             probing = true
-                            val ms = DeviceProbe.tcpPing(ip, 80) ?: DeviceProbe.tcpPing(ip, 443) ?: DeviceProbe.tcpPing(ip, 22)
-                            store.addSample(ip, ms)
-                            probing = false
+                            probeError = null
+                            try {
+                                val ms = DeviceProbe.tcpPing(ip, 80) ?: DeviceProbe.tcpPing(ip, 443) ?: DeviceProbe.tcpPing(ip, 22)
+                                store.addSample(ip, ms)
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                probeError = "Не удалось сохранить результат проверки. Предыдущая история сохранена."
+                            } finally {
+                                probing = false
+                            }
                         }
                     },
                     enabled = !probing,
                     colors = ButtonDefaults.buttonColors(containerColor = Primary)
                 ) {
-                    Text(if (probing) "..." else "Ping")
+                    Text(if (probing) "Проверка..." else "Проверить")
                 }
             }
 
+            probeError?.let { ErrorState(title = "Ошибка истории TCP", description = it, onRetry = { scope.launch { probing = true; try { val ms = DeviceProbe.tcpPing(ip, 80) ?: DeviceProbe.tcpPing(ip, 443) ?: DeviceProbe.tcpPing(ip, 22); store.addSample(ip, ms); probeError = null } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { probeError = "Не удалось сохранить результат проверки. Предыдущая история сохранена." } finally { probing = false } } }) }
+            if (probing) LoadingState(title = "Проверяем TCP-отклик", description = "Пробуем TCP-подключение к портам 80, 443 и 22; это не ICMP ping.")
             if (samples.isEmpty()) {
-                Text("Нажмите Ping, чтобы начать историю", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
+                Text("Запустите проверку TCP-отклика, чтобы начать историю", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
             } else {
                 Text(
-                    "avg ${stats.avgMs.toInt()} ms · min ${stats.minMs} · max ${stats.maxMs} · loss ${stats.lossPercent.toInt()}% · uptime ${stats.uptimePercent.toInt()}%",
+                    if (samples.any { it.latencyMs != null }) "Среднее ${stats.avgMs.toInt()} ms · минимум ${stats.minMs} ms · максимум ${stats.maxMs} ms · неуспешные TCP-пробы ${stats.lossPercent.toInt()}%" else "Нет успешных TCP-подключений · неуспешные TCP-пробы 100%",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
 
+                if (samples.all { it.latencyMs == null }) Text("TCP-подключение к портам 80, 443 и 22 не установлено. Это не доказывает недоступность устройства: службы могут использовать другие порты или блокировать подключения.", style = MaterialTheme.typography.bodySmall, color = Warning)
                 val okSamples = samples.mapNotNull { it.latencyMs?.toFloat() }
                 if (okSamples.size >= 2) {
                     val maxY = (okSamples.maxOrNull() ?: 1f).coerceAtLeast(1f)

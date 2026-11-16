@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.langhost.data.DeviceCustomization
 import com.langhost.data.NetworkRepository
 import com.langhost.data.model.Device
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,6 +17,8 @@ data class DeviceDetailUiState(
     val device: Device? = null,
     val isScanningPorts: Boolean = false,
     val openPorts: List<Int> = emptyList(),
+    val hasScannedPorts: Boolean = false,
+    val portScanError: String? = null,
     val nickname: String = "",
     val notes: String = "",
     val isFavorite: Boolean = false,
@@ -46,7 +49,8 @@ class DeviceDetailViewModel(
                 notes = device?.notes ?: "",
                 isFavorite = device?.isFavorite ?: false,
                 isWatched = device?.isWatched ?: false,
-                openPorts = device?.openPorts ?: emptyList()
+                openPorts = device?.openPorts ?: emptyList(),
+                hasScannedPorts = (device?.portsScannedAt ?: 0L) > 0L
             )
         }
     }
@@ -54,20 +58,34 @@ class DeviceDetailViewModel(
     fun scanPorts() {
         if (_uiState.value.isScanningPorts) return
 
+        val scanTarget = _uiState.value.device ?: return
         viewModelScope.launch {
-            _uiState.update { it.copy(isScanningPorts = true) }
+            _uiState.update { it.copy(isScanningPorts = true, portScanError = null) }
             try {
-                val ports = repository.scanPorts(deviceIp)
-                repository.updateDevicePorts(deviceIp, ports)
+                val ports = repository.scanDevicePorts(scanTarget)
                 val updatedDevice = repository.getDevice(deviceIp)
-                _uiState.update {
-                    it.copy(
-                        isScanningPorts = false,
-                        openPorts = ports,
-                        device = updatedDevice
-                    )
+                if (ports == null) {
+                    _uiState.update {
+                        it.copy(
+                            device = updatedDevice,
+                            portScanError = "Сеть или состояние устройства изменились во время проверки. Результат не считается актуальным — запустите сканирование ещё раз."
+                        )
+                    }
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            openPorts = ports,
+                            device = updatedDevice,
+                            hasScannedPorts = true,
+                            portScanError = null
+                        )
+                    }
                 }
-            } catch (e: Exception) {
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _uiState.update { it.copy(portScanError = "Не удалось завершить проверку портов. Последние известные результаты сохранены.") }
+            } finally {
                 _uiState.update { it.copy(isScanningPorts = false) }
             }
         }
@@ -93,26 +111,33 @@ class DeviceDetailViewModel(
 
     fun saveCustomization() {
         viewModelScope.launch {
+            val device = _uiState.value.device ?: return@launch
             _uiState.update { it.copy(isSaving = true) }
-            val state = _uiState.value
-            val device = state.device
-            val stableId = device?.stableId ?: "ip:$deviceIp"
-            repository.updateDeviceCustomization(
-                stableId,
-                DeviceCustomization(
-                    nickname = state.nickname.trim(),
-                    notes = state.notes.trim(),
-                    isFavorite = state.isFavorite,
-                    isWatched = state.isWatched,
-                    firstSeen = device?.firstSeen ?: 0L
+            try {
+                val state = _uiState.value
+                repository.updateDeviceCustomization(
+                    device.stableId,
+                    DeviceCustomization(
+                        nickname = state.nickname.trim(),
+                        notes = state.notes.trim(),
+                        isFavorite = state.isFavorite,
+                        isWatched = state.isWatched,
+                        firstSeen = device.firstSeen
+                    )
                 )
-            )
-            val updated = repository.getDevice(deviceIp)
-            _uiState.update {
-                it.copy(
-                    device = updated,
-                    isSaving = false
-                )
+                val updated = repository.getDevice(deviceIp)
+                _uiState.update {
+                    it.copy(
+                        device = updated ?: device,
+                        isSaving = false
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Keep the current values; a failed persistence operation is not a successful save.
+            } finally {
+                _uiState.update { it.copy(isSaving = false) }
             }
         }
     }

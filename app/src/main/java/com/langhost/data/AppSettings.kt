@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -15,9 +16,10 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
 
 data class AppSettingsData(
     val watchModeEnabled: Boolean = false,
-    val notifyNewDevices: Boolean = true,
+    val notifyNewDevices: Boolean = false,
     val scanTimeoutMs: Int = 150,
-    val autoScanOnOpen: Boolean = false
+    val autoScanOnOpen: Boolean = false,
+    val maskNetworkIdentifiers: Boolean = false
 )
 
 class AppSettings(private val context: Context) {
@@ -26,21 +28,22 @@ class AppSettings(private val context: Context) {
     private val KEY_NOTIFY_NEW = booleanPreferencesKey("notify_new_devices")
     private val KEY_SCAN_TIMEOUT = intPreferencesKey("scan_timeout_ms")
     private val KEY_AUTO_SCAN = booleanPreferencesKey("auto_scan_on_open")
+    private val KEY_MASK_IDENTIFIERS = booleanPreferencesKey("mask_network_identifiers")
 
     val settingsFlow: Flow<AppSettingsData> = context.settingsDataStore.data.map { prefs ->
         AppSettingsData(
             watchModeEnabled = prefs[KEY_WATCH_MODE] ?: false,
-            notifyNewDevices = prefs[KEY_NOTIFY_NEW] ?: true,
-            scanTimeoutMs = prefs[KEY_SCAN_TIMEOUT] ?: 150,
-            autoScanOnOpen = prefs[KEY_AUTO_SCAN] ?: false
+            notifyNewDevices = prefs[KEY_NOTIFY_NEW] ?: false,
+            scanTimeoutMs = (prefs[KEY_SCAN_TIMEOUT] ?: 150).coerceIn(50, 500),
+            autoScanOnOpen = prefs[KEY_AUTO_SCAN] ?: false,
+            maskNetworkIdentifiers = prefs[KEY_MASK_IDENTIFIERS] ?: false
         )
     }
 
-    suspend fun getOnce(): AppSettingsData = try {
-        settingsFlow.first()
-    } catch (_: Exception) {
-        AppSettingsData()
-    }
+    suspend fun getOnce(): AppSettingsData =
+        firstOrDefaultOnFailure(settingsFlow, AppSettingsData()) {
+            AppLog.warning(AppLog.Component.APP_SETTINGS, AppLog.Event.SETTINGS_READ_FALLBACK)
+        }
 
     suspend fun setWatchMode(enabled: Boolean) {
         context.settingsDataStore.edit { it[KEY_WATCH_MODE] = enabled }
@@ -57,4 +60,21 @@ class AppSettings(private val context: Context) {
     suspend fun setAutoScanOnOpen(enabled: Boolean) {
         context.settingsDataStore.edit { it[KEY_AUTO_SCAN] = enabled }
     }
+
+    suspend fun setMaskNetworkIdentifiers(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_MASK_IDENTIFIERS] = enabled }
+    }
+}
+
+internal suspend fun <T> firstOrDefaultOnFailure(
+    flow: Flow<T>,
+    fallback: T,
+    onFailure: () -> Unit = {}
+): T = try {
+    flow.first()
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (_: Exception) {
+    onFailure()
+    fallback
 }

@@ -6,6 +6,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
@@ -34,20 +35,14 @@ class WatchWorker(
             }
 
             if (settings.notifyNewDevices && newDevices.isNotEmpty() && knownBefore.isNotEmpty()) {
-                if (newDevices.size == 1) {
-                    val d = newDevices.first()
-                    NotificationHelper.notifyNewDevice(
-                        applicationContext,
-                        d.displayName,
-                        d.ip
-                    )
-                } else {
-                    NotificationHelper.notifyMultipleNew(applicationContext, newDevices.size)
-                }
+                NotificationHelper.notifyNewDevices(applicationContext)
             }
 
             Result.success()
-        } catch (e: Exception) {
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            AppLog.warning(AppLog.Component.WATCH_WORKER, AppLog.Event.BACKGROUND_SCAN_RETRY)
             Result.retry()
         }
     }

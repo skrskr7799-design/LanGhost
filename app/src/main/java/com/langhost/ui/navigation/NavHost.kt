@@ -1,22 +1,35 @@
 package com.langhost.ui.navigation
 
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.VerticalDivider
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.langhost.ui.components.NetworkOrbit
 import com.langhost.ui.screens.channels.ChannelAnalyzerScreen
 import com.langhost.ui.screens.dashboard.DashboardScreen
 import com.langhost.ui.screens.device.DeviceDetailScreen
@@ -25,11 +38,20 @@ import com.langhost.ui.screens.internet.PublicIpScreen
 import com.langhost.ui.screens.profiles.NetworkProfilesScreen
 import com.langhost.ui.screens.security.SecurityScreen
 import com.langhost.ui.screens.settings.SettingsScreen
+import com.langhost.ui.screens.tools.ToolsScreen
 import com.langhost.ui.screens.tools.UtilitiesScreen
 import com.langhost.ui.screens.topology.TopologyScreen
 import com.langhost.ui.screens.wifi.NearbyNetworksScreen
 import com.langhost.ui.screens.wol.WolProfilesScreen
+import com.langhost.ui.theme.AccentCyan
+import com.langhost.ui.theme.Background
+import com.langhost.ui.theme.Border
 import com.langhost.ui.theme.Divider
+import com.langhost.ui.theme.Primary
+import com.langhost.ui.theme.Surface
+import com.langhost.ui.theme.SurfaceHighlight
+import com.langhost.ui.theme.TextPrimary
+import com.langhost.ui.theme.TextSecondary
 
 object Routes {
     const val DASHBOARD = "dashboard"
@@ -44,20 +66,176 @@ object Routes {
     const val CHANNELS = "channels"
     const val PUBLIC_IP = "public_ip"
     const val PROFILES = "profiles"
+    const val TOOLS = "tools"
 
     fun deviceDetail(ip: String) = "device/${ip.replace('.', '_')}"
     fun decodeIp(encoded: String) = encoded.replace('_', '.')
 }
 
+private data class PrimaryDestination(
+    val route: String,
+    val label: String,
+    val icon: ImageVector
+)
+
+private val primaryDestinations = listOf(
+    PrimaryDestination(Routes.DASHBOARD, "Обзор", Icons.Default.Home),
+    PrimaryDestination(Routes.DEVICES, "Устройства", Icons.Default.Devices),
+    PrimaryDestination(Routes.TOPOLOGY, "Топология", Icons.Default.AccountTree),
+    PrimaryDestination(Routes.NEARBY_WIFI, "Wi-Fi", Icons.Default.Wifi)
+)
+
 @Composable
 fun LanGhostNavHost(windowSizeClass: WindowSizeClass? = null) {
-    if (windowSizeClass?.widthSizeClass == WindowWidthSizeClass.Expanded) TabletNavHost() else PhoneNavHost()
+    val navController = rememberNavController()
+    val expanded = windowSizeClass?.widthSizeClass == WindowWidthSizeClass.Expanded
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
+    val previousRoute = navController.previousBackStackEntry?.destination?.route
+    val selectedRoute = primaryDestinations.firstOrNull { it.route == currentRoute }?.route
+        ?: if (currentRoute == Routes.DEVICE_DETAIL) {
+            primaryDestinations.firstOrNull { it.route == previousRoute }?.route
+        } else {
+            null
+        }
+
+    val navigateTo: (String) -> Unit = { route ->
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
+    if (expanded) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .width(112.dp)
+                    .fillMaxHeight()
+                    .background(Surface)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 8.dp, vertical = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                NetworkOrbit(isConnected = true, modifier = Modifier.size(46.dp))
+                Text(
+                    text = "LanGhost",
+                    color = TextPrimary,
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Spacer(Modifier.height(12.dp))
+                primaryDestinations.forEach { destination ->
+                    NavigationEntry(
+                        destination = destination,
+                        selected = selectedRoute == destination.route,
+                        onClick = { navigateTo(destination.route) },
+                        compact = false,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+            androidx.compose.material3.VerticalDivider(color = Divider, thickness = 1.dp)
+            AppNavGraph(
+                navController = navController,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    } else {
+        Scaffold(
+            containerColor = Background,
+            bottomBar = {
+                Column(modifier = Modifier.background(Surface).navigationBarsPadding()) {
+                    androidx.compose.material3.HorizontalDivider(color = Divider.copy(alpha = 0.75f), thickness = 1.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        primaryDestinations.forEach { destination ->
+                            NavigationEntry(
+                                destination = destination,
+                                selected = selectedRoute == destination.route,
+                                onClick = { navigateTo(destination.route) },
+                                compact = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+        ) { innerPadding ->
+            AppNavGraph(
+                navController = navController,
+                modifier = Modifier.fillMaxSize().padding(innerPadding)
+            )
+        }
+    }
 }
 
 @Composable
-private fun PhoneNavHost() {
-    val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = Routes.DASHBOARD) {
+private fun NavigationEntry(
+    destination: PrimaryDestination,
+    selected: Boolean,
+    onClick: () -> Unit,
+    compact: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val iconTint = if (selected) AccentCyan else TextSecondary
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = if (selected) SurfaceHighlight.copy(alpha = 0.72f) else Color.Transparent,
+        contentColor = TextPrimary,
+        border = if (selected) androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.65f)) else null
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 3.dp, vertical = if (compact) 6.dp else 9.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(if (compact) 30.dp else 38.dp)
+                    .background(
+                        if (selected) Primary.copy(alpha = 0.12f) else Color.Transparent,
+                        RoundedCornerShape(12.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = destination.icon,
+                    contentDescription = destination.label,
+                    tint = iconTint,
+                    modifier = Modifier.size(if (compact) 20.dp else 22.dp)
+                )
+            }
+            Text(
+                text = destination.label,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (selected) TextPrimary else TextSecondary,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun AppNavGraph(
+    navController: androidx.navigation.NavHostController,
+    modifier: Modifier = Modifier
+) {
+    NavHost(
+        navController = navController,
+        startDestination = Routes.DASHBOARD,
+        modifier = modifier
+    ) {
         composable(Routes.DASHBOARD) {
             DashboardScreen(
                 onNavigateToDevices = { navController.navigate(Routes.DEVICES) },
@@ -69,66 +247,49 @@ private fun PhoneNavHost() {
                 onNavigateToWol = { navController.navigate(Routes.WOL) },
                 onNavigateToChannels = { navController.navigate(Routes.CHANNELS) },
                 onNavigateToPublicIp = { navController.navigate(Routes.PUBLIC_IP) },
-                onNavigateToProfiles = { navController.navigate(Routes.PROFILES) }
+                onNavigateToProfiles = { navController.navigate(Routes.PROFILES) },
+                onNavigateToTools = { navController.navigate(Routes.TOOLS) }
             )
         }
         composable(Routes.DEVICES) {
-            DevicesScreen(onBack = { navController.popBackStack() }, onDeviceClick = { navController.navigate(Routes.deviceDetail(it)) })
+            DevicesScreen(
+                onBack = { navController.popBackStack(Routes.DASHBOARD, false) },
+                onDeviceClick = { navController.navigate(Routes.deviceDetail(it)) }
+            )
         }
-        composable(Routes.DEVICE_DETAIL, arguments = listOf(navArgument("deviceIp") { type = NavType.StringType })) { e ->
-            DeviceDetailScreen(Routes.decodeIp(e.arguments?.getString("deviceIp") ?: ""), onBack = { navController.popBackStack() })
+        composable(Routes.DEVICE_DETAIL, arguments = listOf(navArgument("deviceIp") { type = NavType.StringType })) { entry ->
+            DeviceDetailScreen(
+                Routes.decodeIp(entry.arguments?.getString("deviceIp") ?: ""),
+                onBack = { navController.popBackStack() }
+            )
         }
         composable(Routes.SETTINGS) { SettingsScreen(onBack = { navController.popBackStack() }) }
-        composable(Routes.NEARBY_WIFI) { NearbyNetworksScreen(onBack = { navController.popBackStack() }) }
+        composable(Routes.NEARBY_WIFI) {
+            NearbyNetworksScreen(onBack = { navController.navigate(Routes.DASHBOARD) { launchSingleTop = true } })
+        }
         composable(Routes.SECURITY) { SecurityScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.UTILITIES) { UtilitiesScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.TOPOLOGY) {
-            TopologyScreen(onBack = { navController.popBackStack() }, onDeviceClick = { navController.navigate(Routes.deviceDetail(it)) })
+            TopologyScreen(
+                onBack = { navController.navigate(Routes.DASHBOARD) { launchSingleTop = true } },
+                onDeviceClick = { navController.navigate(Routes.deviceDetail(it)) }
+            )
         }
         composable(Routes.WOL) { WolProfilesScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.CHANNELS) { ChannelAnalyzerScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.PUBLIC_IP) { PublicIpScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.PROFILES) { NetworkProfilesScreen(onBack = { navController.popBackStack() }) }
-    }
-}
-
-@Composable
-private fun TabletNavHost() {
-    val navController = rememberNavController()
-    var selectedDeviceIp by rememberSaveable { mutableStateOf<String?>(null) }
-    Row(modifier = Modifier.fillMaxSize()) {
-        NavHost(navController = navController, startDestination = Routes.DEVICES, modifier = Modifier.weight(0.4f)) {
-            composable(Routes.DEVICES) {
-                DevicesScreen(onBack = { selectedDeviceIp = null }, onDeviceClick = { selectedDeviceIp = it })
-            }
-            composable(Routes.SETTINGS) { SettingsScreen(onBack = { navController.popBackStack() }) }
-            composable(Routes.NEARBY_WIFI) { NearbyNetworksScreen(onBack = { navController.popBackStack() }) }
-            composable(Routes.SECURITY) { SecurityScreen(onBack = { navController.popBackStack() }) }
-            composable(Routes.UTILITIES) { UtilitiesScreen(onBack = { navController.popBackStack() }) }
-            composable(Routes.TOPOLOGY) {
-                TopologyScreen(onBack = { navController.popBackStack() }, onDeviceClick = { selectedDeviceIp = it })
-            }
-            composable(Routes.WOL) { WolProfilesScreen(onBack = { navController.popBackStack() }) }
-            composable(Routes.CHANNELS) { ChannelAnalyzerScreen(onBack = { navController.popBackStack() }) }
-            composable(Routes.PUBLIC_IP) { PublicIpScreen(onBack = { navController.popBackStack() }) }
-            composable(Routes.PROFILES) { NetworkProfilesScreen(onBack = { navController.popBackStack() }) }
-        }
-        VerticalDivider(color = Divider, thickness = 1.dp)
-        if (selectedDeviceIp != null) {
-            DeviceDetailScreen(selectedDeviceIp!!, onBack = { selectedDeviceIp = null }, modifier = Modifier.weight(0.6f))
-        } else {
-            DashboardScreen(
-                onNavigateToDevices = { navController.navigate(Routes.DEVICES) },
-                onNavigateToSettings = { navController.navigate(Routes.SETTINGS) },
-                onNavigateToNearbyWifi = { navController.navigate(Routes.NEARBY_WIFI) },
-                onNavigateToSecurity = { navController.navigate(Routes.SECURITY) },
-                onNavigateToUtilities = { navController.navigate(Routes.UTILITIES) },
-                onNavigateToTopology = { navController.navigate(Routes.TOPOLOGY) },
-                onNavigateToWol = { navController.navigate(Routes.WOL) },
-                onNavigateToChannels = { navController.navigate(Routes.CHANNELS) },
-                onNavigateToPublicIp = { navController.navigate(Routes.PUBLIC_IP) },
-                onNavigateToProfiles = { navController.navigate(Routes.PROFILES) },
-                modifier = Modifier.weight(0.6f)
+        composable(Routes.TOOLS) {
+            ToolsScreen(
+                onBack = { navController.popBackStack() },
+                onSecurity = { navController.navigate(Routes.SECURITY) },
+                onUtilities = { navController.navigate(Routes.UTILITIES) },
+                onChannels = { navController.navigate(Routes.CHANNELS) },
+                onPublicIp = { navController.navigate(Routes.PUBLIC_IP) },
+                onProfiles = { navController.navigate(Routes.PROFILES) },
+                onWakeOnLan = { navController.navigate(Routes.WOL) },
+                onWifi = { navController.navigate(Routes.NEARBY_WIFI) },
+                onSettings = { navController.navigate(Routes.SETTINGS) }
             )
         }
     }

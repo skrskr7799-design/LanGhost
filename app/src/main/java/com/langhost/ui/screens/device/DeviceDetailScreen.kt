@@ -6,7 +6,6 @@ import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -22,10 +21,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.langhost.data.WakeOnLan
+import com.langhost.data.AppSettings
+import com.langhost.data.AppSettingsData
+import com.langhost.data.PrivacyFormatter
 import com.langhost.data.WolProfile
 import com.langhost.data.WolProfiles
 import com.langhost.data.model.DeviceType
 import com.langhost.ui.theme.*
+import com.langhost.ui.components.ContentPanel
+import com.langhost.ui.components.ErrorState
+import com.langhost.ui.components.LoadingState
+import com.langhost.ui.theme.TechnicalTypography
+import com.langhost.ui.components.StatusBadge
+import com.langhost.ui.components.StatusTone
 import com.langhost.ui.util.QuickActions
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -39,6 +47,7 @@ fun DeviceDetailScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val appSettings by remember(context) { AppSettings(context.applicationContext).settingsFlow }.collectAsState(initial = AppSettingsData())
     val scope = rememberCoroutineScope()
     val viewModel: DeviceDetailViewModel = viewModel(
         key = deviceIp,
@@ -59,7 +68,12 @@ fun DeviceDetailScreen(
 
     fun copyToClipboard(label: String, value: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
+        val safeValue = when (label) {
+            "IP" -> PrivacyFormatter.ip(value, appSettings.maskNetworkIdentifiers)
+            "MAC" -> PrivacyFormatter.mac(value, appSettings.maskNetworkIdentifiers)
+            else -> value
+        }
+        clipboard.setPrimaryClip(ClipData.newPlainText(label, safeValue))
         Toast.makeText(context, "$label скопирован", Toast.LENGTH_SHORT).show()
     }
 
@@ -73,7 +87,7 @@ fun DeviceDetailScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(device?.displayName ?: deviceIp, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text(device?.displayName ?: deviceIp, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -101,15 +115,63 @@ fun DeviceDetailScreen(
         }
 
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
+            ContentPanel {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        androidx.compose.material3.Surface(
+                            color = if (device.isOnline) AccentCyan.copy(alpha = 0.12f) else SurfaceElevated,
+                            shape = LanGhostShapes.card
+                        ) {
+                            Box(modifier = Modifier.size(58.dp), contentAlignment = Alignment.Center) {
+                                Icon(deviceTypeIcon(device.deviceType), contentDescription = null, tint = if (device.isOnline) AccentCyan else TextSecondary, modifier = Modifier.size(29.dp))
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(device.displayName, style = MaterialTheme.typography.titleLarge, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                            Text(device.vendor.ifBlank { typeLabel(device.deviceType) }, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        }
+                        IconButton(onClick = { viewModel.toggleFavorite() }) {
+                            Icon(if (state.isFavorite) Icons.Default.Star else Icons.Default.StarBorder, contentDescription = "Избранное", tint = if (state.isFavorite) Secondary else TextSecondary)
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        StatusBadge(if (device.isOnline) "Онлайн" else "Оффлайн", if (device.isOnline) StatusTone.Success else StatusTone.Neutral)
+                        if (device.isGateway) StatusBadge("Шлюз", StatusTone.Info)
+                        if (device.isLocalDevice) StatusBadge("Это устройство", StatusTone.Warning)
+                        if (state.isWatched) StatusBadge("Наблюдение", StatusTone.Info)
+                    }
+                    HorizontalDivider(color = Divider)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("IP-АДРЕС", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
+                            Text(PrivacyFormatter.ip(device.ip, appSettings.maskNetworkIdentifiers), style = TechnicalTypography, color = TextPrimary, fontWeight = FontWeight.Medium)
+                        }
+                        IconButton(onClick = { copyToClipboard("IP", device.ip) }) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "Скопировать IP", tint = Primary)
+                        }
+                    }
+                    if (device.mac.isNotBlank()) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("MAC-АДРЕС", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
+                                Text(PrivacyFormatter.mac(device.mac, appSettings.maskNetworkIdentifiers), style = TechnicalTypography, color = TextSecondary)
+                            }
+                            IconButton(onClick = { copyToClipboard("MAC", device.mac) }) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Скопировать MAC", tint = Primary)
+                            }
+                        }
+                    }
+                }
+            }
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = LanGhostShapes.card, border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.72f))) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Информация об устройстве", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                     HorizontalDivider(color = Divider)
-                    CopyableInfoRow("IP-адрес", device.ip) { copyToClipboard("IP", device.ip) }
-                    CopyableInfoRow("MAC-адрес", device.mac.ifBlank { "—" }) {
+                    CopyableInfoRow("IP-адрес", PrivacyFormatter.ip(device.ip, appSettings.maskNetworkIdentifiers)) { copyToClipboard("IP", device.ip) }
+                    CopyableInfoRow("MAC-адрес", PrivacyFormatter.mac(device.mac.ifBlank { "—" }, appSettings.maskNetworkIdentifiers)) {
                         if (device.mac.isNotBlank()) copyToClipboard("MAC", device.mac)
                     }
                     InfoRow("Имя хоста", device.hostname.ifBlank { "—" })
@@ -129,7 +191,7 @@ fun DeviceDetailScreen(
                 }
             }
 
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = LanGhostShapes.card) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Быстрые действия", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -147,7 +209,7 @@ fun DeviceDetailScreen(
             PingHistorySection(ip = device.ip)
 
             if (device.mac.isNotBlank() && !device.isLocalDevice) {
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = LanGhostShapes.card) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Wake-on-LAN", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                         Button(
@@ -184,7 +246,7 @@ fun DeviceDetailScreen(
                 }
             }
 
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = LanGhostShapes.card) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Сканер портов", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
@@ -196,16 +258,31 @@ fun DeviceDetailScreen(
                             } else Text("Сканировать")
                         }
                     }
+                    if (state.isScanningPorts) {
+                        LoadingState(
+                            title = "Проверяем доступные порты",
+                            description = "Результат появится после завершения сетевых проб."
+                        )
+                    }
+                    state.portScanError?.let { message ->
+                        ErrorState(
+                            title = "Проверка портов не завершена",
+                            description = message,
+                            onRetry = { viewModel.scanPorts() }
+                        )
+                    }
                     if (state.openPorts.isNotEmpty()) {
                         Text("Открытые порты (${state.openPorts.size}):", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                         Text(state.openPorts.joinToString(", "), style = MaterialTheme.typography.bodyLarge, color = Success, fontWeight = FontWeight.Medium)
-                    } else if (!state.isScanningPorts) {
-                        Text("Сканирование не выполнялось", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
+                    } else if (state.hasScannedPorts && state.portScanError == null && !state.isScanningPorts) {
+                        Text("Открытые TCP-порты не обнаружены в проверенном наборе.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    } else if (!state.isScanningPorts && state.portScanError == null) {
+                        Text("Проверка ещё не выполнялась. Пустой список не означает, что открытых портов нет.", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
                     }
                 }
             }
 
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = LanGhostShapes.card) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Персонализация", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                     OutlinedTextField(
@@ -263,4 +340,16 @@ private fun CopyableInfoRow(label: String, value: String, onCopy: () -> Unit) {
             }
         }
     }
+}
+
+private fun deviceTypeIcon(type: DeviceType) = when (type) {
+    DeviceType.PHONE, DeviceType.TABLET -> Icons.Default.PhoneAndroid
+    DeviceType.TV -> Icons.Default.Tv
+    DeviceType.PC, DeviceType.LAPTOP -> Icons.Default.Computer
+    DeviceType.ROUTER -> Icons.Default.Router
+    DeviceType.PRINTER -> Icons.Default.Print
+    DeviceType.NAS, DeviceType.SERVER -> Icons.Default.Storage
+    DeviceType.CAMERA -> Icons.Default.Videocam
+    DeviceType.IOT -> Icons.Default.Memory
+    DeviceType.UNKNOWN -> Icons.Default.DevicesOther
 }

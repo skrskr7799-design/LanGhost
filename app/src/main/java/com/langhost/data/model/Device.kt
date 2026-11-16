@@ -14,6 +14,10 @@ data class Device(
     val firstSeen: Long = System.currentTimeMillis(),
     val lastSeen: Long = System.currentTimeMillis(),
     val openPorts: List<Int> = emptyList(),
+    /** Ports confirmed by the dedicated security-service scan, kept separate from general discovery. */
+    val auditedPorts: List<Int> = emptyList(),
+    /** Per-port outcomes from the dedicated security audit; unlike openPorts, includes uncertainty. */
+    val auditedPortResults: List<PortAuditResult> = emptyList(),
     val osGuess: String = "",
     val nickname: String = "",
     val notes: String = "",
@@ -22,9 +26,12 @@ data class Device(
     val isFavorite: Boolean = false,
     val isWatched: Boolean = false,
     val networkBssid: String = "",
+    val networkScope: String = "",
     val deviceType: DeviceType = DeviceType.UNKNOWN,
     val httpFingerprint: String = "",
-    val isRandomMac: Boolean = false
+    val isRandomMac: Boolean = false,
+    /** Timestamp of the most recent completed general TCP port scan; zero means never scanned. */
+    val portsScannedAt: Long = 0L
 ) {
     val displayName: String
         get() = when {
@@ -39,23 +46,29 @@ data class Device(
 
     val stableId: String
         get() = when {
-            mac.isNotBlank() && networkBssid.isNotBlank() && networkBssid != "—" ->
-                "${mac.uppercase()}@${networkBssid.uppercase()}"
+            mac.isNotBlank() && networkScope.isNotBlank() ->
+                "${mac.uppercase()}@${networkScope}"
             mac.isNotBlank() -> mac.uppercase()
+            networkScope.isNotBlank() -> "ip:${networkScope}:$ip"
             else -> "ip:$ip"
         }
+
+    /** True only when two snapshots describe the same device endpoint on the same network. */
+    fun hasSameEndpointAs(other: Device): Boolean =
+        stableId == other.stableId && networkScope == other.networkScope && ip == other.ip
 
     fun withUpdatedPorts(ports: List<Int>): Device {
         val os = guessOs(ports, vendor, hostname)
         val type = guessType(ports, vendor, hostname, isGateway)
-        return copy(openPorts = ports, osGuess = os, deviceType = type)
+        return copy(openPorts = ports, osGuess = os, deviceType = type, portsScannedAt = System.currentTimeMillis())
     }
 
     companion object {
         fun isRandomMacAddress(mac: String): Boolean {
             if (mac.length < 2) return false
-            val second = mac.getOrNull(1)?.uppercaseChar() ?: return false
-            return second == '2' || second == '6' || second == 'A' || second == 'E'
+            val firstOctet = mac.take(2).toIntOrNull(16) ?: return false
+            // IEEE 802 MAC U/L bit (bit 1 of the first octet) marks locally administered addresses.
+            return (firstOctet and 0x02) != 0
         }
 
         fun guessOs(ports: List<Int>, vendor: String, hostname: String): String {
