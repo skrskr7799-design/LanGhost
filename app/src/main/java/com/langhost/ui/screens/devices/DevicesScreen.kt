@@ -194,7 +194,7 @@ fun DevicesScreen(
                                 color = TextSecondary
                             )
                             Text(
-                                "Источники: ARP ${state.scanCoverage.arpObservedHosts} · TCP ${state.scanCoverage.tcpResponsiveHosts} · mDNS ${state.scanCoverage.dnsSdResolvedHosts} · SSDP ${state.scanCoverage.ssdpResponsiveHosts}",
+                                "Источники: ARP ${state.scanCoverage.arpObservedHosts} · TCP ${state.scanCoverage.tcpResponsiveHosts} · mDNS ${state.scanCoverage.dnsSdResolvedHosts} · SSDP ${state.scanCoverage.ssdpResponsiveHosts} · ping ${state.scanCoverage.reachabilityResponsiveHosts}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = TextTertiary
                             )
@@ -461,6 +461,7 @@ private fun DeviceInventoryRow(device: Device, maskIdentifiers: Boolean, onClick
 private fun deviceStatusLabel(device: Device): String = when {
     device.isOnline && device.discoveryEvidence == DiscoveryEvidence.NSD_SERVICE_OBSERVATION -> "Онлайн · mDNS"
     device.isOnline && device.discoveryEvidence == DiscoveryEvidence.SSDP_RESPONSE_OBSERVATION -> "Онлайн · SSDP"
+    device.isOnline && device.discoveryEvidence == DiscoveryEvidence.HOST_REACHABILITY_PROBE -> "Онлайн · ping"
     device.isOnline -> "Онлайн"
     device.discoveryEvidence == DiscoveryEvidence.ARP_OBSERVATION -> "ARP-наблюдение"
     device.discoveryEvidence == DiscoveryEvidence.GATEWAY_CONFIGURATION -> "Шлюз · не проверен"
