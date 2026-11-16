@@ -447,6 +447,7 @@ private fun DeviceInventoryRow(device: Device, maskIdentifiers: Boolean, onClick
 
 private fun deviceStatusLabel(device: Device): String = when {
     device.isOnline -> "Онлайн"
+    device.discoveryEvidence == DiscoveryEvidence.NSD_SERVICE_OBSERVATION -> "mDNS / DNS-SD"
     device.discoveryEvidence == DiscoveryEvidence.ARP_OBSERVATION -> "ARP-наблюдение"
     device.discoveryEvidence == DiscoveryEvidence.GATEWAY_CONFIGURATION -> "Шлюз · не проверен"
     device.discoveryEvidence == DiscoveryEvidence.UNKNOWN -> "Не подтверждено"
