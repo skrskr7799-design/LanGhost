@@ -342,4 +342,32 @@ class NetworkDiscoveryEngineTest {
         assertTrue(result.nsdServiceIps.all { it.startsWith("10.0.") })
     }
 
+    @Test
+    fun includesOnlyInSubnetHostReachabilityResponses() = runBlocking {
+        val result = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = emptyMap(),
+            networkScope = "scope-ping",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2,
+            discoverHostReachabilityIps = { candidates ->
+                assertTrue(candidates.isNotEmpty())
+                setOf("192.168.10.5", "192.168.20.5", "127.0.0.1")
+            }
+        )
+
+        assertEquals(setOf("192.168.10.5"), result.hostReachabilityIps)
+        assertTrue(result.ips.contains("192.168.10.5"))
+        assertFalse(result.ips.contains("192.168.20.5"))
+        assertFalse(result.ips.contains("127.0.0.1"))
+        assertEquals(1, result.coverage.reachabilityResponsiveHosts)
+    }
+
+
 }
