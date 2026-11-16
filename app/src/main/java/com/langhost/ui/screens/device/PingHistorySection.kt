@@ -52,10 +52,10 @@ fun PingHistorySection(ip: String) {
             }
 
             if (samples.isEmpty()) {
-                Text("Нажмите Ping, чтобы начать историю", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
+                Text("Запустите проверку TCP-отклика, чтобы начать историю", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
             } else {
                 Text(
-                    "avg ${stats.avgMs.toInt()} ms · min ${stats.minMs} · max ${stats.maxMs} · loss ${stats.lossPercent.toInt()}% · uptime ${stats.uptimePercent.toInt()}%",
+                    "avg ${stats.avgMs.toInt()} ms · min ${stats.minMs} · max ${stats.maxMs} · неуспешные TCP-пробы ${stats.lossPercent.toInt()}%",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
