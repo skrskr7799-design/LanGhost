@@ -118,6 +118,12 @@ Each slice must pass Lint, unit tests and Debug APK build; full CI (including Re
 - [x] Added a technical grid to the topology visualization while retaining the explicit logical-grouping disclaimer.
 - [x] Added an animated evidence-aware security score dial; an unavailable score remains visually unavailable rather than being replaced with a guessed value.
 
+### 2026-11-16 — grouped Tools hub
+
+- [x] Added a dedicated Tools destination that groups security, Wi-Fi analysis, diagnostics, public IP, Wake-on-LAN, profiles and settings by operational task.
+- [x] Preserved the existing individual routes and added a dashboard entry point; no existing tool was removed or hidden.
+- [ ] Replace the remaining repeated dashboard tool shortcuts with a more compact overview action group after the new hub has passed CI and interaction review.
+
 ### Remaining visual acceptance work
 
 - [ ] Complete a composition pass on each screen; avoid relying on color and shape changes alone.
