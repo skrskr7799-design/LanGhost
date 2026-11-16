@@ -5,6 +5,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -131,6 +133,10 @@ fun TopologyScreen(
         },
         containerColor = Background
     ) { padding ->
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth().widthIn(max = 1120.dp),
+            contentAlignment = Alignment.TopCenter
+        ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 28.dp),
@@ -273,6 +279,7 @@ fun TopologyScreen(
                     TopologyDeviceRow(device = device, isGateway = false, onClick = { onDeviceClick(device.ip) })
                 }
             }
+        }
         }
     }
 }
