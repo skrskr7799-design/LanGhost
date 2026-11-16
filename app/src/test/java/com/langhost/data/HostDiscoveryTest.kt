@@ -169,7 +169,7 @@ class HostDiscoveryTest {
     }
 
     @Test
-    fun mapBoundedRunsNetworkScopeCheckpointOncePerBatch() = runBlocking {
+    fun mapBoundedChecksNetworkScopeForEachScheduledItem() = runBlocking {
         var batchChecks = 0
         val result = HostDiscovery.mapBounded(
             items = (1..5).toList(),
