@@ -21,6 +21,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.langhost.data.WakeOnLan
+import com.langhost.data.AppSettings
+import com.langhost.data.AppSettingsData
+import com.langhost.data.PrivacyFormatter
 import com.langhost.data.WolProfile
 import com.langhost.data.WolProfiles
 import com.langhost.data.model.DeviceType
@@ -42,6 +45,7 @@ fun DeviceDetailScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val appSettings by remember(context) { AppSettings(context.applicationContext).settingsFlow }.collectAsState(initial = AppSettingsData())
     val scope = rememberCoroutineScope()
     val viewModel: DeviceDetailViewModel = viewModel(
         key = deviceIp,
@@ -62,7 +66,7 @@ fun DeviceDetailScreen(
 
     fun copyToClipboard(label: String, value: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
+        val safeValue = when (label) {\n            "IP" -> PrivacyFormatter.ip(value, appSettings.maskNetworkIdentifiers)\n            "MAC" -> PrivacyFormatter.mac(value, appSettings.maskNetworkIdentifiers)\n            else -> value\n        }\n        clipboard.setPrimaryClip(ClipData.newPlainText(label, safeValue))
         Toast.makeText(context, "$label скопирован", Toast.LENGTH_SHORT).show()
     }
 
@@ -136,7 +140,7 @@ fun DeviceDetailScreen(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text("IP-АДРЕС", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
-                            Text(device.ip, style = TechnicalTypography, color = TextPrimary, fontWeight = FontWeight.Medium)
+                            Text(PrivacyFormatter.ip(device.ip, appSettings.maskNetworkIdentifiers), style = TechnicalTypography, color = TextPrimary, fontWeight = FontWeight.Medium)
                         }
                         IconButton(onClick = { copyToClipboard("IP", device.ip) }) {
                             Icon(Icons.Default.ContentCopy, contentDescription = "Скопировать IP", tint = Primary)
@@ -146,7 +150,7 @@ fun DeviceDetailScreen(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text("MAC-АДРЕС", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
-                                Text(device.mac, style = TechnicalTypography, color = TextSecondary)
+                                Text(PrivacyFormatter.mac(device.mac, appSettings.maskNetworkIdentifiers), style = TechnicalTypography, color = TextSecondary)
                             }
                             IconButton(onClick = { copyToClipboard("MAC", device.mac) }) {
                                 Icon(Icons.Default.ContentCopy, contentDescription = "Скопировать MAC", tint = Primary)
@@ -159,8 +163,8 @@ fun DeviceDetailScreen(
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Информация об устройстве", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                     HorizontalDivider(color = Divider)
-                    CopyableInfoRow("IP-адрес", device.ip) { copyToClipboard("IP", device.ip) }
-                    CopyableInfoRow("MAC-адрес", device.mac.ifBlank { "—" }) {
+                    CopyableInfoRow("IP-адрес", PrivacyFormatter.ip(device.ip, appSettings.maskNetworkIdentifiers)) { copyToClipboard("IP", device.ip) }
+                    CopyableInfoRow("MAC-адрес", PrivacyFormatter.mac(device.mac.ifBlank { "—" }, appSettings.maskNetworkIdentifiers)) {
                         if (device.mac.isNotBlank()) copyToClipboard("MAC", device.mac)
                     }
                     InfoRow("Имя хоста", device.hostname.ifBlank { "—" })
