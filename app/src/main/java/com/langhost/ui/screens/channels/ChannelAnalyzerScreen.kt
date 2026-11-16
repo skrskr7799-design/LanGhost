@@ -30,6 +30,8 @@ import com.langhost.data.ChannelAnalyzer
 import com.langhost.data.ChannelLoad
 import com.langhost.data.NetworkRepository
 import com.langhost.data.model.NetworkInfo
+import com.langhost.ui.components.ErrorState
+import com.langhost.ui.components.LoadingState
 import com.langhost.ui.theme.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -181,7 +183,12 @@ private fun SpectrumIntro(
                 when { scanning -> "Сканирование выполняется…"; fresh -> "Данные актуальны. Оценка основана на обнаруженных точках доступа."; completed -> "Показаны последние доступные результаты. Обнови сканирование перед изменением настроек роутера."; else -> "До первого сканирования пустые каналы не считаются свободными." },
                 style = MaterialTheme.typography.bodySmall, color = TextSecondary
             )
-            if (scanning) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Primary)
+            if (scanning) {
+                LoadingState(
+                    title = "Обновляем радиоэфир",
+                    description = "Собираем доступные точки доступа и пересчитываем относительную загрузку каналов."
+                )
+            }
             if (needsPermission) {
                 Button(onClick = onPermission, modifier = Modifier.fillMaxWidth()) { Text("Предоставить разрешения") }
             } else if (!completed || !fresh) {
@@ -189,7 +196,13 @@ private fun SpectrumIntro(
                     Icon(Icons.Default.Radar, null); Spacer(Modifier.width(8.dp)); Text(if (completed) "Обновить анализ" else "Сканировать радиоэфир")
                 }
             }
-            if (error != null) Text(error, style = MaterialTheme.typography.bodySmall, color = Warning)
+            if (error != null) {
+                ErrorState(
+                    title = "Не удалось обновить радиоэфир",
+                    description = error,
+                    onRetry = onScan
+                )
+            }
         }
     }
 }
