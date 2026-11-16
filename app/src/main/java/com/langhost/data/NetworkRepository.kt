@@ -237,7 +237,8 @@ class NetworkRepository(context: Context) {
                 networkScope = networkScope,
                 timeoutMs = timeoutMs,
                 maxTargets = MAX_DISCOVERY_TARGETS,
-                maxConcurrency = MAX_CONCURRENT_HOST_PROBES
+                maxConcurrency = MAX_CONCURRENT_HOST_PROBES,
+                refreshArpEntries = { readArpTable(networkInfo.interfaceName) }
             )
             val arpDevices = discovery.arpAddresses
             val allIps = discovery.ips
