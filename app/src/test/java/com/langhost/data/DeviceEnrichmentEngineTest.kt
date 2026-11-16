@@ -2,6 +2,7 @@ package com.langhost.data
 
 import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
+import com.langhost.data.model.DiscoveryEvidence
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -46,6 +47,7 @@ class DeviceEnrichmentEngineTest {
             legacyNetworkScope = "scope-old",
             localIp = "192.168.1.2",
             gateway = "192.168.1.1",
+            hasTcpResponse = true,
             existing = null,
             existingByStableId = existing,
             now = 200L
@@ -62,6 +64,8 @@ class DeviceEnrichmentEngineTest {
         assertEquals("Server: test", result.httpFingerprint)
         assertEquals(listOf("storage"), result.tags)
         assertEquals(DeviceType.NAS, result.deviceType)
+        assertEquals(200L, result.lastConfirmedOnline)
+        assertEquals(DiscoveryEvidence.TCP_RESPONSE, result.discoveryEvidence)
     }
 
     @Test
@@ -100,6 +104,34 @@ class DeviceEnrichmentEngineTest {
         assertFalse(result.isGateway)
         assertEquals(50L, result.firstSeen)
         assertEquals(0L, result.portsScannedAt)
+        assertEquals(100L, result.lastConfirmedOnline)
+        assertEquals(DiscoveryEvidence.LOCAL_INTERFACE, result.discoveryEvidence)
+    }
+
+    @Test
+    fun arpObservationDoesNotBecomeFreshReachabilityConfirmation() = runBlocking {
+        val engine = DeviceEnrichmentEngine(
+            loadCustomization = { _, _ -> DeviceCustomization() },
+            resolveHostname = { "" },
+            lookupVendor = { "Vendor" }
+        )
+        val result = engine.enrich(
+            ip = "192.168.1.40",
+            mac = "AA:BB:CC:DD:EE:40",
+            bssid = "",
+            networkScope = "scope",
+            legacyNetworkScope = "scope",
+            localIp = "192.168.1.2",
+            gateway = "192.168.1.1",
+            hasTcpResponse = false,
+            existing = null,
+            existingByStableId = null,
+            now = 500L
+        )
+
+        assertEquals(500L, result.lastSeen)
+        assertEquals(0L, result.lastConfirmedOnline)
+        assertEquals(DiscoveryEvidence.ARP_OBSERVATION, result.discoveryEvidence)
     }
 
     @Test
