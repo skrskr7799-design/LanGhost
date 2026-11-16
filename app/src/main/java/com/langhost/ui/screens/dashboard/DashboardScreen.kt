@@ -224,46 +224,20 @@ fun DashboardScreen(
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(LanGhostSpacing.md)) {
-                SectionHeading(title = "Быстрый доступ")
+                SectionHeading(title = "Рабочие области")
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(LanGhostSpacing.sm)
                 ) {
-                    ShortcutTile("Устройства", "Инвентарь сети", Icons.Default.Devices, onNavigateToDevices, Modifier.weight(1f))
-                    ShortcutTile("Топология", "Связи и узлы", Icons.Default.Hub, onNavigateToTopology, Modifier.weight(1f))
+                    ShortcutTile("Устройства", "Инвентарь и активность", Icons.Default.Devices, onNavigateToDevices, Modifier.weight(1f))
+                    ShortcutTile("Топология", "Структура локальной сети", Icons.Default.Hub, onNavigateToTopology, Modifier.weight(1f))
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(LanGhostSpacing.sm)
                 ) {
-                    ShortcutTile("Безопасность", "Аудит сети", Icons.Default.Shield, onNavigateToSecurity, Modifier.weight(1f))
-                    ShortcutTile("Wi-Fi вокруг", "Соседние сети", Icons.Default.WifiFind, onNavigateToNearbyWifi, Modifier.weight(1f))
-                }
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(LanGhostSpacing.md)) {
-                SectionHeading(title = "Инструменты")
-                ShortcutTile("Центр инструментов", "Все средства диагностики и управления", Icons.Default.Build, onNavigateToTools, Modifier.fillMaxWidth())
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(LanGhostSpacing.sm)
-                ) {
-                    ShortcutTile("Каналы", "Анализ эфира", Icons.Default.BarChart, onNavigateToChannels, Modifier.weight(1f))
-                    ShortcutTile("Публичный IP", "Внешняя сеть", Icons.Default.Public, onNavigateToPublicIp, Modifier.weight(1f))
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(LanGhostSpacing.sm)
-                ) {
-                    ShortcutTile("Профили", "Сохранённые сети", Icons.Default.Folder, onNavigateToProfiles, Modifier.weight(1f))
-                    ShortcutTile("Wake-on-LAN", "Пробуждение ПК", Icons.Default.Power, onNavigateToWol, Modifier.weight(1f))
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(LanGhostSpacing.sm)
-                ) {
-                    ShortcutTile("Диагностика", "Ping, DNS и другое", Icons.Default.Build, onNavigateToUtilities, Modifier.weight(1f))
-                    ShortcutTile("Настройки", "Приложение и мониторинг", Icons.Default.Settings, onNavigateToSettings, Modifier.weight(1f))
+                    ShortcutTile("Безопасность", "Состояние и аудит", Icons.Default.Shield, onNavigateToSecurity, Modifier.weight(1f))
+                    ShortcutTile("Инструменты", "Полный набор диагностики", Icons.Default.Build, onNavigateToTools, Modifier.weight(1f))
                 }
             }
             Spacer(modifier = Modifier.height(LanGhostSpacing.xs))
