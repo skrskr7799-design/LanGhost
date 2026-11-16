@@ -14,6 +14,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.langhost.data.AppSettings
+import com.langhost.data.AppSettingsData
+import com.langhost.data.PrivacyFormatter
 import com.langhost.data.NetworkProfile
 import com.langhost.data.NetworkProfiles
 import com.langhost.data.NetworkRepository
@@ -27,6 +30,7 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val store = remember { NetworkProfiles(context) }
     val repo = remember { NetworkRepository.getInstance(context) }
+    val appSettings by remember(context) { AppSettings(context.applicationContext).settingsFlow }.collectAsState(initial = AppSettingsData())
     val profiles by store.profilesFlow.collectAsState(initial = emptyList())
     val activeId by store.activeIdFlow.collectAsState(initial = null)
     val network by repo.networkInfo.collectAsState()
@@ -94,7 +98,7 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(p.name, fontWeight = FontWeight.Medium, color = TextPrimary)
                             Text(
-                                listOf(p.ssid, p.bssid).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "без привязки" },
+                                listOf(p.ssid, PrivacyFormatter.bssid(p.bssid, appSettings.maskNetworkIdentifiers)).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "без привязки" },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary
                             )
@@ -117,7 +121,7 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Название (Дом, Работа…)") }, singleLine = true)
-                        Text("Будет привязан к текущей сети: ${network.ssid} / ${network.bssid}", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
+                        Text("Будет привязан к текущей сети: ${network.ssid} / ${PrivacyFormatter.bssid(network.bssid, appSettings.maskNetworkIdentifiers)}", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
                     }
                 },
                 confirmButton = {
