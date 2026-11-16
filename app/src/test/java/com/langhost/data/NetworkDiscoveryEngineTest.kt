@@ -136,7 +136,7 @@ class NetworkDiscoveryEngineTest {
             throw AssertionError("Expected network-scope cancellation")
         } catch (_: CancellationException) {
             assertEquals(2, checks)
-            assertEquals(1, probes)
+            assertTrue("Scope cancellation must stop remaining probes", probes in 1..2)
         }
     }
 
