@@ -84,6 +84,20 @@ class DeviceTest {
     }
 
     @Test
+    fun arpObservationAloneDoesNotMakeDeviceOnline() {
+        val observedAt = System.currentTimeMillis()
+        val device = Device(
+            ip = "192.168.1.40",
+            mac = "AA:BB:CC:DD:EE:40",
+            lastSeen = observedAt,
+            lastConfirmedOnline = 0L,
+            discoveryEvidence = DiscoveryEvidence.ARP_OBSERVATION
+        )
+
+        assertFalse(device.isOnline)
+    }
+
+    @Test
     fun deviceClassificationUsesKnownSignals() {
         assertEquals(DeviceType.ROUTER, Device.guessType(emptyList(), "", "", true))
         assertEquals(DeviceType.PRINTER, Device.guessType(listOf(9100), "", "", false))
