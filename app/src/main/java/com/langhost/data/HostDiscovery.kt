@@ -7,7 +7,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Bounded host discovery orchestration.
@@ -28,12 +29,12 @@ internal object HostDiscovery {
         require(maxConcurrency > 0) { "maxConcurrency must be positive" }
         if (items.isEmpty()) return emptyList()
         val semaphore = Semaphore(maxConcurrency)
-        val scheduled = AtomicInteger(0)
+        val scopeGate = ScopeCheckGate(maxConcurrency, beforeBatch)
         return coroutineScope {
             items.map { item ->
                 async {
                     semaphore.withPermit {
-                        if (scheduled.getAndIncrement() % maxConcurrency == 0) beforeBatch()
+                        scopeGate.check()
                         transform(item)
                     }
                 }
@@ -53,13 +54,13 @@ internal object HostDiscovery {
         val budget = timeoutMs.coerceIn(100, 500) * 2
         val uniqueCandidates = candidates.asSequence().filter { it.isNotBlank() }.distinct().toList()
         val semaphore = Semaphore(maxConcurrency)
-        val scheduled = AtomicInteger(0)
+        val scopeGate = ScopeCheckGate(maxConcurrency, beforeBatch)
 
         suspend fun runPass(targets: List<String>, passBudget: Int): Set<String> = coroutineScope {
             targets.map { ip ->
                 async(Dispatchers.IO) {
                     semaphore.withPermit {
-                        if (scheduled.getAndIncrement() % maxConcurrency == 0) beforeBatch()
+                        scopeGate.check()
                         if (ip == localIp) return@withPermit ip
                         try {
                             if (probe(ip, passBudget)) ip else null
@@ -81,4 +82,20 @@ internal object HostDiscovery {
         val secondPass = runPass(retryCandidates, budget.coerceAtMost(500))
         return firstPass + secondPass
     }
+
+    private class ScopeCheckGate(
+        private val windowSize: Int,
+        private val beforeWindow: suspend () -> Unit
+    ) {
+        private val mutex = Mutex()
+        private var admitted = 0
+
+        suspend fun check() {
+            mutex.withLock {
+                if (admitted % windowSize == 0) beforeWindow()
+                admitted++
+            }
+        }
+    }
+
 }
