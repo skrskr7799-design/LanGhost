@@ -456,4 +456,19 @@ Regression tests cover:
 - local-interface presence remains confirmed;
 - gateway evidence is classified independently from a passive MAC observation.
 
-This is an implementation checkpoint only. Full CI for the current branch head and physical retest remain pending. The six-port probe currently counts successful TCP connections as positive response; connection-refused/RST interpretation is not yet included. NSD/mDNS remains a possible complementary discovery path, not a universal LAN inventory guarantee.
+This is an implementation checkpoint only. Full CI for the current branch head and physical retest remain pending. The six-port probe currently counts successful TCP connections as positive response; connection-refused/RST interpretation is not yet included. NSD/mDNS has since been implemented as a complementary discovery path; it is not a universal LAN inventory guarantee.
+
+
+### Phase 7.2 — DNS-SD / NSD complementary discovery checkpoint (2026-11-16)
+
+A bounded Android NSD adapter is now integrated into the active-network scan. It concurrently listens for a fixed set of common DNS-SD service types (HTTP, HTTPS, SSH, SMB, Google Cast, AirPlay and IPP), resolves advertised services to IPv4 addresses, deduplicates service observations, caps outstanding resolutions, and limits each discovery listener to a bounded startup/window/grace period. Discovery listeners are stopped in `finally`; scan cancellation propagates, and the legacy multicast lock is acquired only on Android versions that still require it and released in `finally`.
+
+Resolved addresses are filtered against the active IPv4 subnet before they can enter the device inventory. The engine runs the NSD pass alongside the post-probe ARP refresh and revalidates network scope before publishing the merged result. NSD is carried as its own `NSD_SERVICE_OBSERVATION` evidence type rather than being mislabeled as a TCP response. The device inventory displays this source as **mDNS / DNS-SD**.
+
+Regression tests cover:
+- inclusion of DNS-SD observations only when their resolved IPv4 address belongs to the active subnet;
+- keeping NSD evidence distinct from TCP evidence while recording a positive service-resolution observation.
+
+**Limitations:** DNS-SD discovers only devices that advertise one of the supported service types and respond to resolution. Phones, TVs, computers and IoT devices may advertise different services, disable mDNS, use multicast filtering/client isolation, or be asleep. A resolved service does not identify the device OS or guarantee a complete inventory. The current fixed service-type list is intentionally bounded and will be reviewed against real-device results. Android target SDK remains 35; the future Android 17 local-network permission migration must be handled before targeting API 37.
+
+**Status:** implementation checkpoint only. Lint, unit tests, APK builds and artifact upload are pending on the updated branch head. Phase 7 remains IN PROGRESS; physical home-LAN retest is still mandatory.
