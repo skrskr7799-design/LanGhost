@@ -195,3 +195,13 @@ These screens now have distinct information hierarchies instead of being simple 
 - [x] Made the primary scan control request the required permission when needed, and start discovery only after permission is granted.
 - [x] Corrected the LanGhost header network-orbit indicator to reflect the actual connection state instead of always appearing connected.
 - [ ] Verify first-run, permission-denied, permission-granted and scan-start flows on Android; run full CI.
+
+
+### 2026-11-16 — shared operation-state foundation
+
+- [x] Added reusable loading, retryable error and data-quality notice primitives with the LanGhost visual language.
+- [x] Added explicit informational/warning tone handling for stale or partial evidence messaging.
+- [x] Kept the existing empty-state component and introduced focused primitives rather than a generic component with many style flags.
+- [ ] Apply the shared primitives to dashboard, device inventory, Wi-Fi, Security and diagnostic workflows.
+- [ ] Audit every operation for loading, permission-denied, partial, stale, empty, recoverable-error and success states.
+- [ ] Add focused UI/state tests where the current test setup supports deterministic Compose coverage.
