@@ -19,10 +19,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.langhost.data.AppSettings
 import com.langhost.data.AppSettingsData
+import com.langhost.data.ProfileConnectionMatch
+import com.langhost.data.matchNetworkProfile
 import com.langhost.data.NetworkProfile
 import com.langhost.data.NetworkProfiles
 import com.langhost.data.NetworkRepository
-import com.langhost.data.model.NetworkInfo
 import com.langhost.data.PrivacyFormatter
 import com.langhost.ui.components.ContentPanel
 import com.langhost.ui.components.EmptyState
@@ -119,7 +120,7 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
                                     ProfileRow(
                                         profile = profile,
                                         active = profile.id == activeId,
-                                        connectionMatch = connectionMatch(profile, network),
+                                        connectionMatch = matchNetworkProfile(profile, network),
                                         selected = profile.id == selected?.id,
                                         mask = mask,
                                         onClick = { selectedId = profile.id },
@@ -139,7 +140,7 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
                             ProfileDetailPanel(
                                 profile = selected,
                                 active = selected.id == activeId,
-                                connectionMatch = connectionMatch(selected, network),
+                                connectionMatch = matchNetworkProfile(selected, network),
                                 mask = mask,
                                 onActivate = { scope.launch { store.setActive(selected.id) } },
                                 onDelete = {
@@ -365,11 +366,3 @@ private fun ProfileValue(label: String, value: String, technical: Boolean = fals
 }
 
 
-private enum class ProfileConnectionMatch { None, SsidOnly, Exact }
-
-private fun connectionMatch(profile: NetworkProfile, network: NetworkInfo): ProfileConnectionMatch {
-    if (!network.isConnected || profile.ssid.isBlank() || network.ssid.isBlank() || network.ssid == "—") return ProfileConnectionMatch.None
-    if (profile.ssid != network.ssid) return ProfileConnectionMatch.None
-    if (profile.bssid.isNotBlank() && network.bssid.isNotBlank()) return if (profile.bssid.equals(network.bssid, ignoreCase = true)) ProfileConnectionMatch.Exact else ProfileConnectionMatch.None
-    return ProfileConnectionMatch.SsidOnly
-}
