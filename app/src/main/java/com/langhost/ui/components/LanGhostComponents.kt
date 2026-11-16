@@ -1,5 +1,7 @@
 package com.langhost.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -20,10 +22,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -155,7 +157,12 @@ fun MetricTile(
         border = BorderStroke(1.dp, Border.copy(alpha = 0.78f))
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 15.dp),
+            modifier = Modifier
+                .background(
+                    Brush.linearGradient(listOf(SurfaceHighlight.copy(alpha = 0.32f), PanelColor)),
+                    RoundedCornerShape(18.dp)
+                )
+                .padding(horizontal = 16.dp, vertical = 15.dp),
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             Text(
@@ -194,7 +201,14 @@ fun ContentPanel(
         shape = RoundedCornerShape(22.dp),
         border = BorderStroke(1.dp, Border.copy(alpha = 0.72f))
     ) {
-        Box(modifier = Modifier.padding(18.dp)) {
+        Box(
+            modifier = Modifier
+                .background(
+                    Brush.linearGradient(listOf(SurfaceHighlight.copy(alpha = 0.34f), PanelColor)),
+                    RoundedCornerShape(22.dp)
+                )
+                .padding(18.dp)
+        ) {
             content()
         }
     }
@@ -311,6 +325,11 @@ fun SecurityScoreDial(
         score >= 50 -> Warning
         else -> Danger
     }
+    val animatedSweep by animateFloatAsState(
+        targetValue = (score ?: 0).coerceIn(0, 100) * 3.6f,
+        animationSpec = tween(durationMillis = 560),
+        label = "security-score-sweep"
+    )
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.size(116.dp).padding(5.dp)) {
             drawArc(
@@ -324,7 +343,7 @@ fun SecurityScoreDial(
                 drawArc(
                     color = tint,
                     startAngle = -90f,
-                    sweepAngle = score.coerceIn(0, 100) * 3.6f,
+                    sweepAngle = animatedSweep,
                     useCenter = false,
                     style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
                 )

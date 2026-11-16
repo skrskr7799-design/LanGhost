@@ -103,3 +103,27 @@ Each slice must pass Lint, unit tests and Debug APK build; full CI (including Re
 - Touch targets, contrast, TalkBack semantics and system font scaling are reviewed.
 - No sensitive identifiers leak through masking, screenshots, clipboard, reports or exports.
 - CI remains green and the app remains usable on supported Android API levels.
+
+
+## Implementation log — premium visual pass
+
+### 2026-11-16 — visual foundation and first screen-wide pass
+
+- [x] Replaced the generic dark palette with a graphite / arctic-blue / signal-cyan identity and restrained semantic status colors.
+- [x] Rebuilt the typography scale with expressive editorial headings and a dedicated monospace style for network identifiers and technical values.
+- [x] Added a coherent Material shape scale and upgraded shared page headings, metrics, status indicators, panels and empty states.
+- [x] Created the LanGhost network-orbit signature graphic and introduced it into the overview and expanded navigation identity.
+- [x] Reworked the overview network hero with the signature graphic, ambient background treatment and clearer technical hierarchy.
+- [x] Applied the visual language to Devices, Device Detail, Topology, Nearby Wi-Fi, Security, Channel Analysis, Public IP, Network Profiles, Wake-on-LAN, Utilities and Settings.
+- [x] Added a technical grid to the topology visualization while retaining the explicit logical-grouping disclaimer.
+- [x] Added an animated evidence-aware security score dial; an unavailable score remains visually unavailable rather than being replaced with a guessed value.
+
+### Remaining visual acceptance work
+
+- [ ] Complete a composition pass on each screen; avoid relying on color and shape changes alone.
+- [ ] Build adaptive large-screen layouts with useful multi-pane content and verify phone / tablet / landscape separately.
+- [ ] Unify permission, loading, stale, partial, empty and error states with consistent hierarchy and retry affordances.
+- [ ] Implement end-to-end privacy masking for identifiers across display, copy, share and export.
+- [ ] Add purposeful transitions and scan feedback; keep motion restrained and respect reduced-motion / system animation settings where available.
+- [ ] Review accessibility semantics, touch targets, contrast, TalkBack and system font scaling.
+- [ ] Capture and review real screenshots on phone and tablet; visual sign-off is required before the redesign phase is considered complete.
