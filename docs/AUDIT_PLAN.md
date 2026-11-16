@@ -1,6 +1,6 @@
 # LanGhost — Engineering Roadmap & Audit Register
 
-> Status: Phases 1–4 complete; Phase 5 final-polish implementation in progress; physical-device validation tracked separately in Phase 6
+> Status: Phases 1–4 complete; Phase 5 implementation complete pending final CI; physical-device validation tracked separately in Phase 6
 > Baseline branch: main
 > Baseline commit reviewed: e581fd0523aa90fd57a9338ac8eaae4e5a17408f (merge of PR #1)
 > Working branch: work/phase-5-final-polish
