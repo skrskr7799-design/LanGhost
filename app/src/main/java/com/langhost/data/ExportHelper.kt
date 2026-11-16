@@ -10,7 +10,7 @@ import java.util.Locale
 
 object ExportHelper {
 
-    fun exportDevicesAsText(context: Context, devices: List<Device>): Intent? {
+    fun exportDevicesAsText(context: Context, devices: List<Device>, maskIdentifiers: Boolean = false): Intent? {
         return try {
             val sdf = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.getDefault())
             val timeStr = sdf.format(Date())
@@ -25,8 +25,8 @@ object ExportHelper {
 
                 devices.forEachIndexed { index, device ->
                     appendLine("${index + 1}. ${device.displayName}")
-                    appendLine("   IP:      ${device.ip}")
-                    appendLine("   MAC:     ${device.mac.ifBlank { "—" }}")
+                    appendLine("   IP:      ${PrivacyFormatter.ip(device.ip, maskIdentifiers)}")
+                    appendLine("   MAC:     ${PrivacyFormatter.mac(device.mac.ifBlank { "—" }, maskIdentifiers)}")
                     appendLine("   Vendor:  ${device.vendor.ifBlank { "—" }}")
                     appendLine("   Host:    ${device.hostname.ifBlank { "—" }}")
                     appendLine("   OS:      ${device.osGuess.ifBlank { "—" }}")
@@ -73,7 +73,7 @@ object ExportHelper {
         return "\"" + safe.replace("\"", "\"\"") + "\""
     }
 
-    fun exportDevicesAsCsv(context: Context, devices: List<Device>): Intent? {
+    fun exportDevicesAsCsv(context: Context, devices: List<Device>, maskIdentifiers: Boolean = false): Intent? {
         return try {
             val timeStr = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.getDefault()).format(Date())
             val fileName = "langhost_devices_$timeStr.csv"
@@ -83,8 +83,8 @@ object ExportHelper {
                 devices.forEach { d ->
                     appendLine(
                         listOf(
-                            d.ip,
-                            d.mac,
+                            PrivacyFormatter.ip(d.ip, maskIdentifiers),
+                            PrivacyFormatter.mac(d.mac, maskIdentifiers),
                             d.hostname,
                             d.vendor,
                             d.osGuess,
