@@ -34,7 +34,7 @@ fun PingHistorySection(ip: String) {
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Ping-история", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                Text("История TCP-отклика", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                 Button(
                     onClick = {
                         scope.launch {
@@ -47,7 +47,7 @@ fun PingHistorySection(ip: String) {
                     enabled = !probing,
                     colors = ButtonDefaults.buttonColors(containerColor = Primary)
                 ) {
-                    Text(if (probing) "..." else "Ping")
+                    Text(if (probing) "Проверка..." else "Проверить")
                 }
             }
 
