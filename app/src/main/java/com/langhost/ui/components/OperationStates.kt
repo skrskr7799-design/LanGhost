@@ -26,6 +26,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.semantics
 import com.langhost.ui.theme.AccentCyan
 import com.langhost.ui.theme.Border
 import com.langhost.ui.theme.Danger
@@ -45,7 +47,7 @@ fun LoadingState(
     description: String? = null,
     modifier: Modifier = Modifier
 ) {
-    StateSurface(modifier = modifier) {
+    StateSurface(modifier = modifier, liveRegion = LiveRegionMode.Polite) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -74,7 +76,7 @@ fun ErrorState(
     retryLabel: String = "Повторить",
     modifier: Modifier = Modifier
 ) {
-    StateSurface(modifier = modifier, accent = Danger) {
+    StateSurface(modifier = modifier, accent = Danger, liveRegion = LiveRegionMode.Assertive) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top
@@ -119,7 +121,7 @@ fun DataQualityNotice(
         DataNoticeTone.Info -> Icons.Default.Info
         DataNoticeTone.Warning -> Icons.Default.Warning
     }
-    StateSurface(modifier = modifier, accent = tint) {
+    StateSurface(modifier = modifier, accent = tint, liveRegion = LiveRegionMode.Polite) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top
@@ -143,10 +145,13 @@ fun DataQualityNotice(
 private fun StateSurface(
     modifier: Modifier = Modifier,
     accent: Color = AccentCyan,
+    liveRegion: LiveRegionMode? = null,
     content: @Composable () -> Unit
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().then(
+            liveRegion?.let { mode -> Modifier.semantics { this.liveRegion = mode } } ?: Modifier
+        ),
         color = PanelColor,
         shape = RoundedCornerShape(18.dp),
         border = BorderStroke(1.dp, accent.copy(alpha = 0.24f))
