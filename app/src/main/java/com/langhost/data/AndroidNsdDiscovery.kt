@@ -14,6 +14,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.Inet4Address
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -123,10 +124,12 @@ internal class AndroidNsdDiscovery(context: Context) {
                 NsdManager.PROTOCOL_DNS_SD,
                 listener
             )
-            started.await()
-            delay(DISCOVERY_WINDOW_MS)
-            // Give service-resolution callbacks a short bounded opportunity to finish.
-            delay(RESOLUTION_GRACE_MS)
+            withTimeoutOrNull(START_TIMEOUT_MS + DISCOVERY_WINDOW_MS + RESOLUTION_GRACE_MS) {
+                started.await()
+                delay(DISCOVERY_WINDOW_MS)
+                // Give service-resolution callbacks a short bounded opportunity to finish.
+                delay(RESOLUTION_GRACE_MS)
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -161,6 +164,7 @@ internal class AndroidNsdDiscovery(context: Context) {
             "_airplay._tcp.",
             "_ipp._tcp."
         )
+        const val START_TIMEOUT_MS = 2_000L
         const val DISCOVERY_WINDOW_MS = 1_500L
         const val RESOLUTION_GRACE_MS = 300L
         const val MAX_PENDING_RESOLUTIONS = 12
