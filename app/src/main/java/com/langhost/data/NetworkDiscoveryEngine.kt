@@ -70,7 +70,8 @@ internal class NetworkDiscoveryEngine(
 
         return NetworkDiscoverySnapshot(
             ips = endpoints,
-            tcpResponsiveIps = discoveredIps,
+            // HostDiscovery includes the local address without probing it; it is not a TCP response.
+            tcpResponsiveIps = discoveredIps - localIp,
             arpAddresses = allArpEntries,
             coverage = coverage
         )
