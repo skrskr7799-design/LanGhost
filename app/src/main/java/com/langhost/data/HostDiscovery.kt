@@ -5,6 +5,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 /**
  * Bounded host discovery orchestration.
@@ -24,11 +26,16 @@ internal object HostDiscovery {
     ): List<R> {
         require(maxConcurrency > 0) { "maxConcurrency must be positive" }
         if (items.isEmpty()) return emptyList()
+        val semaphore = Semaphore(maxConcurrency)
         return coroutineScope {
-            items.chunked(maxConcurrency).flatMap { batch ->
-                beforeBatch()
-                batch.map { item -> async { transform(item) } }.awaitAll()
-            }
+            items.map { item ->
+                async {
+                    semaphore.withPermit {
+                        beforeBatch()
+                        transform(item)
+                    }
+                }
+            }.awaitAll()
         }
     }
 
@@ -41,28 +48,35 @@ internal object HostDiscovery {
         probe: suspend (ip: String, budgetMs: Int) -> Boolean
     ): Set<String> {
         require(maxConcurrency > 0) { "maxConcurrency must be positive" }
-        val budget = timeoutMs.coerceIn(50, 500) * 2
+        val budget = timeoutMs.coerceIn(100, 500) * 2
         val uniqueCandidates = candidates.asSequence().filter { it.isNotBlank() }.distinct().toList()
+        val semaphore = Semaphore(maxConcurrency)
 
-        return coroutineScope {
-            val alive = LinkedHashSet<String>()
-            for (batch in uniqueCandidates.chunked(maxConcurrency)) {
-                beforeBatch()
-                val results = batch.map { ip ->
-                    async(Dispatchers.IO) {
-                        if (ip == localIp) return@async ip
+        suspend fun runPass(targets: List<String>, passBudget: Int): Set<String> = coroutineScope {
+            targets.map { ip ->
+                async(Dispatchers.IO) {
+                    semaphore.withPermit {
+                        beforeBatch()
+                        if (ip == localIp) return@withPermit ip
                         try {
-                            if (probe(ip, budget)) ip else null
+                            if (probe(ip, passBudget)) ip else null
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (_: Exception) {
                             null
                         }
                     }
-                }.awaitAll()
-                alive.addAll(results.filterNotNull())
-            }
-            alive
+                }
+            }.awaitAll().filterNotNull().toSet()
         }
+
+        val firstPass = runPass(uniqueCandidates, budget)
+        val retryCandidates = uniqueCandidates.filter { it != localIp && it !in firstPass }
+        if (retryCandidates.isEmpty()) return firstPass
+        // A short second attempt gives sleeping Wi-Fi clients another chance without
+        // doubling the full per-host timeout budget.
+        val secondPass = runPass(retryCandidates, budget.coerceAtMost(500))
+        return firstPass + secondPass
     }
+}
 }
