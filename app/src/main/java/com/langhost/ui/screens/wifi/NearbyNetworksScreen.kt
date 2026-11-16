@@ -23,6 +23,7 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.langhost.data.NetworkRepository
 import com.langhost.data.model.WifiNetwork
 import com.langhost.ui.theme.*
+import com.langhost.ui.theme.TechnicalTypography
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -121,7 +122,7 @@ fun NearbyNetworksScreen(onBack: () -> Unit) {
             TopAppBar(
                 title = {
                     Column {
-                        Text("Соседние сети", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                        Text("Соседние сети", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                         Text(
                             if (networks.isNotEmpty()) "${networks.size} обнаружено · $lastScanLabel" else "Wi-Fi окружение",
                             style = MaterialTheme.typography.bodySmall,
@@ -331,7 +332,8 @@ private fun WifiNetworkCard(network: WifiNetwork) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = if (network.isCurrent) Primary.copy(alpha = 0.12f) else Surface),
-        shape = RoundedCornerShape(14.dp)
+        shape = RoundedCornerShape(18.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (network.isCurrent) Primary.copy(alpha = 0.55f) else Border.copy(alpha = 0.72f))
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -381,7 +383,7 @@ private fun WifiTag(text: String, tint: androidx.compose.ui.graphics.Color) {
 private fun WifiDetail(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = TextTertiary)
-        Text(value, style = MaterialTheme.typography.bodySmall, color = TextSecondary, maxLines = 1)
+        Text(value, style = TechnicalTypography, color = TextSecondary, maxLines = 1)
     }
 }
 
