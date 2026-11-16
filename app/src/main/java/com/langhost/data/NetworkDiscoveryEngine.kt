@@ -59,7 +59,7 @@ internal class NetworkDiscoveryEngine(
             val arpRefresh = async { refreshArpEntries() }
             val nsdDiscovery = async {
                 try {
-                    discoverNsdServiceIps()
+                    if (subnet != null) discoverNsdServiceIps() else emptySet()
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
@@ -71,7 +71,7 @@ internal class NetworkDiscoveryEngine(
         }
         ensureCurrentNetworkScope(networkScope)
         val scopedNsdServiceIps = subnet?.let { currentSubnet ->
-            nsdServiceIps.filter(currentSubnet::contains).toSet()
+            nsdServiceIps.asSequence().filter(currentSubnet::contains).take(MAX_NSD_HOSTS).toSet()
         }.orEmpty()
         val allArpEntries = (scopedArpEntries + (subnet?.let { currentSubnet ->
             refreshedArpEntries.filterKeys(currentSubnet::contains)
@@ -98,6 +98,8 @@ internal class NetworkDiscoveryEngine(
         )
     }
 }
+
+private const val MAX_NSD_HOSTS = 256
 
 internal data class NetworkDiscoverySnapshot(
     val ips: Set<String>,
