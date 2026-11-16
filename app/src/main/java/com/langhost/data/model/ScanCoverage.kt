@@ -16,6 +16,8 @@ data class ScanCoverage(
     val dnsSdResolvedHosts: Int = 0,
     /** Hosts that returned a valid SSDP/UPnP discovery response. */
     val ssdpResponsiveHosts: Int = 0,
+    /** Hosts confirmed by the best-effort interface-bound IP reachability probe. */
+    val reachabilityResponsiveHosts: Int = 0,
     /** Whether /proc/net/arp could be read during this scan; null means not checked. */
     val arpAvailable: Boolean? = null
 ) {
