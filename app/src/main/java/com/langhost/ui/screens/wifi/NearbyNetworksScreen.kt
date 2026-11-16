@@ -28,6 +28,9 @@ import com.langhost.data.AppSettings
 import com.langhost.data.AppSettingsData
 import com.langhost.data.PrivacyFormatter
 import com.langhost.data.model.WifiNetwork
+import com.langhost.ui.components.DataNoticeTone
+import com.langhost.ui.components.DataQualityNotice
+import com.langhost.ui.components.ErrorState
 import com.langhost.ui.theme.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -230,7 +233,13 @@ private fun NetworkInventory(
             Text("Для сканирования требуется разрешение Android.", color = Warning, style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = onPermission) { Text("Предоставить разрешения") }
         }
-        if (error != null) Text(error, color = Warning, style = MaterialTheme.typography.bodySmall)
+        if (error != null) {
+            ErrorState(
+                title = "Сканирование не завершено",
+                description = error,
+                onRetry = onScan
+            )
+        }
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 20.dp, top = 4.dp),
@@ -270,11 +279,28 @@ private fun WifiEnvironmentPanel(
                 WifiMetric("6 ГГц", count6.toString(), Modifier.weight(1f))
             }
             if (scanning) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Primary)
+            if (completed && !fresh && total > 0 && !scanning) {
+                DataQualityNotice(
+                    title = "Данные могут быть устаревшими",
+                    description = "Последний снимок радиоэфира не обновлялся более пяти минут.",
+                    tone = DataNoticeTone.Warning
+                )
+            }
             if (total == 0 && !scanning) {
-                Text("Пустой результат не доказывает отсутствие сетей поблизости. Запусти новое сканирование.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                DataQualityNotice(
+                    title = if (completed) "Нет подтверждённых результатов" else "Сканирование ещё не выполнялось",
+                    description = "Пустой результат не доказывает отсутствие сетей поблизости. Запустите сканирование, чтобы получить актуальные данные.",
+                    tone = DataNoticeTone.Info
+                )
                 Button(onClick = onScan, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Radar, null); Spacer(Modifier.width(8.dp)); Text("Начать сканирование") }
             }
-            if (error != null) Text(error, style = MaterialTheme.typography.bodySmall, color = Warning)
+            if (error != null) {
+                ErrorState(
+                    title = "Сканирование не завершено",
+                    description = error,
+                    onRetry = onScan
+                )
+            }
         }
     }
 }
