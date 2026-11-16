@@ -22,6 +22,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.langhost.data.NetworkRepository
+import com.langhost.data.AppSettings
+import com.langhost.data.AppSettingsData
+import com.langhost.data.PrivacyFormatter
 import com.langhost.data.SecurityAudit
 import com.langhost.data.SecurityFinding
 import com.langhost.data.network.NetworkIdentity
@@ -35,6 +38,7 @@ fun SecurityScreen(
 ) {
     val context = LocalContext.current
     val repo = remember { NetworkRepository.getInstance(context) }
+    val appSettings by remember(context) { AppSettings(context.applicationContext).settingsFlow }.collectAsState(initial = AppSettingsData())
     val scope = rememberCoroutineScope()
     var evidenceNow by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -275,7 +279,7 @@ fun SecurityScreen(
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text(accessPoint.ssid, fontWeight = FontWeight.Medium, color = TextPrimary)
                             Text(
-                                "${accessPoint.bssid} · ${accessPoint.security} · ${accessPoint.signalDbm} dBm",
+                                "${PrivacyFormatter.bssid(accessPoint.bssid, appSettings.maskNetworkIdentifiers)} · ${accessPoint.security} · ${accessPoint.signalDbm} dBm",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary
                             )
