@@ -161,8 +161,8 @@ fun DashboardScreen(
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
                     .widthIn(max = 1120.dp)
+                    .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
                     .background(
                         Brush.radialGradient(
@@ -183,71 +183,146 @@ fun DashboardScreen(
                 PermissionNotice(onRequest = { permissionState.launchMultiplePermissionRequest() })
             }
 
-            NetworkOverview(
-                isConnected = network.isConnected,
-                ssid = network.ssid,
-                gateway = network.gateway,
-                ipAddress = network.ipAddress,
-                channel = network.channel
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(LanGhostSpacing.sm)
-            ) {
-                MetricTile(
-                    label = "Устройства онлайн",
-                    value = if (state.devices.isEmpty() && state.lastScanTime == 0L) "—"
-                    else state.devices.count { it.isOnline }.toString(),
-                    detail = if (state.devices.isEmpty() && state.lastScanTime == 0L) "Ещё не сканировали"
-                    else "из ${state.devices.size} обнаруженных",
-                    accent = AccentCyan,
-                    modifier = Modifier.weight(1f)
-                )
-                MetricTile(
-                    label = "Уровень сигнала",
-                    value = if (network.signalDbm != 0) "${network.signalDbm}" else "—",
-                    detail = if (network.signalDbm != 0) "dBm · Wi-Fi" else "Нет данных",
-                    accent = Primary,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            ScanControl(
-                isScanning = state.isScanning,
-                hasScanned = state.lastScanTime > 0L,
-                onScan = { viewModel.startScan() }
-            )
-
-            if (state.scanCoverage.scannedAt > 0L) {
-                CoveragePanel(
-                    checked = state.scanCoverage.checkedAddresses,
-                    total = state.scanCoverage.totalUsableAddresses,
-                    percent = state.scanCoverage.coveragePercent,
-                    subnet = state.scanCoverage.subnetCidr,
-                    truncated = state.scanCoverage.truncated
-                )
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(LanGhostSpacing.md)) {
-                SectionHeading(title = "Рабочие области")
+            if (maxWidth >= 840.dp) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(LanGhostSpacing.sm)
+                    horizontalArrangement = Arrangement.spacedBy(LanGhostSpacing.xl),
+                    verticalAlignment = Alignment.Top
                 ) {
-                    ShortcutTile("Устройства", "Инвентарь и активность", Icons.Default.Devices, onNavigateToDevices, Modifier.weight(1f))
-                    ShortcutTile("Топология", "Структура локальной сети", Icons.Default.Hub, onNavigateToTopology, Modifier.weight(1f))
+                    Column(
+                        modifier = Modifier.weight(1.15f),
+                        verticalArrangement = Arrangement.spacedBy(LanGhostSpacing.lg)
+                    ) {
+                        NetworkOverview(
+                            isConnected = network.isConnected,
+                            ssid = network.ssid,
+                            gateway = network.gateway,
+                            ipAddress = network.ipAddress,
+                            channel = network.channel
+                        )
+                        DashboardMetrics(
+                            totalDevices = state.devices.size,
+                            onlineDevices = if (state.devices.isEmpty() && state.lastScanTime == 0L) null
+                                else state.devices.count { it.isOnline },
+                            signalDbm = network.signalDbm
+                        )
+                        if (state.scanCoverage.scannedAt > 0L) {
+                            CoveragePanel(
+                                checked = state.scanCoverage.checkedAddresses,
+                                total = state.scanCoverage.totalUsableAddresses,
+                                percent = state.scanCoverage.coveragePercent,
+                                subnet = state.scanCoverage.subnetCidr,
+                                truncated = state.scanCoverage.truncated
+                            )
+                        }
+                    }
+                    Column(
+                        modifier = Modifier.weight(0.85f),
+                        verticalArrangement = Arrangement.spacedBy(LanGhostSpacing.lg)
+                    ) {
+                        ScanControl(
+                            isScanning = state.isScanning,
+                            hasScanned = state.lastScanTime > 0L,
+                            onScan = { viewModel.startScan() }
+                        )
+                        WorkspaceShortcuts(
+                            onDevices = onNavigateToDevices,
+                            onTopology = onNavigateToTopology,
+                            onSecurity = onNavigateToSecurity,
+                            onTools = onNavigateToTools
+                        )
+                    }
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(LanGhostSpacing.sm)
-                ) {
-                    ShortcutTile("Безопасность", "Состояние и аудит", Icons.Default.Shield, onNavigateToSecurity, Modifier.weight(1f))
-                    ShortcutTile("Инструменты", "Полный набор диагностики", Icons.Default.Build, onNavigateToTools, Modifier.weight(1f))
+            } else {
+                NetworkOverview(
+                    isConnected = network.isConnected,
+                    ssid = network.ssid,
+                    gateway = network.gateway,
+                    ipAddress = network.ipAddress,
+                    channel = network.channel
+                )
+                DashboardMetrics(
+                    totalDevices = state.devices.size,
+                    onlineDevices = if (state.devices.isEmpty() && state.lastScanTime == 0L) null
+                        else state.devices.count { it.isOnline },
+                    signalDbm = network.signalDbm
+                )
+                ScanControl(
+                    isScanning = state.isScanning,
+                    hasScanned = state.lastScanTime > 0L,
+                    onScan = { viewModel.startScan() }
+                )
+                if (state.scanCoverage.scannedAt > 0L) {
+                    CoveragePanel(
+                        checked = state.scanCoverage.checkedAddresses,
+                        total = state.scanCoverage.totalUsableAddresses,
+                        percent = state.scanCoverage.coveragePercent,
+                        subnet = state.scanCoverage.subnetCidr,
+                        truncated = state.scanCoverage.truncated
+                    )
                 }
+                WorkspaceShortcuts(
+                    onDevices = onNavigateToDevices,
+                    onTopology = onNavigateToTopology,
+                    onSecurity = onNavigateToSecurity,
+                    onTools = onNavigateToTools
+                )
             }
             Spacer(modifier = Modifier.height(LanGhostSpacing.xs))
             }
+        }
+    }
+}
+
+@Composable
+private fun DashboardMetrics(
+    totalDevices: Int,
+    onlineDevices: Int?,
+    signalDbm: Int
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(LanGhostSpacing.sm)
+    ) {
+        MetricTile(
+            label = "Устройства онлайн",
+            value = onlineDevices?.toString() ?: "—",
+            detail = if (onlineDevices == null) "Ещё не сканировали" else "из $totalDevices обнаруженных",
+            accent = AccentCyan,
+            modifier = Modifier.weight(1f)
+        )
+        MetricTile(
+            label = "Уровень сигнала",
+            value = if (signalDbm != 0) "$signalDbm" else "—",
+            detail = if (signalDbm != 0) "dBm · Wi-Fi" else "Нет данных",
+            accent = Primary,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun WorkspaceShortcuts(
+    onDevices: () -> Unit,
+    onTopology: () -> Unit,
+    onSecurity: () -> Unit,
+    onTools: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(LanGhostSpacing.md)) {
+        SectionHeading(title = "Рабочие области")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(LanGhostSpacing.sm)
+        ) {
+            ShortcutTile("Устройства", "Инвентарь и активность", Icons.Default.Devices, onDevices, Modifier.weight(1f))
+            ShortcutTile("Топология", "Структура локальной сети", Icons.Default.Hub, onTopology, Modifier.weight(1f))
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(LanGhostSpacing.sm)
+        ) {
+            ShortcutTile("Безопасность", "Состояние и аудит", Icons.Default.Shield, onSecurity, Modifier.weight(1f))
+            ShortcutTile("Инструменты", "Полный набор диагностики", Icons.Default.Build, onTools, Modifier.weight(1f))
         }
     }
 }
