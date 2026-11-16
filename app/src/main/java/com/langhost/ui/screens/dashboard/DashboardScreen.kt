@@ -47,7 +47,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -116,12 +115,6 @@ fun DashboardScreen(
     }
     val permissionState = rememberMultiplePermissionsState(permissions)
 
-    LaunchedEffect(Unit) {
-        if (!permissionState.allPermissionsGranted) {
-            permissionState.launchMultiplePermissionRequest()
-        }
-    }
-
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -129,7 +122,7 @@ fun DashboardScreen(
                 title = {
                     Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            NetworkOrbit(isConnected = true, modifier = Modifier.size(30.dp))
+                            NetworkOrbit(isConnected = network.isConnected, modifier = Modifier.size(30.dp))
                             Text(
                                 "LanGhost",
                                 style = MaterialTheme.typography.titleLarge,
@@ -229,7 +222,11 @@ fun DashboardScreen(
                         ScanControl(
                             isScanning = state.isScanning,
                             hasScanned = state.lastScanTime > 0L,
-                            onScan = { viewModel.startScan() }
+                            permissionGranted = permissionState.allPermissionsGranted,
+                            onScan = {
+                                if (permissionState.allPermissionsGranted) viewModel.startScan()
+                                else permissionState.launchMultiplePermissionRequest()
+                            }
                         )
                         WorkspaceShortcuts(
                             onDevices = onNavigateToDevices,
@@ -256,7 +253,11 @@ fun DashboardScreen(
                 ScanControl(
                     isScanning = state.isScanning,
                     hasScanned = state.lastScanTime > 0L,
-                    onScan = { viewModel.startScan() }
+                    permissionGranted = permissionState.allPermissionsGranted,
+                    onScan = {
+                        if (permissionState.allPermissionsGranted) viewModel.startScan()
+                        else permissionState.launchMultiplePermissionRequest()
+                    }
                 )
                 if (state.scanCoverage.scannedAt > 0L) {
                     CoveragePanel(
@@ -412,6 +413,7 @@ private fun NetworkFact(label: String, value: String, modifier: Modifier = Modif
 private fun ScanControl(
     isScanning: Boolean,
     hasScanned: Boolean,
+    permissionGranted: Boolean,
     onScan: () -> Unit
 ) {
     Button(
@@ -441,6 +443,7 @@ private fun ScanControl(
             Text(
                 text = when {
                     isScanning -> "Сканирование сети…"
+                    !permissionGranted -> "Разрешить доступ для сканирования"
                     hasScanned -> "Обновить сканирование"
                     else -> "Просканировать сеть"
                 },
