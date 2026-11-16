@@ -139,11 +139,11 @@ class NetworkDiscoveryEngineTest {
 
     @Test
     fun refreshesArpAfterProbingAndIncludesHostsWithoutOpenProbePorts() = runBlocking {
-        val probeOrder = mutableListOf<String>()
+        val probeCount = AtomicInteger(0)
         var arpRefreshCount = 0
         val result = NetworkDiscoveryEngine(
             probeHost = { ip, _ ->
-                probeOrder += ip
+                probeCount.incrementAndGet()
                 false
             },
             ensureCurrentNetworkScope = {}
@@ -157,7 +157,7 @@ class NetworkDiscoveryEngineTest {
             maxTargets = 16,
             maxConcurrency = 2,
             refreshArpEntries = {
-                assertTrue("ARP refresh must run after candidate probes", probeOrder.isNotEmpty())
+                assertTrue("ARP refresh must run after candidate probes", probeCount.get() > 0)
                 arpRefreshCount++
                 mapOf(
                     "192.168.10.4" to "AA:BB:CC:DD:EE:04",
