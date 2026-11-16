@@ -1,5 +1,31 @@
 package com.langhost.ui.navigation
 
+import androidx.compose.ui.graphics.Color
+
+import androidx.compose.ui.Alignment
+
+import androidx.compose.material3.Surface
+
+import androidx.compose.material3.MaterialTheme
+
+import androidx.compose.foundation.shape.RoundedCornerShape
+
+import androidx.compose.foundation.layout.width
+
+import androidx.compose.foundation.layout.height
+
+import androidx.compose.foundation.layout.fillMaxWidth
+
+import androidx.compose.foundation.layout.fillMaxHeight
+
+import androidx.compose.foundation.layout.Spacer
+
+import androidx.compose.foundation.layout.Box
+
+import androidx.compose.foundation.layout.Arrangement
+
+import androidx.compose.foundation.background
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -102,37 +128,29 @@ fun LanGhostNavHost(windowSizeClass: WindowSizeClass? = null) {
 
     if (expanded) {
         Row(modifier = Modifier.fillMaxSize()) {
-            NavigationRail(
-                containerColor = Surface,
-                contentColor = TextPrimary,
-                header = {
-                    Column(
-                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(vertical = 20.dp, horizontal = 8.dp)
-                    ) {
-                        NetworkOrbit(isConnected = true, modifier = Modifier.size(42.dp))
-                        Text(
-                            text = "LanGhost",
-                            color = TextPrimary,
-                            style = androidx.compose.material3.MaterialTheme.typography.labelSmall
-                        )
-                    }
-                }
+            Column(
+                modifier = Modifier
+                    .width(112.dp)
+                    .fillMaxHeight()
+                    .background(Surface)
+                    .padding(horizontal = 8.dp, vertical = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                NetworkOrbit(isConnected = true, modifier = Modifier.size(46.dp))
+                Text(
+                    text = "LanGhost",
+                    color = TextPrimary,
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Spacer(Modifier.height(12.dp))
                 primaryDestinations.forEach { destination ->
-                    NavigationRailItem(
+                    NavigationEntry(
+                        destination = destination,
                         selected = selectedRoute == destination.route,
                         onClick = { navigateTo(destination.route) },
-                        icon = { Icon(destination.icon, contentDescription = destination.label) },
-                        label = { Text(destination.label) },
-                        alwaysShowLabel = true,
-                        colors = androidx.compose.material3.NavigationRailItemDefaults.colors(
-                            selectedIconColor = AccentCyan,
-                            selectedTextColor = TextPrimary,
-                            indicatorColor = androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                            unselectedIconColor = TextSecondary,
-                            unselectedTextColor = TextSecondary
-                        )
+                        compact = false,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
@@ -146,26 +164,23 @@ fun LanGhostNavHost(windowSizeClass: WindowSizeClass? = null) {
         Scaffold(
             containerColor = Background,
             bottomBar = {
-                NavigationBar(
-                    containerColor = Surface,
-                    contentColor = TextPrimary,
-                    tonalElevation = 0.dp
-                ) {
-                    primaryDestinations.forEach { destination ->
-                        NavigationBarItem(
-                            selected = selectedRoute == destination.route,
-                            onClick = { navigateTo(destination.route) },
-                            icon = { Icon(destination.icon, contentDescription = destination.label) },
-                            label = { Text(destination.label) },
-                            alwaysShowLabel = true,
-                            colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
-                                selectedIconColor = AccentCyan,
-                                selectedTextColor = TextPrimary,
-                                indicatorColor = androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                                unselectedIconColor = TextSecondary,
-                                unselectedTextColor = TextSecondary
+                Column(modifier = Modifier.background(Surface)) {
+                    androidx.compose.material3.HorizontalDivider(color = Divider.copy(alpha = 0.75f), thickness = 1.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        primaryDestinations.forEach { destination ->
+                            NavigationEntry(
+                                destination = destination,
+                                selected = selectedRoute == destination.route,
+                                onClick = { navigateTo(destination.route) },
+                                compact = true,
+                                modifier = Modifier.weight(1f)
                             )
-                        )
+                        }
                     }
                 }
             }
@@ -173,6 +188,54 @@ fun LanGhostNavHost(windowSizeClass: WindowSizeClass? = null) {
             AppNavGraph(
                 navController = navController,
                 modifier = Modifier.fillMaxSize().padding(innerPadding)
+            )
+        }
+    }
+}
+
+@Composable
+private fun NavigationEntry(
+    destination: PrimaryDestination,
+    selected: Boolean,
+    onClick: () -> Unit,
+    compact: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val iconTint = if (selected) AccentCyan else TextSecondary
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = if (selected) SurfaceHighlight.copy(alpha = 0.72f) else Color.Transparent,
+        contentColor = TextPrimary,
+        border = if (selected) androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.65f)) else null
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 3.dp, vertical = if (compact) 6.dp else 9.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(if (compact) 30.dp else 38.dp)
+                    .background(
+                        if (selected) Primary.copy(alpha = 0.12f) else Color.Transparent,
+                        RoundedCornerShape(12.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = destination.icon,
+                    contentDescription = destination.label,
+                    tint = iconTint,
+                    modifier = Modifier.size(if (compact) 20.dp else 22.dp)
+                )
+            }
+            Text(
+                text = destination.label,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (selected) TextPrimary else TextSecondary,
+                maxLines = 1
             )
         }
     }
