@@ -64,13 +64,22 @@ class DeviceDetailViewModel(
             try {
                 val ports = repository.scanDevicePorts(scanTarget)
                 val updatedDevice = repository.getDevice(deviceIp)
-                _uiState.update {
-                    it.copy(
-                        openPorts = ports ?: updatedDevice?.openPorts.orEmpty(),
-                        device = updatedDevice,
-                        hasScannedPorts = true,
-                        portScanError = null
-                    )
+                if (ports == null) {
+                    _uiState.update {
+                        it.copy(
+                            device = updatedDevice,
+                            portScanError = "Сеть или состояние устройства изменились во время проверки. Результат не считается актуальным — запустите сканирование ещё раз."
+                        )
+                    }
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            openPorts = ports,
+                            device = updatedDevice,
+                            hasScannedPorts = true,
+                            portScanError = null
+                        )
+                    }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
