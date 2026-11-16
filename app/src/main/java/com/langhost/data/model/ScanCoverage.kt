@@ -13,7 +13,9 @@ data class ScanCoverage(
     /** Hosts that positively answered a TCP connection attempt (open or refused). */
     val tcpResponsiveHosts: Int = 0,
     /** Hosts resolved through one of the supported DNS-SD service types. */
-    val dnsSdResolvedHosts: Int = 0
+    val dnsSdResolvedHosts: Int = 0,
+    /** Whether /proc/net/arp could be read during this scan; null means not checked. */
+    val arpAvailable: Boolean? = null
 ) {
     val coveragePercent: Int
         get() = if (totalUsableAddresses <= 0L) 0 else
