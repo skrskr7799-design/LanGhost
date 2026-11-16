@@ -62,6 +62,7 @@ internal class DeviceEnrichmentEngine(
             firstSeen = firstSeen,
             lastSeen = now,
             openPorts = ports,
+            portsScannedAt = previous?.portsScannedAt ?: 0L,
             osGuess = previous?.osGuess ?: Device.guessOs(ports, vendor, hostname),
             nickname = saved.nickname.ifBlank { previous?.nickname.orEmpty() },
             notes = saved.notes.ifBlank { previous?.notes.orEmpty() },
