@@ -70,6 +70,7 @@ internal class NetworkDiscoveryEngine(
 
         return NetworkDiscoverySnapshot(
             ips = endpoints,
+            tcpResponsiveIps = discoveredIps,
             arpAddresses = allArpEntries,
             coverage = coverage
         )
@@ -78,6 +79,8 @@ internal class NetworkDiscoveryEngine(
 
 internal data class NetworkDiscoverySnapshot(
     val ips: Set<String>,
+    /** Hosts with a positive TCP connection response during this scan. */
+    val tcpResponsiveIps: Set<String>,
     val arpAddresses: Map<String, String>,
     val coverage: ScanCoverage
 )
