@@ -1,9 +1,9 @@
 # LanGhost — Engineering Roadmap & Audit Register
 
-> Status: Phases 1–5 implementation and automated CI complete; physical-device validation tracked separately in Phase 6
+> Status: Phases 1–5 implementation and automated CI complete; Phase 6 physical-device validation remains open; Phase 7 Network Discovery Reliability IN PROGRESS
 > Baseline branch: main
-> Baseline commit reviewed: e581fd0523aa90fd57a9338ac8eaae4e5a17408f (merge of PR #1)
-> Working branch: work/phase-5-final-polish
+> Baseline commit: 6c36723497925e69d97081f944f82ff6bd4dc9e4 (PR #2 merged)
+> Working branch: audit/phase-7-discovery-reliability
 
 ## Project direction
 
@@ -113,15 +113,95 @@ Phase 5 implementation and automated validation are complete. Full CI run [#4381
 - [ ] Exercise real-network scenarios: no Wi-Fi, VPN active, mobile data, guest network, mesh, IPv6, denied permissions and interrupted scans.
 - [ ] Add regression tests for every confirmed defect.
 
-### Phase 7 — Advanced network intelligence
-- [ ] More reliable device classification with confidence and evidence.
-- [ ] Network topology with clear distinction between observed and inferred links.
-- [ ] Device presence timeline and change detection.
-- [ ] Monitoring for selected devices, latency/loss history and meaningful alerts.
-- [ ] Wi-Fi channel/interference analysis with band, width and platform limitations represented accurately.
-- [ ] Security insights and actionable remediation guidance.
-- [ ] Network diagnostics (DNS, gateway, DHCP, reachability and related tools).
-- [ ] Exportable reports and network profiles with privacy controls.
+### Phase 7 — Network Discovery Reliability
+
+**Status: IN PROGRESS**
+
+**Trigger:** first physical-tablet audit (2026-11-16). In the user's home LAN, the scan reported only the tablet, router and server, while the user confirmed that a computer, TV and two phones were also connected. This is a reproducible product-level concern to investigate, not yet a proven single root cause.
+
+**Goal:** make discovery materially more complete and explainable on stock Android, without claiming that silent, isolated or filtered devices are absent. Audit and improve the full path from active-network selection through candidate generation, ARP collection, reachability probes, endpoint merging, enrichment and UI publication.
+
+#### Work packages
+
+- [ ] **7.1 Baseline and evidence audit**
+  - Trace the complete discovery pipeline and current Android permissions / network APIs.
+  - Verify active interface selection, IPv4 address/netmask/gateway calculation and candidate coverage.
+  - Inspect `/proc/net/arp` parsing and filtering (interface, flags, MAC validity, freshness, address scope).
+  - Review positive-evidence probes, timeout behavior, concurrency, cancellation and scan duration.
+  - Determine whether the current implementation can discover silent hosts; document why TCP-only reachability misses clients with no probed service.
+  - Record the observed tablet audit as a test scenario without assuming router-specific behavior.
+
+- [ ] **7.2 Discovery strategy and evidence model**
+  - Compare available stock-Android-compatible evidence sources (neighbor/ARP cache, bounded TCP probes, mDNS/NSD, SSDP and other safe LAN discovery signals).
+  - Keep discovery restricted to the active user-selected/authorized IPv4 network and explicit bounded targets.
+  - Distinguish direct observation, positive reachability, cached/stale evidence and inferred identity.
+  - Never mark a host offline solely because one probe failed; preserve UNKNOWN / FILTERED / NOT OBSERVED semantics.
+  - Make scan coverage, skipped ranges, unsupported methods and platform limitations visible.
+
+- [ ] **7.3 Engine implementation and resilience**
+  - Refactor `NetworkDiscoveryEngine`, `HostDiscovery`, `DeviceProbe` and repository orchestration where evidence supports it.
+  - Preserve bounded candidate counts, bounded concurrency, network-scope checkpoints and cancellation.
+  - Avoid duplicate devices when multiple discovery methods report the same endpoint.
+  - Prevent stale results from crossing network changes; retain privacy-safe diagnostics.
+  - Add deterministic tests for ARP parsing, interface filtering, candidate coverage, evidence merging, silent hosts, timeouts, cancellation, duplicate observations and network switching.
+
+- [ ] **7.4 Physical-network verification**
+  - Re-test on the user's tablet and home LAN with known clients: tablet, router, server, computer, TV, user's phone and brother's phone.
+  - Compare expected devices against observed devices and record per-device evidence / reason for non-detection.
+  - Test different host response profiles (ping disabled, no common TCP ports, sleeping, Wi-Fi client isolation where available).
+  - Verify no false claim of complete inventory when Android/router visibility is restricted.
+
+#### Acceptance criteria
+
+- [ ] Discovery pipeline and its limitations are documented from source, not guessed.
+- [ ] Every candidate/observation has traceable evidence and a clear distinction between observed, inferred, stale and unknown.
+- [ ] Regression tests cover each confirmed failure and the supported discovery methods.
+- [ ] Scan bounds, cancellation, network-scope isolation and privacy guarantees remain intact.
+- [ ] Full CI (Android Lint, unit tests, Debug APK, Release APK and artifact upload) passes on the final Phase 7 head.
+- [ ] Tablet/home-LAN verification is completed and results are recorded. If Android or router restrictions prevent complete visibility, the UI must disclose that limitation honestly.
+- [ ] README and roadmap reflect the actual implementation and validation status.
+
+**Exit rule:** Phase 7 is not closed by source review or CI alone. It closes only after all implementation criteria pass and the known-device tablet scenario has been re-tested. Any platform limitation that cannot be removed must be explicitly documented and surfaced in the product.
+
+### Phase 8 — Device Intelligence
+
+- [ ] Improve vendor identification using available MAC/OUI evidence; explicitly label randomized/local MAC addresses and unknown vendors.
+- [ ] Improve device-type classification using multiple independent signals and confidence/evidence.
+- [ ] Improve OS hints only where evidence supports them; never infer a precise OS from a port number alone.
+- [ ] Keep observed facts separate from heuristics and show confidence / source in device details.
+- [ ] Add deterministic tests for conflicting, missing and weak signals.
+
+### Phase 9 — Wi-Fi Analyzer Actions
+
+- [ ] Turn nearby access-point inventory into an actionable radio-analysis workspace.
+- [ ] Add detailed network inspection: band, channel, width where available, RSSI, security and freshness.
+- [ ] Improve channel overlap / congestion visualization within Android scan-data limitations.
+- [ ] Add evidence-based recommendations and explain uncertainty; do not claim measured interference from scan results alone.
+- [ ] Keep operations limited to information Android exposes; no interaction with or probing of neighboring networks.
+
+### Phase 10 — Device Actions and Wake-on-LAN Integration
+
+- [ ] Add an explicit action on eligible discovered device cards/details to create a Wake-on-LAN profile.
+- [ ] Pre-fill MAC and available network parameters; require user confirmation before saving.
+- [ ] Handle missing, randomized, multicast or otherwise unusable MAC addresses with a clear unavailable state.
+- [ ] Preserve explicit user control over sending a Magic Packet and explain that packet transmission does not prove the device powered on.
+- [ ] Add regression tests for eligibility, parameter mapping and privacy masking.
+
+### Phase 11 — UX Stabilization
+
+- [ ] Stabilize Ping/TCP diagnostic result layout so updates do not cause visible jumps.
+- [ ] Audit navigation/back-stack behavior and ensure Overview is consistently reachable.
+- [ ] Review operation feedback, empty/loading/error states and adaptive phone/tablet/landscape behavior.
+- [ ] Add focused Compose UI tests for the corrected flows.
+
+### Phase 12 — Release readiness
+
+- [ ] Final performance, battery, accessibility and privacy review.
+- [ ] Verify versioning, release notes, reproducible CI outputs and artifact retention.
+- [ ] Configure secure release signing and document key handling.
+- [ ] Update README, permissions explanation, feature list, screenshots and troubleshooting.
+- [ ] Verify clean clone → build → install → first-run flow.
+- [ ] Publish only after explicit release approval.
 
 ### Phase 8 — Release readiness
 - [ ] Final performance, battery, accessibility and privacy review.
@@ -325,3 +405,14 @@ The working branch has completed the first implementation pass across the networ
 The final CI run on the latest branch head must complete Android Lint, unit tests, Debug APK and Release APK successfully before the automated gate is closed. Source review additionally corrected notification-permission coupling in background monitoring, bounded/cancellation-aware DNS utility lookups, and updated the README to describe current capabilities and limitations.
 
 Still outside the automated gate: Compose UI/integration tests are not yet present; real-device testing is required for Android permission and biometric lifecycle behavior, Wi-Fi scan throttling/redaction, ARP visibility, VPN/multi-network routing, router/mesh behavior, and background scheduling. IPv6 discovery, channel-width/regulatory-aware analysis and true physical topology remain explicit limitations rather than claims of completed functionality. The full visual redesign remains a separate cohesive stage after the functional gate.
+
+
+## Phase 7 kickoff — Network Discovery Reliability (2026-11-16)
+
+The first tablet audit identified a high-impact discovery discrepancy: only the tablet, router and server appeared in the inventory, while the user confirmed a computer, TV and two phones were also connected to the same home network. The scan of nearby Wi-Fi access points appeared to work; this finding concerns host discovery, not access-point scanning.
+
+Phase 7 is active on `audit/phase-7-discovery-reliability`, branched from main commit `6c36723497925e69d97081f944f82ff6bd4dc9e4`. The scope and exit criteria are recorded above. No root cause is declared yet. The first implementation task is a source-level trace of candidate generation, active-interface selection, ARP neighbor collection, positive TCP evidence, endpoint merging and enrichment. The audit must specifically test the current design's dependence on positive TCP responses and determine whether additional Android-compatible discovery evidence can safely improve coverage.
+
+The user also reported missing vendor/OS identification. This is tracked as Phase 8 rather than mixed into discovery reliability. Nearby Wi-Fi interactivity, discovered-device-to-Wake-on-LAN integration, ping layout stability and navigation consistency are tracked in Phases 9–11. The tablet's real-network retest is a required Phase 7 exit criterion; CI alone cannot close the phase.
+
+**Phase status rule:** a phase is marked complete only after implementation, relevant regression tests, full CI review, documentation update and any required physical-device acceptance. Until then it remains explicitly IN PROGRESS or BLOCKED, never checked off by assumption.
