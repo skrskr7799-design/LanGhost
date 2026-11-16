@@ -27,7 +27,8 @@ internal class NetworkDiscoveryEngine(
         maxTargets: Int,
         maxConcurrency: Int,
         refreshArpEntries: suspend () -> Map<String, String> = { emptyMap() },
-        discoverNsdServiceIps: suspend () -> Set<String> = { emptySet() }
+        discoverNsdServiceIps: suspend () -> Set<String> = { emptySet() },
+        discoverSsdpServiceIps: suspend () -> Set<String> = { emptySet() }
     ): NetworkDiscoverySnapshot {
         require(maxTargets >= 0) { "maxTargets must not be negative" }
         require(maxConcurrency > 0) { "maxConcurrency must be positive" }
@@ -55,7 +56,7 @@ internal class NetworkDiscoveryEngine(
         // expose none of the probed TCP services are not silently omitted from inventory.
         // Scope checks on both sides prevent evidence from a previous network being committed.
         ensureCurrentNetworkScope(networkScope)
-        val (refreshedArpEntries, nsdServiceIps) = coroutineScope {
+        val (refreshedArpEntries, nsdServiceIps, ssdpServiceIps) = coroutineScope {
             val arpRefresh = async { refreshArpEntries() }
             val nsdDiscovery = async {
                 try {
@@ -67,16 +68,29 @@ internal class NetworkDiscoveryEngine(
                     emptySet()
                 }
             }
-            arpRefresh.await() to nsdDiscovery.await()
+            val ssdpDiscovery = async {
+                try {
+                    if (subnet != null) discoverSsdpServiceIps() else emptySet()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // Optional SSDP must not discard successful ARP/TCP/DNS-SD evidence.
+                    emptySet()
+                }
+            }
+            Triple(arpRefresh.await(), nsdDiscovery.await(), ssdpDiscovery.await())
         }
         ensureCurrentNetworkScope(networkScope)
         val scopedNsdServiceIps = subnet?.let { currentSubnet ->
             nsdServiceIps.asSequence().filter(currentSubnet::contains).take(MAX_NSD_HOSTS).toSet()
         }.orEmpty()
+        val scopedSsdpServiceIps = subnet?.let { currentSubnet ->
+            ssdpServiceIps.asSequence().filter(currentSubnet::contains).take(MAX_SSDP_HOSTS).toSet()
+        }.orEmpty()
         val allArpEntries = (scopedArpEntries + (subnet?.let { currentSubnet ->
             refreshedArpEntries.filterKeys(currentSubnet::contains)
         }.orEmpty()))
-        val endpoints = (allArpEntries.keys + discoveredIps + scopedNsdServiceIps + setOf(localIp, gateway).filter {
+        val endpoints = (allArpEntries.keys + discoveredIps + scopedNsdServiceIps + scopedSsdpServiceIps + setOf(localIp, gateway).filter {
             it != "0.0.0.0" && it != "—" && it.isNotBlank()
         }).toCollection(LinkedHashSet())
 
@@ -88,7 +102,8 @@ internal class NetworkDiscoveryEngine(
             networkScope = networkScope,
             arpObservedHosts = allArpEntries.size,
             tcpResponsiveHosts = (discoveredIps - localIp).size,
-            dnsSdResolvedHosts = scopedNsdServiceIps.size
+            dnsSdResolvedHosts = scopedNsdServiceIps.size,
+            ssdpResponsiveHosts = scopedSsdpServiceIps.size
         )
 
         return NetworkDiscoverySnapshot(
@@ -97,12 +112,14 @@ internal class NetworkDiscoveryEngine(
             tcpResponsiveIps = discoveredIps - localIp,
             arpAddresses = allArpEntries,
             nsdServiceIps = scopedNsdServiceIps,
+            ssdpServiceIps = scopedSsdpServiceIps,
             coverage = coverage
         )
     }
 }
 
 private const val MAX_NSD_HOSTS = 256
+private const val MAX_SSDP_HOSTS = 256
 
 internal data class NetworkDiscoverySnapshot(
     val ips: Set<String>,
@@ -111,5 +128,7 @@ internal data class NetworkDiscoverySnapshot(
     val arpAddresses: Map<String, String>,
     /** Hosts that resolved a supported DNS-SD service during this scan. */
     val nsdServiceIps: Set<String>,
+    /** Hosts that returned a valid SSDP/UPnP discovery response. */
+    val ssdpServiceIps: Set<String>,
     val coverage: ScanCoverage
 )
