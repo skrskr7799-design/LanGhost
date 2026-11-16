@@ -29,6 +29,8 @@ import com.langhost.data.WolProfiles
 import com.langhost.data.model.DeviceType
 import com.langhost.ui.theme.*
 import com.langhost.ui.components.ContentPanel
+import com.langhost.ui.components.ErrorState
+import com.langhost.ui.components.LoadingState
 import com.langhost.ui.theme.TechnicalTypography
 import com.langhost.ui.components.StatusBadge
 import com.langhost.ui.components.StatusTone
@@ -256,11 +258,26 @@ fun DeviceDetailScreen(
                             } else Text("Сканировать")
                         }
                     }
+                    if (state.isScanningPorts) {
+                        LoadingState(
+                            title = "Проверяем доступные порты",
+                            description = "Результат появится после завершения сетевых проб."
+                        )
+                    }
+                    state.portScanError?.let { message ->
+                        ErrorState(
+                            title = "Проверка портов не завершена",
+                            description = message,
+                            onRetry = { viewModel.scanPorts() }
+                        )
+                    }
                     if (state.openPorts.isNotEmpty()) {
                         Text("Открытые порты (${state.openPorts.size}):", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                         Text(state.openPorts.joinToString(", "), style = MaterialTheme.typography.bodyLarge, color = Success, fontWeight = FontWeight.Medium)
-                    } else if (!state.isScanningPorts) {
-                        Text("Сканирование не выполнялось", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
+                    } else if (state.hasScannedPorts && state.portScanError == null && !state.isScanningPorts) {
+                        Text("Открытые TCP-порты не обнаружены в проверенном наборе.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    } else if (!state.isScanningPorts && state.portScanError == null) {
+                        Text("Проверка ещё не выполнялась. Пустой список не означает, что открытых портов нет.", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
                     }
                 }
             }
