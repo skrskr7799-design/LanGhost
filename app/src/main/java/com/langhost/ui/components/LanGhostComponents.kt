@@ -23,6 +23,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -293,6 +294,53 @@ fun NetworkOrbit(
                 radius = unit * 0.075f,
                 center = point,
                 style = Stroke(width = 1.dp.toPx())
+            )
+        }
+    }
+}
+
+
+@Composable
+fun SecurityScoreDial(
+    score: Int?,
+    modifier: Modifier = Modifier
+) {
+    val tint = when {
+        score == null -> TextTertiary
+        score >= 80 -> Success
+        score >= 50 -> Warning
+        else -> Danger
+    }
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Canvas(modifier = Modifier.size(116.dp).padding(5.dp)) {
+            drawArc(
+                color = SurfaceHighlight,
+                startAngle = -90f,
+                sweepAngle = 360f,
+                useCenter = false,
+                style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
+            )
+            if (score != null) {
+                drawArc(
+                    color = tint,
+                    startAngle = -90f,
+                    sweepAngle = score.coerceIn(0, 100) * 3.6f,
+                    useCenter = false,
+                    style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
+                )
+            }
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(0.dp)) {
+            Text(
+                text = score?.toString() ?: "—",
+                style = MaterialTheme.typography.displayMedium,
+                color = tint,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = if (score == null) "NO DATA" else "ИЗ 100",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextTertiary
             )
         }
     }
