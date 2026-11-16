@@ -1,6 +1,6 @@
 # LanGhost — UI/UX Redesign Plan
 
-> Status: Phase 5 implementation complete pending final CI; physical-device sign-off tracked in Phase 6
+> Status: Phase 5 implementation and automated CI complete; physical-device sign-off tracked in Phase 6
 > Branch: `work/phase-5-final-polish`
 > Baseline: `e581fd0523aa90fd57a9338ac8eaae4e5a17408f` (merged PR #1)
 
@@ -262,4 +262,4 @@ These screens now have distinct information hierarchies instead of being simple 
 - [x] Closed a silent-failure gap in device customization persistence: failures now produce a visible retryable error instead of leaving the user with no feedback.
 - [x] Reconciled the implementation plan with the actual merged main baseline and moved physical-device sign-off to the device-validation phase.
 
-Automated validation is pending for this branch. Source-level accessibility improvements do not replace TalkBack, font-scaling, contrast or touch-target checks on real hardware. Phase 5 implementation closes after CI passes; device-only acceptance remains tracked in Phase 6.
+Full CI run [#43815487552](https://github.com/skrskr7799-design/LanGhost/actions/runs/43815487552) passed on commit `f37ee9022ff97642764cc7bbc2d29bf3a2baa12e` (Android Lint, unit tests, Debug APK, Release APK and artifact upload). Source-level accessibility improvements do not replace TalkBack, font-scaling, contrast or touch-target checks on real hardware; device-only acceptance remains tracked in Phase 6.

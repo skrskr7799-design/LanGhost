@@ -79,7 +79,7 @@ GitHub Actions runs Android Lint, unit tests, and Debug/Release APK builds on pu
 
 ## Project status
 
-The `main` branch contains the completed network-engine, security-evidence, data-architecture and broad UI redesign work merged through PR #1. The current Phase 5 final-polish pass tightens accessibility semantics and recoverable operation feedback while keeping the interface evidence-first and privacy-aware.
+The `main` branch contains the completed network-engine, security-evidence, data-architecture and broad UI redesign work merged through PR #1. Phase 5 final-polish implementation is complete on PR #2: shared accessibility semantics, clear recoverable operation feedback and documentation reconciliation are in place.
 
 Automated CI verifies Android Lint, unit tests and Debug/Release APK builds. It does not replace hands-on validation on real Android devices and networks. TalkBack, system font scaling, touch targets, visual review across phone/tablet/landscape, Android permission behavior, Wi-Fi scan throttling, ARP visibility, VPN/multi-network behavior and biometric lifecycle checks remain explicit device-validation work in `docs/AUDIT_PLAN.md`.
 

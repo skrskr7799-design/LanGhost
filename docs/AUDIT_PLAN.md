@@ -1,6 +1,6 @@
 # LanGhost — Engineering Roadmap & Audit Register
 
-> Status: Phases 1–4 complete; Phase 5 implementation complete pending final CI; physical-device validation tracked separately in Phase 6
+> Status: Phases 1–5 implementation and automated CI complete; physical-device validation tracked separately in Phase 6
 > Baseline branch: main
 > Baseline commit reviewed: e581fd0523aa90fd57a9338ac8eaae4e5a17408f (merge of PR #1)
 > Working branch: work/phase-5-final-polish
@@ -102,7 +102,7 @@ Phase 2 implementation is complete. The NetworkRepository service-boundary refac
 - [ ] Complete hands-on TalkBack, contrast, touch-target and system-font-scaling checks on representative Android devices (tracked in Phase 6).
 - [ ] Capture and review real phone/tablet screenshots and sign off visual behavior on physical devices (tracked in Phase 6).
 
-Phase 5 implementation is considered complete when the final branch CI passes. Device-only validation is deliberately not represented as complete by source review or CI; it remains an explicit Phase 6 acceptance task.
+Phase 5 implementation and automated validation are complete. Full CI run [#43815487552](https://github.com/skrskr7799-design/LanGhost/actions/runs/43815487552) passed on commit `f37ee9022ff97642764cc7bbc2d29bf3a2baa12e` (Android Lint, unit tests, Debug APK, Release APK and artifact upload). Device-only validation is deliberately not represented as complete by source review or CI; it remains an explicit Phase 6 acceptance task.
  
 ### Phase 6 — Automated and device testing
 - [x] Add unit tests for pure network calculations, identity merging, scoring, diff, discovery orchestration, public-IP response validation/limits, CSV safety, retention bounds and evidence expiry (70 tests; all pass in CI run 43697709829 on commit 8db7f710).
