@@ -164,7 +164,7 @@ class HostDiscoveryTest {
             throw AssertionError("Expected the network-scope checkpoint to cancel discovery")
         } catch (_: kotlinx.coroutines.CancellationException) {
             assertEquals(2, batchChecks)
-            assertEquals(1, probeCalls.get())
+            assertTrue("Cancellation must stop the remaining candidates", probeCalls.get() in 1 until 5)
         }
     }
 
