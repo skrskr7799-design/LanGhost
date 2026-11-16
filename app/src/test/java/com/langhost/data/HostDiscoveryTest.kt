@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class HostDiscoveryTest {
     @Test
     fun includesLocalAddressWithoutCallingProbe() = runBlocking {
-        var probeCalls = 0
+        val probeCalls = java.util.concurrent.atomic.AtomicInteger(0)
         val result = HostDiscovery.discover(
             candidates = listOf("192.168.1.2", "192.168.1.3"),
             localIp = "192.168.1.2",
@@ -158,13 +158,13 @@ class HostDiscoveryTest {
                     }
                 }
             ) { _, _ ->
-                probeCalls++
+                probeCalls.incrementAndGet()
                 true
             }
             throw AssertionError("Expected the network-scope checkpoint to cancel discovery")
         } catch (_: kotlinx.coroutines.CancellationException) {
             assertEquals(2, batchChecks)
-            assertEquals(2, probeCalls)
+            assertEquals(2, probeCalls.get())
         }
     }
 
