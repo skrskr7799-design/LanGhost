@@ -456,7 +456,7 @@ Regression tests cover:
 - local-interface presence remains confirmed;
 - gateway evidence is classified independently from a passive MAC observation.
 
-This is an implementation checkpoint only. Full CI for the current branch head and physical retest remain pending. The six-port probe currently counts successful TCP connections as positive response; connection-refused/RST interpretation is not yet included. NSD/mDNS has since been implemented as a complementary discovery path; it is not a universal LAN inventory guarantee.
+This is an implementation checkpoint only. Full CI for the current branch head and physical retest remain pending. At the time of this checkpoint, the six-port probe still counted only successful TCP connections; connection-refused/RST handling was added and regression-tested in Phase 7.3. NSD/mDNS is a complementary discovery path, not a universal LAN inventory guarantee.
 
 
 ### Phase 7.2 — DNS-SD / NSD complementary discovery checkpoint (2026-11-16)
@@ -489,3 +489,38 @@ A source review identified another concrete false-negative path: `NetworkProbeEn
 - Repeat the same known-device acceptance test only after the new diagnostics and discovery paths pass full CI.
 
 **Status:** Phase 7 remains IN PROGRESS. The unchanged physical result is recorded as an unresolved acceptance failure. Do not mark the phase complete or merge PR #3 based on CI alone.
+
+
+### Phase 7.4 — Multi-signal discovery and scheduler hardening (implementation checkpoint, 2026-11-16)
+
+The follow-up code audit identified three additional reliability/performance weaknesses and proposed complementary host-discovery signals. The following changes are now implemented on `audit/phase-7-discovery-reliability`:
+
+**TCP probing**
+- A refused TCP connection (RST / `ConnectException`) remains positive reachability evidence; timeouts and routing failures remain unknown.
+- The six candidate ports are attempted concurrently under a hard global discovery-socket limit of 192 (32 host workers × 6 candidate ports). The per-port connect timeout is capped at 400 ms and the host deadline remains bounded.
+- The default scan timeout was raised from 150 ms to 350 ms. Hosts without positive TCP evidence receive one shorter second pass; hosts already confirmed in the first pass are not probed again.
+- Regression coverage verifies RST evidence and that only unresolved hosts are retried.
+
+**Continuous bounded scheduling**
+- `HostDiscovery.mapBounded` and subnet discovery now use semaphores rather than waiting for every item in a fixed batch. Fast completions free capacity for the next queued item.
+- Network-scope checks remain serialized at each sliding concurrency window so a network change cancels work before the next window is admitted.
+- Discovery and manual/security port scans use separate bounded socket semaphores.
+
+**ARP diagnostics**
+- `/proc/net/arp` read failures are no longer silently indistinguishable from a valid empty table. A fixed, privacy-safe `AppLog` event records the failure without logging IPs, MACs, SSIDs or exception payloads.
+- Scan coverage carries nullable `arpAvailable` state, and the inventory UI displays **ARP недоступен** when the platform denies or cannot provide the table.
+
+**Additional discovery signals**
+- Existing NSD/mDNS remains in place.
+- A bounded SSDP/UPnP M-SEARCH pass is added. Its UDP socket is bound to the captured active Android Network before sending; only valid HTTP 200 SSDP responses with service identity headers are accepted; response source addresses are subnet-filtered and capped at 256.
+- A best-effort interface-bound `InetAddress.isReachable(NetworkInterface, ...)` pass runs only for candidates without positive TCP evidence. Depending on Android/JVM implementation this may use ICMP echo or a TCP-echo fallback; it is therefore labelled as a host-reachability probe rather than guaranteed ICMP. A negative result never means offline.
+- TCP, DNS-SD, SSDP and host-reachability observations remain distinct evidence types and have separate scan counters. They are not treated as OS identification.
+- Optional SSDP/reachability failures are isolated from other discovery evidence; cancellation and active-network scope checks still propagate.
+
+**Limitations and physical acceptance**
+- SSDP only discovers devices that answer UPnP/SSDP M-SEARCH; it will not find every phone or computer.
+- `InetAddress.isReachable` is platform-dependent and many endpoints/firewalls suppress echo traffic. It is supplemental, not a guaranteed ping implementation.
+- Android's ARP table may remain inaccessible; the UI now makes that source failure visible rather than pretending the source returned zero hosts.
+- Client isolation, multicast filtering, sleeping devices, subnet candidate caps and endpoint firewall policy can still prevent discovery. The next tablet test must compare source counters as well as the total inventory against the known devices (tablet, router, server, computer, TV and both phones).
+
+**Status:** implementation checkpoint only. Full CI on the final head and the physical home-LAN retest are still required. Phase 7 remains IN PROGRESS; do not merge PR #3 or mark the phase complete yet.
