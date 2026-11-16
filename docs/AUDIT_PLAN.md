@@ -203,14 +203,6 @@ Phase 5 implementation and automated validation are complete. Full CI run [#4381
 - [ ] Verify clean clone → build → install → first-run flow.
 - [ ] Publish only after explicit release approval.
 
-### Phase 8 — Release readiness
-- [ ] Final performance, battery, accessibility and privacy review.
-- [ ] Verify versioning, release notes, reproducible CI outputs and artifact retention.
-- [ ] Configure secure release signing and document key handling.
-- [ ] Update README, permissions explanation, feature list, screenshots and troubleshooting.
-- [ ] Verify clean clone → build → install → first-run flow.
-- [ ] Publish only after explicit release approval.
-
 ## Initial verified baseline observations
 
 These are repository observations, not a complete audit verdict:
