@@ -193,6 +193,11 @@ fun DevicesScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary
                             )
+                            Text(
+                                "Источники: ARP ${state.scanCoverage.arpObservedHosts} · TCP ${state.scanCoverage.tcpResponsiveHosts} · mDNS ${state.scanCoverage.dnsSdResolvedHosts}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextTertiary
+                            )
                         } else {
                             Text("Запустите сканирование, чтобы получить данные о покрытии сети.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         }
