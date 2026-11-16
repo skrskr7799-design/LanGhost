@@ -129,6 +129,10 @@ fun DevicesScreen(
         },
         containerColor = Background
     ) { padding ->
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth().widthIn(max = 1120.dp),
+            contentAlignment = Alignment.TopCenter
+        ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 28.dp),
@@ -259,6 +263,7 @@ fun DevicesScreen(
                     DeviceInventoryRow(device = device, onClick = { onDeviceClick(device.ip) })
                 }
             }
+        }
         }
     }
 }
