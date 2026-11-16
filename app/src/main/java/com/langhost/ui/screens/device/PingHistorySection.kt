@@ -16,6 +16,7 @@ import com.langhost.data.DeviceProbe
 import com.langhost.data.PingHistoryStore
 import com.langhost.data.PingSample
 import com.langhost.ui.theme.*
+import com.langhost.ui.components.LoadingState
 import kotlinx.coroutines.launch
 
 @Composable
@@ -51,6 +52,7 @@ fun PingHistorySection(ip: String) {
                 }
             }
 
+            if (probing) LoadingState(title = "Проверяем TCP-отклик", description = "Пробуем TCP-подключение к портам 80, 443 и 22; это не ICMP ping.")
             if (samples.isEmpty()) {
                 Text("Запустите проверку TCP-отклика, чтобы начать историю", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
             } else {
