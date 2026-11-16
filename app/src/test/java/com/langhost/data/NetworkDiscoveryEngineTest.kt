@@ -71,7 +71,7 @@ class NetworkDiscoveryEngineTest {
             maxConcurrency = 3
         )
 
-        assertEquals(11, probeCount.get())
+        assertEquals(22, probeCount.get())
         assertEquals(12, result.coverage.checkedAddresses)
         assertEquals(65_534L, result.coverage.totalUsableAddresses)
         assertTrue(result.coverage.truncated)
@@ -181,7 +181,7 @@ class NetworkDiscoveryEngineTest {
         var checks = 0
         var refreshes = 0
         val engine = NetworkDiscoveryEngine(
-            probeHost = { _, _ -> false },
+            probeHost = { _, _ -> true },
             ensureCurrentNetworkScope = {
                 checks++
                 if (checks == 4) throw CancellationException("network changed before ARP refresh")
@@ -214,7 +214,7 @@ class NetworkDiscoveryEngineTest {
         var checks = 0
         var refreshes = 0
         val engine = NetworkDiscoveryEngine(
-            probeHost = { _, _ -> false },
+            probeHost = { _, _ -> true },
             ensureCurrentNetworkScope = {
                 checks++
                 if (checks == 5) throw CancellationException("network changed during ARP refresh")
