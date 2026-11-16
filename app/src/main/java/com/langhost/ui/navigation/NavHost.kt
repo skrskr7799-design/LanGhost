@@ -1,53 +1,25 @@
 package com.langhost.ui.navigation
 
-import androidx.compose.ui.graphics.Color
-
-import androidx.compose.ui.Alignment
-
-import androidx.compose.material3.Surface
-
-import androidx.compose.material3.MaterialTheme
-
-import androidx.compose.foundation.shape.RoundedCornerShape
-
-import androidx.compose.foundation.layout.width
-
-import androidx.compose.foundation.layout.height
-
-import androidx.compose.foundation.layout.fillMaxWidth
-
-import androidx.compose.foundation.layout.fillMaxHeight
-
-import androidx.compose.foundation.layout.Spacer
-
-import androidx.compose.foundation.layout.Box
-
-import androidx.compose.foundation.layout.Arrangement
-
 import androidx.compose.foundation.background
-
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -57,6 +29,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.langhost.ui.components.NetworkOrbit
 import com.langhost.ui.screens.channels.ChannelAnalyzerScreen
 import com.langhost.ui.screens.dashboard.DashboardScreen
 import com.langhost.ui.screens.device.DeviceDetailScreen
@@ -69,11 +42,12 @@ import com.langhost.ui.screens.tools.UtilitiesScreen
 import com.langhost.ui.screens.topology.TopologyScreen
 import com.langhost.ui.screens.wifi.NearbyNetworksScreen
 import com.langhost.ui.screens.wol.WolProfilesScreen
-import com.langhost.ui.components.NetworkOrbit
 import com.langhost.ui.theme.AccentCyan
-import com.langhost.ui.theme.Surface
 import com.langhost.ui.theme.Background
+import com.langhost.ui.theme.Border
 import com.langhost.ui.theme.Divider
+import com.langhost.ui.theme.Primary
+import com.langhost.ui.theme.Surface
 import com.langhost.ui.theme.TextPrimary
 import com.langhost.ui.theme.TextSecondary
 
