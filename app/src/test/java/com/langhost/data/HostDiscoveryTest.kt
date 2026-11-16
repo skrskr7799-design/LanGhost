@@ -20,12 +20,12 @@ class HostDiscoveryTest {
             maxConcurrency = 2,
             timeoutMs = 150
         ) { _, _ ->
-            probeCalls++
+            probeCalls.incrementAndGet()
             true
         }
 
         assertEquals(setOf("192.168.1.2", "192.168.1.3"), result)
-        assertEquals(1, probeCalls)
+        assertEquals(1, probeCalls.get())
     }
 
     @Test
@@ -143,7 +143,7 @@ class HostDiscoveryTest {
     @Test
     fun discoveryChecksNetworkScopeBeforeEachBatchAndStopsWhenItChanges() = runBlocking {
         var batchChecks = 0
-        var probeCalls = 0
+        val probeCalls = AtomicInteger(0)
 
         try {
             HostDiscovery.discover(
