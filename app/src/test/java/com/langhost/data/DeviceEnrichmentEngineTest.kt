@@ -32,6 +32,7 @@ class DeviceEnrichmentEngineTest {
             networkScope = "scope-new",
             firstSeen = 90L,
             openPorts = listOf(22, 445),
+            portsScannedAt = 150L,
             auditedPorts = listOf(445),
             httpFingerprint = "Server: test",
             tags = listOf("storage")
@@ -56,6 +57,7 @@ class DeviceEnrichmentEngineTest {
         assertTrue(result.isWatched)
         assertEquals(100L, result.firstSeen)
         assertEquals(listOf(22, 445), result.openPorts)
+        assertEquals(150L, result.portsScannedAt)
         assertEquals(listOf(445), result.auditedPorts)
         assertEquals("Server: test", result.httpFingerprint)
         assertEquals(listOf("storage"), result.tags)
@@ -97,6 +99,7 @@ class DeviceEnrichmentEngineTest {
         assertTrue(result.isLocalDevice)
         assertFalse(result.isGateway)
         assertEquals(50L, result.firstSeen)
+        assertEquals(0L, result.portsScannedAt)
     }
 
     @Test
