@@ -1,6 +1,7 @@
 package com.langhost.data
 
 import com.langhost.data.model.Device
+import com.langhost.data.model.DiscoveryEvidence
 
 /**
  * Builds a complete network-scoped device snapshot from discovery evidence and cached state.
@@ -19,6 +20,7 @@ internal class DeviceEnrichmentEngine(
         legacyNetworkScope: String,
         localIp: String,
         gateway: String,
+        hasTcpResponse: Boolean,
         existing: Device?,
         existingByStableId: Device?,
         now: Long
@@ -42,6 +44,21 @@ internal class DeviceEnrichmentEngine(
         }
         val saved = loadCustomization(stableId, legacyIds)
         val previous = existingByStableId ?: existing
+        val evidence = when {
+            ip == localIp -> DiscoveryEvidence.LOCAL_INTERFACE
+            hasTcpResponse -> DiscoveryEvidence.TCP_RESPONSE
+            macFinal.isNotBlank() -> DiscoveryEvidence.ARP_OBSERVATION
+            ip == gateway -> DiscoveryEvidence.GATEWAY_CONFIGURATION
+            else -> DiscoveryEvidence.UNKNOWN
+        }
+        val lastConfirmedOnline = when {
+            ip == localIp || hasTcpResponse -> now
+            previousHasConfirmation(existingByStableId, existing) -> maxOf(
+                existingByStableId?.lastConfirmedOnline ?: 0L,
+                existing?.lastConfirmedOnline ?: 0L
+            )
+            else -> 0L
+        }
         val firstSeen = when {
             saved.firstSeen > 0 -> saved.firstSeen
             previous != null && previous.firstSeen > 0 -> previous.firstSeen
@@ -61,6 +78,8 @@ internal class DeviceEnrichmentEngine(
             isGateway = ip == gateway,
             firstSeen = firstSeen,
             lastSeen = now,
+            lastConfirmedOnline = lastConfirmedOnline,
+            discoveryEvidence = evidence,
             openPorts = ports,
             portsScannedAt = previous?.portsScannedAt ?: 0L,
             osGuess = previous?.osGuess ?: Device.guessOs(ports, vendor, hostname),
@@ -78,4 +97,7 @@ internal class DeviceEnrichmentEngine(
             auditedPortResults = previous?.auditedPortResults.orEmpty()
         )
     }
+
+    private fun previousHasConfirmation(primary: Device?, fallback: Device?): Boolean =
+        (primary?.lastConfirmedOnline ?: 0L) > 0L || (fallback?.lastConfirmedOnline ?: 0L) > 0L
 }
