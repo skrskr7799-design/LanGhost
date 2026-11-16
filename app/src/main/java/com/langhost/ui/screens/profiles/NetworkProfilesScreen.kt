@@ -203,7 +203,7 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
                         ProfileRow(
                             profile = profile,
                             active = profile.id == activeId,
-                            connectionMatch = connectionMatch(profile, network),
+                            connectionMatch = matchNetworkProfile(profile, network),
                             selected = false,
                             mask = mask,
                             onClick = { scope.launch { store.setActive(profile.id) } },
