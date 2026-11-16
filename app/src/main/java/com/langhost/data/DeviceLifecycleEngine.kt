@@ -64,7 +64,9 @@ class DeviceLifecycleEngine(
         ).first()
 
     private fun isOnlineAt(device: Device, now: Long): Boolean =
-        now - device.lastSeen < onlineWindowMs
+        device.lastConfirmedOnline > 0L &&
+            now >= device.lastConfirmedOnline &&
+            now - device.lastConfirmedOnline < onlineWindowMs
 
     companion object {
         const val DEFAULT_OFFLINE_RETENTION_MS = 24L * 60L * 60L * 1000L
