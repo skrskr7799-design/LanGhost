@@ -287,7 +287,7 @@ fun NearbyNetworksScreen(onBack: () -> Unit) {
                     }
                 } else {
                     items(filteredNetworks, key = { it.bssid }) { network ->
-                        WifiNetworkCard(network)
+                        WifiNetworkCard(network, appSettings.maskNetworkIdentifiers)
                     }
                 }
             } else if (!isScanning && permissionState.allPermissionsGranted) {
@@ -332,7 +332,7 @@ private fun WifiEmptyState(title: String, message: String, icon: androidx.compos
 }
 
 @Composable
-private fun WifiNetworkCard(network: WifiNetwork) {
+private fun WifiNetworkCard(network: WifiNetwork, maskIdentifiers: Boolean) {
     val signalTone = when {
         network.signalDbm >= -60 -> Success
         network.signalDbm >= -70 -> Warning
@@ -367,7 +367,7 @@ private fun WifiNetworkCard(network: WifiNetwork) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 WifiDetail("Канал", network.channel.toString(), Modifier.weight(0.7f))
                 WifiDetail("Частота", "${network.frequencyMhz} MHz", Modifier.weight(1f))
-                WifiDetail("BSSID", PrivacyFormatter.bssid(network.bssid, appSettings.maskNetworkIdentifiers), Modifier.weight(1.5f))
+                WifiDetail("BSSID", PrivacyFormatter.bssid(network.bssid, maskIdentifiers), Modifier.weight(1.5f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
                 repeat(5) { index ->
