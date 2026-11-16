@@ -47,8 +47,8 @@ internal class DeviceEnrichmentEngine(
         val evidence = when {
             ip == localIp -> DiscoveryEvidence.LOCAL_INTERFACE
             hasTcpResponse -> DiscoveryEvidence.TCP_RESPONSE
-            macFinal.isNotBlank() -> DiscoveryEvidence.ARP_OBSERVATION
             ip == gateway -> DiscoveryEvidence.GATEWAY_CONFIGURATION
+            macFinal.isNotBlank() -> DiscoveryEvidence.ARP_OBSERVATION
             else -> DiscoveryEvidence.UNKNOWN
         }
         val lastConfirmedOnline = when {
