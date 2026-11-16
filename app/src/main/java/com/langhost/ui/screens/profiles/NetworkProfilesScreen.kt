@@ -146,7 +146,7 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
                                 }
                             )
                         } else {
-                            ContentPanel(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                            ContentPanel(modifier = Modifier.fillMaxWidth()) {
                                 EmptyState(
                                     title = "Выберите профиль",
                                     description = "Здесь появятся привязка к точке доступа и действия для выбранной сети.",
