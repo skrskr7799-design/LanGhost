@@ -2,6 +2,8 @@ package com.langhost.data
 
 import com.langhost.data.model.ScanCoverage
 import com.langhost.data.network.Ipv4Subnet
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 /**
  * Platform-independent subnet discovery orchestration.
@@ -23,7 +25,8 @@ internal class NetworkDiscoveryEngine(
         timeoutMs: Int,
         maxTargets: Int,
         maxConcurrency: Int,
-        refreshArpEntries: suspend () -> Map<String, String> = { emptyMap() }
+        refreshArpEntries: suspend () -> Map<String, String> = { emptyMap() },
+        discoverNsdServiceIps: suspend () -> Set<String> = { emptySet() }
     ): NetworkDiscoverySnapshot {
         require(maxTargets >= 0) { "maxTargets must not be negative" }
         require(maxConcurrency > 0) { "maxConcurrency must be positive" }
@@ -51,12 +54,19 @@ internal class NetworkDiscoveryEngine(
         // expose none of the probed TCP services are not silently omitted from inventory.
         // Scope checks on both sides prevent evidence from a previous network being committed.
         ensureCurrentNetworkScope(networkScope)
-        val refreshedArpEntries = refreshArpEntries()
+        val (refreshedArpEntries, nsdServiceIps) = coroutineScope {
+            val arpRefresh = async { refreshArpEntries() }
+            val nsdDiscovery = async { discoverNsdServiceIps() }
+            arpRefresh.await() to nsdDiscovery.await()
+        }
         ensureCurrentNetworkScope(networkScope)
+        val scopedNsdServiceIps = subnet?.let { currentSubnet ->
+            nsdServiceIps.filter(currentSubnet::contains).toSet()
+        }.orEmpty()
         val allArpEntries = (scopedArpEntries + (subnet?.let { currentSubnet ->
             refreshedArpEntries.filterKeys(currentSubnet::contains)
         }.orEmpty()))
-        val endpoints = (allArpEntries.keys + discoveredIps + setOf(localIp, gateway).filter {
+        val endpoints = (allArpEntries.keys + discoveredIps + scopedNsdServiceIps + setOf(localIp, gateway).filter {
             it != "0.0.0.0" && it != "—" && it.isNotBlank()
         }).toCollection(LinkedHashSet())
 
@@ -73,6 +83,7 @@ internal class NetworkDiscoveryEngine(
             // HostDiscovery includes the local address without probing it; it is not a TCP response.
             tcpResponsiveIps = discoveredIps - localIp,
             arpAddresses = allArpEntries,
+            nsdServiceIps = scopedNsdServiceIps,
             coverage = coverage
         )
     }
@@ -83,5 +94,7 @@ internal data class NetworkDiscoverySnapshot(
     /** Hosts with a positive TCP connection response during this scan. */
     val tcpResponsiveIps: Set<String>,
     val arpAddresses: Map<String, String>,
+    /** Hosts that resolved a supported DNS-SD service during this scan. */
+    val nsdServiceIps: Set<String>,
     val coverage: ScanCoverage
 )
