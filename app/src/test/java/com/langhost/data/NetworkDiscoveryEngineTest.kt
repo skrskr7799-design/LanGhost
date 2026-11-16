@@ -370,4 +370,31 @@ class NetworkDiscoveryEngineTest {
     }
 
 
+    @Test
+    fun includesOnlyInSubnetSsdpResponses() = runBlocking {
+        val result = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = emptyMap(),
+            networkScope = "scope-ssdp",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2,
+            discoverSsdpServiceIps = {
+                setOf("192.168.10.6", "192.168.20.6", "127.0.0.1")
+            }
+        )
+
+        assertEquals(setOf("192.168.10.6"), result.ssdpServiceIps)
+        assertTrue(result.ips.contains("192.168.10.6"))
+        assertFalse(result.ips.contains("192.168.20.6"))
+        assertFalse(result.ips.contains("127.0.0.1"))
+        assertEquals(1, result.coverage.ssdpResponsiveHosts)
+    }
+
+
 }
