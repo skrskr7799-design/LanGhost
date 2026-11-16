@@ -497,13 +497,13 @@ The follow-up code audit identified three additional reliability/performance wea
 
 **TCP probing**
 - A refused TCP connection (RST / `ConnectException`) remains positive reachability evidence; timeouts and routing failures remain unknown.
-- The six candidate ports are attempted concurrently under a hard global discovery-socket limit of 192 (32 host workers × 6 candidate ports). The per-port connect timeout is capped at 400 ms and the host deadline remains bounded.
+- The six candidate ports are attempted concurrently under a hard global discovery-socket limit of 192 (32 host workers × 6 candidate ports). The per-port connect timeout is capped at 400 ms and the host deadline remains bounded. As soon as any port returns a positive response (open or refused), sibling sockets are closed rather than waiting for their timeouts.
 - The default scan timeout was raised from 150 ms to 350 ms. Hosts without positive TCP evidence receive one shorter second pass; hosts already confirmed in the first pass are not probed again.
 - Regression coverage verifies RST evidence and that only unresolved hosts are retried.
 
 **Continuous bounded scheduling**
-- `HostDiscovery.mapBounded` and subnet discovery now use semaphores rather than waiting for every item in a fixed batch. Fast completions free capacity for the next queued item.
-- Network-scope checks remain serialized at each sliding concurrency window so a network change cancels work before the next window is admitted.
+- `HostDiscovery.mapBounded` and subnet discovery now use a bounded sliding worker scheduler rather than fixed batches. A completed task immediately frees a slot for the next candidate; the scheduler does not wait for the slowest host in a batch.
+- Network-scope checks run in the parent scheduler at each sliding window, so a network change propagates cancellation directly and prevents the next window from being admitted.
 - Discovery and manual/security port scans use separate bounded socket semaphores.
 
 **ARP diagnostics**
@@ -524,3 +524,10 @@ The follow-up code audit identified three additional reliability/performance wea
 - Client isolation, multicast filtering, sleeping devices, subnet candidate caps and endpoint firewall policy can still prevent discovery. The next tablet test must compare source counters as well as the total inventory against the known devices (tablet, router, server, computer, TV and both phones).
 
 **Status:** implementation checkpoint only. Full CI on the final head and the physical home-LAN retest are still required. Phase 7 remains IN PROGRESS; do not merge PR #3 or mark the phase complete yet.
+
+
+**Phase 7.4 CI validation checkpoint — 2026-11-16**
+
+The final implementation head for this checkpoint, `b746dd58f47cc3182881c8fb82c527862eaaf521`, passed GitHub Actions run [#43865999257](https://github.com/skrskr7799-design/LanGhost/actions/runs/43865999257). Android Lint, all 147 unit tests, Debug APK build, Release APK build and APK artifact upload completed successfully. The uploaded artifact is `langhost-apks` (Debug APK plus unsigned Release APK). An earlier test attempt exposed two cancellation assertions tied to the previous batch scheduler; rather than weakening cancellation behavior, the scheduler was replaced with a bounded sliding worker implementation that propagates scope-check failures from the parent coroutine. The complete test suite is green on the recorded head.
+
+**Phase status remains IN PROGRESS.** The new Debug APK is ready for the next physical home-LAN acceptance pass. The tablet test has not yet been performed on this implementation, so the known-device list and source counters still need to be verified before Phase 7 can close. PR #3 remains open and unmerged.
