@@ -46,6 +46,9 @@ class NetworkDiscoveryEngineTest {
         assertEquals(6L, result.coverage.totalUsableAddresses)
         assertFalse(result.coverage.truncated)
         assertEquals("scope-a", result.coverage.networkScope)
+        assertEquals(1, result.coverage.arpObservedHosts)
+        assertEquals(1, result.coverage.tcpResponsiveHosts)
+        assertEquals(0, result.coverage.dnsSdResolvedHosts)
     }
 
     @Test
@@ -264,6 +267,8 @@ class NetworkDiscoveryEngineTest {
         assertFalse(result.ips.contains("127.0.0.1"))
         assertEquals(setOf("192.168.10.5"), result.tcpResponsiveIps)
         assertEquals(1, result.ips.count { it == "192.168.10.5" })
+        assertEquals(1, result.coverage.tcpResponsiveHosts)
+        assertEquals(1, result.coverage.dnsSdResolvedHosts)
     }
 
     @Test
