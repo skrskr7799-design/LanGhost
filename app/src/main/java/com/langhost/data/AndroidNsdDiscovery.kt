@@ -20,6 +20,7 @@ import java.net.Inet4Address
 import java.net.InetAddress
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -36,6 +37,7 @@ internal class AndroidNsdDiscovery(context: Context) {
     suspend fun discover(): Set<String> = withContext(Dispatchers.IO) {
         val addresses = ConcurrentHashMap.newKeySet<String>()
         val seenServices = ConcurrentHashMap.newKeySet<String>()
+        val activeInfoCallbacks = ConcurrentHashMap.newKeySet<NsdManager.ServiceInfoCallback>()
         val pendingResolutions = AtomicInteger(0)
         val multicastLock = acquireMulticastLockIfRequired()
 
@@ -43,71 +45,33 @@ internal class AndroidNsdDiscovery(context: Context) {
             coroutineScope {
                 SERVICE_TYPES.map { serviceType ->
                     async {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                            discoverServiceTypeModern(serviceType, addresses)
-                        } else {
-                            discoverServiceTypeLegacy(
-                                serviceType = serviceType,
-                                addresses = addresses,
-                                seenServices = seenServices,
-                                pendingResolutions = pendingResolutions
-                            )
-                        }
+                        discoverServiceType(
+                            serviceType = serviceType,
+                            addresses = addresses,
+                            seenServices = seenServices,
+                            activeInfoCallbacks = activeInfoCallbacks,
+                            pendingResolutions = pendingResolutions
+                        )
                     }
                 }.awaitAll()
             }
             addresses.toSet()
         } finally {
+            // A cancelled scan must not leave service-info listeners registered.
+            activeInfoCallbacks.toList().forEach { callback ->
+                runCatching { nsdManager.unregisterServiceInfoCallback(callback) }
+            }
             multicastLock?.let { lock ->
                 if (lock.isHeld) runCatching { lock.release() }
             }
         }
     }
 
-    /**
-     * API 34+ combines service discovery and resolution in one callback. It also
-     * exposes all resolved host addresses instead of the legacy single-host field.
-     */
-    @SuppressLint("NewApi")
-    private suspend fun discoverServiceTypeModern(
-        serviceType: String,
-        addresses: MutableSet<String>
-    ) {
-        val unregistered = CompletableDeferred<Unit>()
-        val callback = object : NsdManager.ServiceInfoCallback {
-            override fun onServiceUpdated(serviceInfo: NsdServiceInfo) {
-                addResolvedAddresses(serviceInfo.hostAddresses, addresses)
-            }
-
-            override fun onServiceInfoCallbackRegistrationFailed(errorCode: Int) = Unit
-
-            override fun onServiceInfoCallbackUnregistered() {
-                unregistered.complete(Unit)
-            }
-
-            override fun onServiceLost() = Unit
-        }
-
-        try {
-            val request = NsdManager.DiscoveryRequest.Builder(serviceType).build()
-            nsdManager.registerServiceInfoCallback(request, DIRECT_EXECUTOR, callback)
-            delay(DISCOVERY_WINDOW_MS)
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (_: Exception) {
-            // NSD may be disabled or the service type may be unavailable on this network.
-        } finally {
-            runCatching {
-                nsdManager.unregisterServiceInfoCallback(callback)
-                withTimeoutOrNull(STOP_TIMEOUT_MS) { unregistered.await() }
-            }
-        }
-    }
-
-    private suspend fun discoverServiceTypeLegacy(
+    private suspend fun discoverServiceType(
         serviceType: String,
         addresses: MutableSet<String>,
         seenServices: MutableSet<String>,
+        activeInfoCallbacks: MutableSet<NsdManager.ServiceInfoCallback>,
         pendingResolutions: AtomicInteger
     ) {
         val started = CompletableDeferred<Unit>()
@@ -127,21 +91,10 @@ internal class AndroidNsdDiscovery(context: Context) {
                     return
                 }
 
-                try {
-                    @Suppress("DEPRECATION")
-                    nsdManager.resolveService(service, object : NsdManager.ResolveListener {
-                        override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-                            pendingResolutions.decrementAndGet()
-                        }
-
-                        override fun onServiceResolved(resolved: NsdServiceInfo) {
-                            pendingResolutions.decrementAndGet()
-                            @Suppress("DEPRECATION")
-                            addResolvedAddresses(listOfNotNull(resolved.host), addresses)
-                        }
-                    })
-                } catch (_: Exception) {
-                    pendingResolutions.decrementAndGet()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    registerResolvedServiceCallback(service, addresses, activeInfoCallbacks, pendingResolutions)
+                } else {
+                    resolveServiceLegacy(service, addresses, pendingResolutions)
                 }
             }
 
@@ -178,6 +131,81 @@ internal class AndroidNsdDiscovery(context: Context) {
                 nsdManager.stopServiceDiscovery(listener)
                 withTimeoutOrNull(STOP_TIMEOUT_MS) { stopped.await() }
             }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                activeInfoCallbacks.toList().forEach { callback ->
+                    runCatching { nsdManager.unregisterServiceInfoCallback(callback) }
+                }
+                withTimeoutOrNull(STOP_TIMEOUT_MS) {
+                    while (activeInfoCallbacks.isNotEmpty()) delay(10)
+                }
+            }
+        }
+    }
+
+    @SuppressLint("NewApi")
+    private fun registerResolvedServiceCallback(
+        service: NsdServiceInfo,
+        addresses: MutableSet<String>,
+        activeInfoCallbacks: MutableSet<NsdManager.ServiceInfoCallback>,
+        pendingResolutions: AtomicInteger
+    ) {
+        val released = AtomicBoolean(false)
+        lateinit var callback: NsdManager.ServiceInfoCallback
+
+        fun release() {
+            if (released.compareAndSet(false, true)) {
+                activeInfoCallbacks.remove(callback)
+                pendingResolutions.decrementAndGet()
+            }
+        }
+
+        callback = object : NsdManager.ServiceInfoCallback {
+            override fun onServiceUpdated(serviceInfo: NsdServiceInfo) {
+                addResolvedAddresses(serviceInfo.hostAddresses, addresses)
+                runCatching { nsdManager.unregisterServiceInfoCallback(this) }
+            }
+
+            override fun onServiceInfoCallbackRegistrationFailed(errorCode: Int) {
+                release()
+            }
+
+            override fun onServiceInfoCallbackUnregistered() {
+                release()
+            }
+
+            override fun onServiceLost() {
+                runCatching { nsdManager.unregisterServiceInfoCallback(this) }
+            }
+        }
+
+        activeInfoCallbacks.add(callback)
+        try {
+            nsdManager.registerServiceInfoCallback(service, DIRECT_EXECUTOR, callback)
+        } catch (_: Exception) {
+            release()
+        }
+    }
+
+    private fun resolveServiceLegacy(
+        service: NsdServiceInfo,
+        addresses: MutableSet<String>,
+        pendingResolutions: AtomicInteger
+    ) {
+        try {
+            @Suppress("DEPRECATION")
+            nsdManager.resolveService(service, object : NsdManager.ResolveListener {
+                override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                    pendingResolutions.decrementAndGet()
+                }
+
+                override fun onServiceResolved(resolved: NsdServiceInfo) {
+                    pendingResolutions.decrementAndGet()
+                    @Suppress("DEPRECATION")
+                    addResolvedAddresses(listOfNotNull(resolved.host), addresses)
+                }
+            })
+        } catch (_: Exception) {
+            pendingResolutions.decrementAndGet()
         }
     }
 
