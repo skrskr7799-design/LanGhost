@@ -231,3 +231,12 @@ These screens now have distinct information hierarchies instead of being simple 
 - [x] Device history now calls its measurement TCP response rather than ICMP ping, labels failed service-port attempts separately from packet loss/uptime, and explains that closed or filtered ports do not prove host unavailability.
 - [x] TCP history shows shared loading and retryable persistence-error states; progress always resets even when saving fails or the coroutine is cancelled.
 - [x] Profile creation is disabled without a confirmed live Wi-Fi connection, preventing placeholder SSIDs or disconnected snapshots from being saved as usable network profiles.
+
+
+### 2026-11-16 — port-scan completion metadata
+
+- [x] Added an explicit `portsScannedAt` timestamp to device snapshots; an empty port list can now represent a completed scan rather than being confused with “never scanned”.
+- [x] Preserved the timestamp through discovery enrichment so a refreshed snapshot does not erase completed scan state while the in-memory network cache is retained.
+- [x] Device detail now initializes its completed-scan state from the timestamp, not from whether any ports were found.
+- [x] Added regression tests for completed empty scans, never-scanned devices and timestamp preservation through enrichment.
+- [ ] Full CI and physical-device regression remain required; device snapshots and scan timestamps remain transient and are intentionally not restored after process death.
