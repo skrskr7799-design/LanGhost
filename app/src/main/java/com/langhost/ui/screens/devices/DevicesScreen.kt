@@ -56,8 +56,14 @@ fun DevicesScreen(
     var showExportMenu by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(DeviceFilter.ALL) }
+    var selectedDeviceIp by remember { mutableStateOf<String?>(null) }
 
     val onlineCount = devices.count { it.isOnline }
+    LaunchedEffect(filteredDevices) {
+        if (filteredDevices.none { it.ip == selectedDeviceIp }) {
+            selectedDeviceIp = filteredDevices.firstOrNull()?.ip
+        }
+    }
     val filteredDevices = remember(devices, searchQuery, selectedFilter) {
         devices.asSequence()
             .filter { device ->
@@ -133,12 +139,17 @@ fun DevicesScreen(
         },
         containerColor = Background
     ) { padding ->
-        Box(
+        BoxWithConstraints(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentAlignment = Alignment.TopCenter
         ) {
+        val isWideLayout = maxWidth >= 840.dp
+        Row(
+            modifier = Modifier.widthIn(max = 1440.dp).fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(if (isWideLayout) 16.dp else 0.dp)
+        ) {
         LazyColumn(
-            modifier = Modifier.widthIn(max = 1120.dp).fillMaxWidth(),
+            modifier = Modifier.weight(if (isWideLayout) 1.15f else 1f).fillMaxHeight(),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
@@ -264,11 +275,86 @@ fun DevicesScreen(
                 }
             } else {
                 items(filteredDevices, key = { it.stableId }) { device ->
-                    DeviceInventoryRow(device = device, maskIdentifiers = appSettings.maskNetworkIdentifiers, onClick = { onDeviceClick(device.ip) })
+                    DeviceInventoryRow(device = device, maskIdentifiers = appSettings.maskNetworkIdentifiers, onClick = {\n                        selectedDeviceIp = device.ip\n                        if (!isWideLayout) onDeviceClick(device.ip)\n                    })
                 }
             }
         }
+        if (isWideLayout) {
+            val selectedDevice = filteredDevices.firstOrNull { it.ip == selectedDeviceIp }
+            DevicePreviewPanel(
+                device = selectedDevice,
+                maskIdentifiers = appSettings.maskNetworkIdentifiers,
+                onOpenFull = { selectedDevice?.let { onDeviceClick(it.ip) } },
+                modifier = Modifier.weight(0.9f).fillMaxHeight().padding(top = 12.dp, bottom = 28.dp)
+            )
         }
+        }
+        }
+    }
+}
+
+@Composable
+private fun DevicePreviewPanel(
+    device: Device?,
+    maskIdentifiers: Boolean,
+    onOpenFull: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ContentPanel(modifier = modifier) {
+        if (device == null) {
+            EmptyState(
+                title = "Выберите устройство",
+                description = "Выберите узел в списке, чтобы посмотреть его основные параметры.",
+                icon = Icons.Default.Devices
+            )
+        } else {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(deviceIcon(device.deviceType), contentDescription = null, tint = if (device.isOnline) AccentCyan else TextSecondary, modifier = Modifier.size(30.dp))
+                    StatusBadge(
+                        if (device.isOnline) "Онлайн" else "Оффлайн",
+                        if (device.isOnline) StatusTone.Success else StatusTone.Neutral
+                    )
+                }
+                Text(device.displayName, style = MaterialTheme.typography.headlineSmall, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                Text(
+                    PrivacyFormatter.ip(device.ip, maskIdentifiers),
+                    style = TechnicalTypography,
+                    color = Primary
+                )
+                HorizontalDivider(color = Divider)
+                DevicePreviewFact("MAC-АДРЕС", PrivacyFormatter.mac(device.mac.ifBlank { "—" }, maskIdentifiers))
+                DevicePreviewFact("ПРОИЗВОДИТЕЛЬ", device.vendor.ifBlank { "Не определён" })
+                DevicePreviewFact("ТИП", deviceTypeLabel(device.deviceType))
+                DevicePreviewFact("ИМЯ ХОСТА", device.hostname.ifBlank { "—" })
+                DevicePreviewFact("ОТКРЫТЫЕ ПОРТЫ", if (device.openPorts.isEmpty()) "Не проверялись" else device.openPorts.joinToString(", "))
+                Spacer(Modifier.weight(1f))
+                Button(
+                    onClick = onOpenFull,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                ) {
+                    Text("Открыть полный профиль")
+                    Spacer(Modifier.width(8.dp))
+                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DevicePreviewFact(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = TextTertiary)
+        Text(value, style = TechnicalTypography, color = TextPrimary)
     }
 }
 
