@@ -114,6 +114,8 @@ fun LanGhostNavHost(windowSizeClass: WindowSizeClass? = null) {
                     .width(112.dp)
                     .fillMaxHeight()
                     .background(Surface)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
                     .padding(horizontal = 8.dp, vertical = 18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -145,7 +147,7 @@ fun LanGhostNavHost(windowSizeClass: WindowSizeClass? = null) {
         Scaffold(
             containerColor = Background,
             bottomBar = {
-                Column(modifier = Modifier.background(Surface)) {
+                Column(modifier = Modifier.background(Surface).navigationBarsPadding()) {
                     androidx.compose.material3.HorizontalDivider(color = Divider.copy(alpha = 0.75f), thickness = 1.dp)
                     Row(
                         modifier = Modifier
