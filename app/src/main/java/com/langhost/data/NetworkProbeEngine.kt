@@ -27,6 +27,7 @@ internal class NetworkProbeEngine(
     private val ensureCurrentNetworkScope: suspend (String) -> Unit
 ) {
     private val portProbeSemaphore = Semaphore(PORT_SCAN_CONCURRENCY)
+    private val discoveryProbeSemaphore = Semaphore(DISCOVERY_PORT_CONCURRENCY)
 
     suspend fun probeHost(
         ip: String,
@@ -41,7 +42,7 @@ internal class NetworkProbeEngine(
         coroutineScope {
             portsToTry.distinct().map { port ->
                 async(Dispatchers.IO) {
-                    portProbeSemaphore.withPermit {
+                    discoveryProbeSemaphore.withPermit {
                         currentCoroutineContext().ensureActive()
                         val remainingNanos = deadline - System.nanoTime()
                         if (remainingNanos <= 0L) return@withPermit false
@@ -140,7 +141,8 @@ internal class NetworkProbeEngine(
 
     private companion object {
         val DISCOVERY_PORTS = intArrayOf(80, 443, 22, 445, 8080, 53)
-        const val PORT_SCAN_CONCURRENCY = 64
+        const val PORT_SCAN_CONCURRENCY = 16
+        const val DISCOVERY_PORT_CONCURRENCY = 192
         const val MAX_DISCOVERY_CONNECT_TIMEOUT_MS = 400L
     }
 }
