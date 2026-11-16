@@ -21,6 +21,7 @@ internal class DeviceEnrichmentEngine(
         localIp: String,
         gateway: String,
         hasTcpResponse: Boolean = false,
+        hasNsdServiceObservation: Boolean = false,
         existing: Device?,
         existingByStableId: Device?,
         now: Long
@@ -47,12 +48,13 @@ internal class DeviceEnrichmentEngine(
         val evidence = when {
             ip == localIp -> DiscoveryEvidence.LOCAL_INTERFACE
             hasTcpResponse -> DiscoveryEvidence.TCP_RESPONSE
+            hasNsdServiceObservation -> DiscoveryEvidence.NSD_SERVICE_OBSERVATION
             ip == gateway -> DiscoveryEvidence.GATEWAY_CONFIGURATION
             macFinal.isNotBlank() -> DiscoveryEvidence.ARP_OBSERVATION
             else -> DiscoveryEvidence.UNKNOWN
         }
         val lastConfirmedOnline = when {
-            ip == localIp || hasTcpResponse -> now
+            ip == localIp || hasTcpResponse || hasNsdServiceObservation -> now
             previousHasConfirmation(existingByStableId, existing) -> maxOf(
                 existingByStableId?.lastConfirmedOnline ?: 0L,
                 existing?.lastConfirmedOnline ?: 0L
