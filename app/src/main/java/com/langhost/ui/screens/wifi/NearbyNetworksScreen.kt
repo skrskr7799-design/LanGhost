@@ -261,7 +261,7 @@ private fun WifiEnvironmentPanel(
                         style = MaterialTheme.typography.bodySmall, color = if (fresh) Success else TextSecondary
                     )
                 }
-                Icon(Icons.Default.GraphicEq, null, tint = AccentCyan, modifier = Modifier.size(30.dp))
+                Icon(Icons.Default.Wifi, null, tint = AccentCyan, modifier = Modifier.size(30.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 WifiMetric("Всего", total.toString(), Modifier.weight(1f))
