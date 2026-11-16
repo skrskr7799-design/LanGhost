@@ -261,6 +261,7 @@ class NetworkRepository(context: Context) {
                     legacyNetworkScope = legacyNetworkScope,
                     localIp = localIp,
                     gateway = gateway,
+                    hasTcpResponse = ip in discovery.tcpResponsiveIps,
                     existing = existingByIp,
                     existingByStableId = devicesCache[
                         if (mac.isNotBlank()) "${mac.uppercase()}@${networkScope}" else "ip:${networkScope}:$ip"
