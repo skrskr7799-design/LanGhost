@@ -317,7 +317,7 @@ private fun DeviceInventoryRow(device: Device, maskIdentifiers: Boolean, onClick
                 Text(
                     buildString {
                         append(PrivacyFormatter.ip(device.ip, maskIdentifiers))
-                        if (device.mac.isNotBlank()) append("  ·  ${PrivacyFormatter.mac(device.mac, maskIdentifiers)})
+                        if (device.mac.isNotBlank()) append("  ·  ${PrivacyFormatter.mac(device.mac, maskIdentifiers)}")
                     },
                     style = TechnicalTypography,
                     color = TextSecondary,
