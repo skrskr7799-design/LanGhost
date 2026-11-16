@@ -1,6 +1,7 @@
 package com.langhost.ui.screens.tools
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -111,21 +112,15 @@ fun ToolsScreen(
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.fillMaxWidth()) {
-                        ToolGroup(
-                            title = "Управление устройствами",
-                            modifier = Modifier.weight(1f),
-                            items = listOf(
-                                Triple("Wake-on-LAN", "Отправка Magic Packet устройствам", Icons.Default.Power, onWakeOnLan),
-                                Triple("Профили сети", "Сохранённые сетевые конфигурации", Icons.Default.Folder, onProfiles)
-                            )
-                        )
-                        ToolGroup(
-                            title = "Конфигурация",
-                            modifier = Modifier.weight(1f),
-                            items = listOf(
-                                Triple("Настройки", "Мониторинг, приватность и отчёты", Icons.Default.Settings, onSettings)
-                            )
-                        )
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            SectionHeading("Управление устройствами")
+                            ToolAction("Wake-on-LAN", "Отправка Magic Packet устройствам", Icons.Default.Power, onWakeOnLan)
+                            ToolAction("Профили сети", "Сохранённые сетевые конфигурации", Icons.Default.Folder, onProfiles)
+                        }
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            SectionHeading("Конфигурация")
+                            ToolAction("Настройки", "Мониторинг, приватность и отчёты", Icons.Default.Settings, onSettings)
+                        }
                     }
                 } else {
                     DiagnosticsFeature(onUtilities, onPublicIp)
@@ -163,7 +158,10 @@ private fun DiagnosticsFeature(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .backgroundBrush()
+                 .background(
+                    Brush.linearGradient(listOf(SurfaceHighlight.copy(alpha = 0.36f), PanelSurface)),
+                    RoundedCornerShape(26.dp)
+                )
                 .padding(22.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
@@ -196,25 +194,6 @@ private fun DiagnosticsFeature(
                 ) { Text("Внешняя сеть", maxLines = 1) }
             }
             Text("Локальные проверки запускаются по вашему запросу", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
-        }
-    }
-}
-
-@Composable
-private fun Modifier.backgroundBrush(): Modifier = this.then(
-    Modifier
-)
-
-@Composable
-private fun ToolGroup(
-    title: String,
-    modifier: Modifier = Modifier,
-    items: List<Triple<String, String, ImageVector, () -> Unit>>
-) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SectionHeading(title)
-        items.forEach { (name, description, icon, action) ->
-            ToolAction(name, description, icon, action)
         }
     }
 }
