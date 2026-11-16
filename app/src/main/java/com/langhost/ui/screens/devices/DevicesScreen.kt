@@ -59,11 +59,6 @@ fun DevicesScreen(
     var selectedDeviceIp by remember { mutableStateOf<String?>(null) }
 
     val onlineCount = devices.count { it.isOnline }
-    LaunchedEffect(filteredDevices) {
-        if (filteredDevices.none { it.ip == selectedDeviceIp }) {
-            selectedDeviceIp = filteredDevices.firstOrNull()?.ip
-        }
-    }
     val filteredDevices = remember(devices, searchQuery, selectedFilter) {
         devices.asSequence()
             .filter { device ->
@@ -82,6 +77,11 @@ fun DevicesScreen(
             }
             .sortedWith(compareByDescending<Device> { it.isOnline }.thenBy { it.displayName.lowercase() })
             .toList()
+    }
+    LaunchedEffect(filteredDevices) {
+        if (filteredDevices.none { it.ip == selectedDeviceIp }) {
+            selectedDeviceIp = filteredDevices.firstOrNull()?.ip
+        }
     }
 
     Scaffold(
