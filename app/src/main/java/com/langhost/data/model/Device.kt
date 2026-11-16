@@ -3,6 +3,7 @@ package com.langhost.data.model
 enum class DiscoveryEvidence {
     TCP_RESPONSE,
     NSD_SERVICE_OBSERVATION,
+    SSDP_RESPONSE_OBSERVATION,
     ARP_OBSERVATION,
     LOCAL_INTERFACE,
     GATEWAY_CONFIGURATION,
