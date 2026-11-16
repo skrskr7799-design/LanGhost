@@ -126,7 +126,7 @@ Each slice must pass Lint, unit tests and Debug APK build; full CI (including Re
 
 ### Remaining visual acceptance work
 
-- [ ] Complete a composition pass on each screen; avoid relying on color and shape changes alone.
+- [x] Complete a composition pass on the Tools hub, Ping/DNS and Public IP; avoid relying on color and shape changes alone.
 - [ ] Build adaptive large-screen layouts with useful multi-pane content and verify phone / tablet / landscape separately.
 - [ ] Unify permission, loading, stale, partial, empty and error states with consistent hierarchy and retry affordances.
 - [x] Added a persistent privacy preference and centralized masking for IP, MAC and BSSID across dashboard, device inventory/detail, topology list, Wi-Fi, security findings/diffs, network profiles, WoL profile display, public IP, DNS/Ping results, clipboard, TXT/CSV exports and shared reports.
@@ -157,3 +157,13 @@ The adaptive and privacy changes passed full CI on commit `575663b19da6f76093e0d
 - [x] Preserved notification permission handling, background watch worker controls, biometric availability checks, identifier masking, and report sharing.
 
 These screens now have distinct information hierarchies instead of being simple vertical lists of interchangeable cards. They still require compile/CI verification and real-device visual review.
+
+
+### 2026-11-16 — operations hub and diagnostic workspaces
+
+- [x] Replaced the repeated two-column tool-card grid with an adaptive operations center: a featured core-diagnostics area, focused security/radio actions and separate device-management/configuration groups.
+- [x] Rebuilt Ping/DNS around a target-node workflow and a dedicated result workspace; tablet uses a two-pane composition while phone keeps a single-column flow.
+- [x] Made the operation type and result state explicit (awaiting input, in progress, response, attention); retained the existing TCP 80/443 probe semantics and system DNS resolver.
+- [x] Rebuilt Public IP as an explicit external lookup workspace with clear disclosure, source/fallback explanation, responsive request/result panes and privacy-aware IP presentation.
+- [x] Preserved all existing tool routes and callback behavior; no new network request is made automatically.
+- [ ] Verify all new screen compositions through full CI and real-device review.
