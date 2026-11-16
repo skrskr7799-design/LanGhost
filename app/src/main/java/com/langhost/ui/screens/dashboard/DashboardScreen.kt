@@ -5,6 +5,7 @@ import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -153,20 +155,24 @@ fun DashboardScreen(
         },
         containerColor = Background
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(AmbientBlue.copy(alpha = 0.22f), Background),
-                        radius = 920f
-                    )
-                )
-                .padding(horizontal = LanGhostSpacing.md, vertical = LanGhostSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(LanGhostSpacing.xl)
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentAlignment = Alignment.TopCenter
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 1120.dp)
+                    .verticalScroll(rememberScrollState())
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(AmbientBlue.copy(alpha = 0.22f), Background),
+                            radius = 920f
+                        )
+                    )
+                    .padding(horizontal = if (maxWidth >= 840.dp) 32.dp else LanGhostSpacing.md, vertical = LanGhostSpacing.lg),
+                verticalArrangement = Arrangement.spacedBy(LanGhostSpacing.xl)
+            ) {
             PageHeading(
                 title = "Обзор сети",
                 subtitle = "Состояние и активность вашей локальной сети",
@@ -241,6 +247,7 @@ fun DashboardScreen(
                 }
             }
             Spacer(modifier = Modifier.height(LanGhostSpacing.xs))
+            }
         }
     }
 }
