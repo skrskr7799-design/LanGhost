@@ -60,6 +60,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import com.langhost.data.AppSettings
+import com.langhost.data.AppSettingsData
+import com.langhost.data.PrivacyFormatter
 import com.langhost.ui.components.ContentPanel
 import com.langhost.ui.components.MetricTile
 import com.langhost.ui.components.NetworkOrbit
@@ -102,6 +105,8 @@ fun DashboardScreen(
     viewModel: DashboardViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val appSettings by androidx.compose.runtime.remember(context) { AppSettings(context.applicationContext).settingsFlow }.collectAsState(initial = AppSettingsData())
     val network = state.networkInfo
     val permissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -197,8 +202,8 @@ fun DashboardScreen(
                         NetworkOverview(
                             isConnected = network.isConnected,
                             ssid = network.ssid,
-                            gateway = network.gateway,
-                            ipAddress = network.ipAddress,
+                            gateway = PrivacyFormatter.ip(network.gateway, appSettings.maskNetworkIdentifiers),
+                            ipAddress = PrivacyFormatter.ip(network.ipAddress, appSettings.maskNetworkIdentifiers),
                             channel = network.channel
                         )
                         DashboardMetrics(
@@ -238,8 +243,8 @@ fun DashboardScreen(
                 NetworkOverview(
                     isConnected = network.isConnected,
                     ssid = network.ssid,
-                    gateway = network.gateway,
-                    ipAddress = network.ipAddress,
+                    gateway = PrivacyFormatter.ip(network.gateway, appSettings.maskNetworkIdentifiers),
+                    ipAddress = PrivacyFormatter.ip(network.ipAddress, appSettings.maskNetworkIdentifiers),
                     channel = network.channel
                 )
                 DashboardMetrics(
