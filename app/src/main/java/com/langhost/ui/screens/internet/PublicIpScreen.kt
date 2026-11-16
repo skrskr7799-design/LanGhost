@@ -219,8 +219,7 @@ private fun NetworkResultPanel(
                     if (error != null) {
                         ErrorState(
                             title = "Обновление не завершено",
-                            description = error,
-                            onRetry = { /* retry is provided by the request panel */ }
+                            description = error
                         )
                     } else if (info.isp.isBlank() && info.org.isBlank() && info.country.isBlank() && info.region.isBlank() && info.city.isBlank()) {
                         DataQualityNotice(
@@ -234,8 +233,7 @@ private fun NetworkResultPanel(
                     StatusBadge("LOOKUP FAILED", StatusTone.Warning)
                     ErrorState(
                         title = "Не удалось получить сведения",
-                        description = error ?: "Внешняя служба не вернула данные.",
-                        onRetry = { /* retry is provided by the request panel */ }
+                        description = error ?: "Внешняя служба не вернула данные."
                     )
                 }
             }
