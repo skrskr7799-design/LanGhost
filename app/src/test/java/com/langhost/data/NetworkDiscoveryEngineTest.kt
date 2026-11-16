@@ -172,7 +172,7 @@ class NetworkDiscoveryEngineTest {
     }
 
     @Test
-    fun networkScopeIsCheckedAroundRefreshedArpRead() = runBlocking {
+    fun networkScopeIsCheckedBeforeRefreshedArpRead() = runBlocking {
         var checks = 0
         var refreshes = 0
         val engine = NetworkDiscoveryEngine(
@@ -201,6 +201,39 @@ class NetworkDiscoveryEngineTest {
             throw AssertionError("Expected network-scope cancellation")
         } catch (_: CancellationException) {
             assertEquals(0, refreshes)
+        }
+    }
+
+    @Test
+    fun networkScopeIsRecheckedAfterRefreshedArpRead() = runBlocking {
+        var checks = 0
+        var refreshes = 0
+        val engine = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {
+                checks++
+                if (checks == 5) throw CancellationException("network changed during ARP refresh")
+            }
+        )
+
+        try {
+            engine.discover(
+                localIp = "192.168.10.2",
+                gateway = "192.168.10.1",
+                netmask = "255.255.255.248",
+                arpEntries = emptyMap(),
+                networkScope = "scope-refresh",
+                timeoutMs = 150,
+                maxTargets = 16,
+                maxConcurrency = 2,
+                refreshArpEntries = {
+                    refreshes++
+                    emptyMap()
+                }
+            )
+            throw AssertionError("Expected network-scope cancellation")
+        } catch (_: CancellationException) {
+            assertEquals(1, refreshes)
         }
     }
 
