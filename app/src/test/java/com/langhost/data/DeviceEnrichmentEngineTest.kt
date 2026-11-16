@@ -165,4 +165,30 @@ class DeviceEnrichmentEngineTest {
         assertEquals(listOf("ip:old-scope:10.0.0.8"), requestedLegacyIds)
         assertEquals("legacy scoped name", result.nickname)
     }
+    @Test
+    fun resolvedDnsSdServiceIsRecordedAsSeparatePositiveEvidence() = runBlocking {
+        val engine = DeviceEnrichmentEngine(
+            loadCustomization = { _, _ -> DeviceCustomization() },
+            resolveHostname = { "" },
+            lookupVendor = { "" }
+        )
+        val result = engine.enrich(
+            ip = "192.168.1.50",
+            mac = "",
+            bssid = "",
+            networkScope = "scope",
+            legacyNetworkScope = "scope",
+            localIp = "192.168.1.2",
+            gateway = "192.168.1.1",
+            hasTcpResponse = false,
+            hasNsdServiceObservation = true,
+            existing = null,
+            existingByStableId = null,
+            now = 900L
+        )
+
+        assertEquals(900L, result.lastConfirmedOnline)
+        assertEquals(DiscoveryEvidence.NSD_SERVICE_OBSERVATION, result.discoveryEvidence)
+    }
+
 }
