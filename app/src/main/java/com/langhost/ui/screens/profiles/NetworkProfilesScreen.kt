@@ -37,7 +37,7 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Профили сетей", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) },
+                title = { Text("Профили сетей", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = TextPrimary)
@@ -83,7 +83,8 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
                     colors = CardDefaults.cardColors(
                         containerColor = if (p.id == activeId) Primary.copy(alpha = 0.15f) else Surface
                     ),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.72f)),
                     onClick = { scope.launch { store.setActive(p.id) } }
                 ) {
                     Row(

@@ -73,7 +73,7 @@ fun ChannelAnalyzerScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Каналы Wi-Fi", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) },
+                title = { Text("Каналы Wi-Fi", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = TextPrimary)
@@ -96,7 +96,7 @@ fun ChannelAnalyzerScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.72f))) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Анализ радиоэфира", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                         Text(advice.recommendation, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
@@ -166,7 +166,7 @@ private fun ChannelBar(load: ChannelLoad, isBest: Boolean) {
         colors = CardDefaults.cardColors(
             containerColor = if (isBest) Primary.copy(alpha = 0.12f) else Surface
         ),
-        shape = RoundedCornerShape(10.dp)
+        shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.72f))
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

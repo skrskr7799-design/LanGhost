@@ -81,7 +81,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Настройки", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) },
+                title = { Text("Настройки", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = TextPrimary)
@@ -176,7 +176,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
 
             SettingsSection("О приложении") {
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.72f))) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("LanGhost", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                         Text("Версия 0.4.0", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
@@ -191,7 +191,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 @Composable
 private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium, color = TextSecondary)
+        Text(title.uppercase(), style = MaterialTheme.typography.labelSmall, color = AccentCyan)
         content()
     }
 }

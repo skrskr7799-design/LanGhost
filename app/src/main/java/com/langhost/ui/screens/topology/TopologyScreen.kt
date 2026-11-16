@@ -53,6 +53,7 @@ import com.langhost.data.NetworkRepository
 import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
 import com.langhost.ui.components.ContentPanel
+import com.langhost.ui.theme.GridLine
 import com.langhost.ui.components.EmptyState
 import com.langhost.ui.components.PageHeading
 import com.langhost.ui.components.SectionHeading
@@ -319,6 +320,17 @@ private fun TopologyGraph(
                         }
                     }
             ) {
+                var gridX = 0f
+                val gridStep = 34.dp.toPx()
+                while (gridX < size.width) {
+                    drawLine(GridLine.copy(alpha = 0.55f), Offset(gridX, 0f), Offset(gridX, size.height), strokeWidth = 1.dp.toPx())
+                    gridX += gridStep
+                }
+                var gridY = 0f
+                while (gridY < size.height) {
+                    drawLine(GridLine.copy(alpha = 0.55f), Offset(0f, gridY), Offset(size.width, gridY), strokeWidth = 1.dp.toPx())
+                    gridY += gridStep
+                }
                 val positions = topologyPositions(nodes, IntSize(size.width.toInt(), size.height.toInt()))
                 val gatewayPosition = gateway?.let { positions[it.stableId] }
 

@@ -19,6 +19,7 @@ import com.langhost.data.WakeOnLan
 import com.langhost.data.WolProfile
 import com.langhost.data.WolProfiles
 import com.langhost.ui.theme.*
+import com.langhost.ui.theme.TechnicalTypography
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -38,7 +39,7 @@ fun WolProfilesScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("WoL профили", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) },
+                title = { Text("WoL профили", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = TextPrimary)
@@ -75,7 +76,7 @@ fun WolProfilesScreen(onBack: () -> Unit) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = Surface),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.72f))
                     ) {
                         Row(
                             modifier = Modifier.padding(14.dp).fillMaxWidth(),
@@ -84,7 +85,7 @@ fun WolProfilesScreen(onBack: () -> Unit) {
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(p.name, fontWeight = FontWeight.Medium, color = TextPrimary)
-                                Text("${p.mac} → ${p.broadcastIp}:${p.port}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                Text("${p.mac} → ${p.broadcastIp}:${p.port}", style = TechnicalTypography, color = TextSecondary)
                             }
                             IconButton(onClick = {
                                 scope.launch {

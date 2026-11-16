@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import com.langhost.data.PublicIpLookup
 import com.langhost.data.PublicNetworkInfo
 import com.langhost.ui.theme.*
+import com.langhost.ui.theme.TechnicalTypography
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -48,7 +49,7 @@ fun PublicIpScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Внешняя сеть", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) },
+                title = { Text("Внешняя сеть", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = TextPrimary)
@@ -70,7 +71,7 @@ fun PublicIpScreen(onBack: () -> Unit) {
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.72f))) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Перед запросом", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                     Text(
@@ -109,7 +110,7 @@ fun PublicIpScreen(onBack: () -> Unit) {
                 Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("Публичный IP", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                        Text(info.ip, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Primary)
+                        Text(info.ip, style = TechnicalTypography.copy(fontSize = MaterialTheme.typography.headlineSmall.fontSize, lineHeight = MaterialTheme.typography.headlineSmall.lineHeight, fontWeight = FontWeight.Bold), color = Primary)
                         HorizontalDivider(color = Divider)
                         InfoRow("Провайдер", info.isp.ifBlank { info.org.ifBlank { "—" } })
                         InfoRow("Страна", info.country.ifBlank { "—" })

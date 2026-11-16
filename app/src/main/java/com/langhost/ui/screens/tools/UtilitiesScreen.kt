@@ -31,7 +31,7 @@ fun UtilitiesScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Утилиты", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) },
+                title = { Text("Утилиты", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = TextPrimary)
@@ -56,6 +56,7 @@ fun UtilitiesScreen(onBack: () -> Unit) {
                 label = { Text("IP или домен") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
+                shape = LanGhostShapes.control,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Primary,
                     unfocusedBorderColor = Border,
@@ -98,7 +99,7 @@ fun UtilitiesScreen(onBack: () -> Unit) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = Surface),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.72f))
                 ) {
                     Text(
                         text = result,

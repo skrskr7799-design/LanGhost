@@ -26,6 +26,7 @@ import com.langhost.data.WolProfiles
 import com.langhost.data.model.DeviceType
 import com.langhost.ui.theme.*
 import com.langhost.ui.components.ContentPanel
+import com.langhost.ui.theme.TechnicalTypography
 import com.langhost.ui.components.StatusBadge
 import com.langhost.ui.components.StatusTone
 import com.langhost.ui.util.QuickActions
@@ -75,7 +76,7 @@ fun DeviceDetailScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(device?.displayName ?: deviceIp, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text(device?.displayName ?: deviceIp, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -110,11 +111,11 @@ fun DeviceDetailScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         androidx.compose.material3.Surface(
-                            color = Primary.copy(alpha = 0.12f),
+                            color = if (device.isOnline) AccentCyan.copy(alpha = 0.12f) else SurfaceElevated,
                             shape = LanGhostShapes.card
                         ) {
                             Box(modifier = Modifier.size(58.dp), contentAlignment = Alignment.Center) {
-                                Icon(deviceTypeIcon(device.deviceType), contentDescription = null, tint = Primary, modifier = Modifier.size(29.dp))
+                                Icon(deviceTypeIcon(device.deviceType), contentDescription = null, tint = if (device.isOnline) AccentCyan else TextSecondary, modifier = Modifier.size(29.dp))
                             }
                         }
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -135,7 +136,7 @@ fun DeviceDetailScreen(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text("IP-АДРЕС", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
-                            Text(device.ip, style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.Medium)
+                            Text(device.ip, style = TechnicalTypography, color = TextPrimary, fontWeight = FontWeight.Medium)
                         }
                         IconButton(onClick = { copyToClipboard("IP", device.ip) }) {
                             Icon(Icons.Default.ContentCopy, contentDescription = "Скопировать IP", tint = Primary)
@@ -145,7 +146,7 @@ fun DeviceDetailScreen(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text("MAC-АДРЕС", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
-                                Text(device.mac, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                                Text(device.mac, style = TechnicalTypography, color = TextSecondary)
                             }
                             IconButton(onClick = { copyToClipboard("MAC", device.mac) }) {
                                 Icon(Icons.Default.ContentCopy, contentDescription = "Скопировать MAC", tint = Primary)
@@ -154,7 +155,7 @@ fun DeviceDetailScreen(
                     }
                 }
             }
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = LanGhostShapes.card) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = LanGhostShapes.card, border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.72f))) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Информация об устройстве", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                     HorizontalDivider(color = Divider)
