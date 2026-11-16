@@ -63,6 +63,9 @@ internal class AndroidNsdDiscovery(context: Context) {
             activeInfoCallbacks.toList().forEach { callback ->
                 runCatching { nsdManager.unregisterServiceInfoCallback(callback) }
             }
+            withTimeoutOrNull(STOP_TIMEOUT_MS) {
+                while (activeInfoCallbacks.isNotEmpty()) delay(10)
+            }
             multicastLock?.let { lock ->
                 if (lock.isHeld) runCatching { lock.release() }
             }
@@ -145,14 +148,6 @@ internal class AndroidNsdDiscovery(context: Context) {
                 nsdManager.stopServiceDiscovery(listener)
                 withTimeoutOrNull(STOP_TIMEOUT_MS) { stopped.await() }
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                activeInfoCallbacks.toList().forEach { callback ->
-                    runCatching { nsdManager.unregisterServiceInfoCallback(callback) }
-                }
-                withTimeoutOrNull(STOP_TIMEOUT_MS) {
-                    while (activeInfoCallbacks.isNotEmpty()) delay(10)
-                }
-            }
         }
     }
 
@@ -234,7 +229,13 @@ internal class AndroidNsdDiscovery(context: Context) {
                 !host.isLinkLocalAddress &&
                 !host.isMulticastAddress
             ) {
-                host.hostAddress?.let(addresses::add)
+                host.hostAddress?.let { address ->
+                    synchronized(addresses) {
+                        if (address in addresses || addresses.size < MAX_RESOLVED_HOSTS) {
+                            addresses.add(address)
+                        }
+                    }
+                }
             }
         }
     }
@@ -270,5 +271,6 @@ internal class AndroidNsdDiscovery(context: Context) {
         const val DISCOVERY_WINDOW_MS = 1_500L
         const val RESOLUTION_GRACE_MS = 300L
         const val MAX_PENDING_RESOLUTIONS = 4
+        const val MAX_RESOLVED_HOSTS = 256
     }
 }
