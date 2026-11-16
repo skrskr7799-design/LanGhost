@@ -227,3 +227,4 @@ These screens now have distinct information hierarchies instead of being simple 
 - [x] Profile actions now say “Choose context” rather than implying a system Wi-Fi switch; the detail view explains that the OS connection is not changed.
 - [x] Connection status is based on the network monitor's explicit `isConnected` state, not merely on a non-empty SSID.
 - [ ] Clarify TCP reachability history so failed connections to selected service ports are never described as ICMP packet loss or host downtime.
+- [x] Extracted profile-to-live-network matching into the data layer and added unit coverage for exact BSSID matches, SSID-only evidence, changed access points, disconnected state and unknown identifiers.
