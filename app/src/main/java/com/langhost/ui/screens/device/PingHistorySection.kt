@@ -60,6 +60,7 @@ fun PingHistorySection(ip: String) {
                     color = TextSecondary
                 )
 
+                if (samples.all { it.latencyMs == null }) Text("TCP-подключение к портам 80, 443 и 22 не установлено. Это не доказывает недоступность устройства: службы могут использовать другие порты или блокировать подключения.", style = MaterialTheme.typography.bodySmall, color = Warning)
                 val okSamples = samples.mapNotNull { it.latencyMs?.toFloat() }
                 if (okSamples.size >= 2) {
                     val maxY = (okSamples.maxOrNull() ?: 1f).coerceAtLeast(1f)
