@@ -167,3 +167,13 @@ These screens now have distinct information hierarchies instead of being simple 
 - [x] Rebuilt Public IP as an explicit external lookup workspace with clear disclosure, source/fallback explanation, responsive request/result panes and privacy-aware IP presentation.
 - [x] Preserved all existing tool routes and callback behavior; no new network request is made automatically.
 - [ ] Verify all new screen compositions through full CI and real-device review.
+
+
+### 2026-11-16 — Wi-Fi environment and channel intelligence
+
+- [x] Rebuilt Nearby Wi-Fi as an adaptive radio-environment workspace: discovered network inventory on expanded layouts, with band summaries and strongest-signal context alongside it.
+- [x] Preserved scan permissions, freshness semantics, filters, sorting and privacy-aware BSSID display.
+- [x] Rebuilt Channel Analysis around a selectable band spectrum map, explicit current/recommended channel markers, a channel inventory and an evidence/limitations panel.
+- [x] Added explicit scan feedback and stale-data messaging; empty scan results are not represented as proof of an empty radio environment.
+- [x] Kept channel recommendations grounded in the existing ChannelAnalyzer model; no regulatory support or real interference measurement is claimed.
+- [ ] Verify all updated workspaces through full CI and real-device review.
