@@ -64,7 +64,7 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
+                    IconButton(enabled = network.isConnected && network.ssid.isNotBlank() && network.ssid != "—", onClick = {
                         name = when {
                             network.ssid.contains("home", true) -> "Дом"
                             network.ssid.isNotBlank() && network.ssid != "—" -> network.ssid.take(20)
@@ -111,7 +111,7 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
                                 title = "Пока нет профилей",
                                 description = "Добавьте текущую сеть, чтобы закрепить её как Дом, Работа или другое место.",
                                 icon = Icons.Default.Wifi,
-                                actionLabel = "Добавить профиль",
+                                actionLabel = if (network.isConnected && network.ssid.isNotBlank() && network.ssid != "—") "Добавить профиль" else null,
                                 onAction = { showAdd = true }
                             )
                         } else {
@@ -235,7 +235,7 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
                 },
                 confirmButton = {
                     TextButton(
-                        enabled = name.isNotBlank(),
+                        enabled = name.isNotBlank() && network.isConnected && network.ssid.isNotBlank() && network.ssid != "—",
                         onClick = {
                             scope.launch {
                                 val profile = NetworkProfile(
