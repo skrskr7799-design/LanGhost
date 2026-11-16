@@ -20,7 +20,7 @@ internal class DeviceEnrichmentEngine(
         legacyNetworkScope: String,
         localIp: String,
         gateway: String,
-        hasTcpResponse: Boolean,
+        hasTcpResponse: Boolean = false,
         existing: Device?,
         existingByStableId: Device?,
         now: Long
