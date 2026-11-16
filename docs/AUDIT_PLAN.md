@@ -473,3 +473,19 @@ Regression tests cover:
 **Limitations:** DNS-SD discovers only devices that advertise one of the supported service types and respond to resolution. Phones, TVs, computers and IoT devices may advertise different services, disable mDNS, use multicast filtering/client isolation, or be asleep. A resolved service does not identify the device OS or guarantee a complete inventory. The current fixed service-type list is intentionally bounded and will be reviewed against real-device results. Service-info callbacks are tracked across all concurrent service-type listeners and cleaned up once the scan ends, so one listener cannot cancel another listener's in-flight resolution. Android target SDK remains 35; the future Android 17 local-network permission migration must be handled before targeting API 37.
 
 **Status:** implementation checkpoint only. Lint, unit tests, APK builds and artifact upload are pending on the updated branch head. Phase 7 remains IN PROGRESS; physical home-LAN retest is still mandatory.
+
+
+### Phase 7.3 — Physical retest feedback and expanded evidence plan (2026-11-16)
+
+The first post-NSD physical retest on the user's Galaxy tablet completed successfully from an installation/launch perspective, but the device inventory was unchanged: tablet, router and server only. No additional computer, TV or phone appeared. This is a failed discovery acceptance check, not a phase completion. The result confirms that the initial ARP refresh and fixed DNS-SD service set have not materially improved coverage on this home LAN; it does not by itself distinguish between router/client isolation, endpoint sleep/firewall behavior, subnet selection, multicast visibility or an NSD listener/resolution issue.
+
+A source review identified another concrete false-negative path: `NetworkProbeEngine.probeHost()` previously counted only a successful TCP connect as positive evidence. A connection refusal (TCP RST) is also a response from the target and must count as reachability, while timeouts and routing errors remain unknown. This is now corrected and covered by a loopback regression test.
+
+**Next diagnostic/implementation gate:**
+- Expose source-specific scan counters (candidate addresses checked, TCP-positive hosts, ARP entries, DNS-SD-resolved hosts) so a physical retest can show which evidence path is empty instead of reporting only a total coverage percentage.
+- Add bounded, active-network-scoped discovery for additional LAN protocols with device relevance: SSDP/UPnP (TV/media devices), WS-Discovery (Windows hosts), and NBNS/NetBIOS (where enabled). Multicast/broadcast reception, lock lifecycle, interface binding, cancellation, packet limits and privacy must be explicitly handled and unit-tested.
+- Preserve source-specific evidence. A UDP discovery response may confirm a host, but must not be mislabeled as a TCP response or OS identification.
+- Review whether the subnet is fully covered by the 1,024-target cap and make truncation/source counts visible.
+- Repeat the same known-device acceptance test only after the new diagnostics and discovery paths pass full CI.
+
+**Status:** Phase 7 remains IN PROGRESS. The unchanged physical result is recorded as an unresolved acceptance failure. Do not mark the phase complete or merge PR #3 based on CI alone.
