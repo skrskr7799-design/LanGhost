@@ -436,3 +436,24 @@ The first source trace confirms the following current behavior:
 The user also reported missing vendor/OS identification. This is tracked as Phase 8 rather than mixed into discovery reliability. Nearby Wi-Fi interactivity, discovered-device-to-Wake-on-LAN integration, ping layout stability and navigation consistency are tracked in Phases 9–11. The tablet's real-network retest is a required Phase 7 exit criterion; CI alone cannot close the phase.
 
 **Phase status rule:** a phase is marked complete only after implementation, relevant regression tests, full CI review, documentation update and any required physical-device acceptance. Until then it remains explicitly IN PROGRESS or BLOCKED, never checked off by assumption.
+
+
+### Phase 7.2 — Evidence semantics hardening (implementation checkpoint, 2026-11-16)
+
+The discovery pipeline now carries two separate outputs instead of flattening all sources into one undifferentiated set:
+
+- tcpResponsiveIps: hosts for which a TCP connection to one of the six discovery ports succeeded during this scan;
+- arpAddresses: in-subnet MAC observations from the active interface's ARP table, including the post-probe refresh.
+
+Each Device now retains the time of its latest observation (lastSeen) separately from the latest positive reachability confirmation (lastConfirmedOnline), plus the source of its latest observation (DiscoveryEvidence). A passive/cached ARP row can add an inventory observation and MAC address, but it does not refresh the online timer. The local interface is treated as locally present; a configured gateway without positive response is not silently promoted to confirmed-online.
+
+The Devices inventory now labels ARP-only and unconfirmed gateway observations explicitly instead of presenting them as ordinary offline devices. Lifecycle ordering uses the confirmed-reachability timestamp, while offline retention continues to use the last observation timestamp.
+
+Regression tests cover:
+- ARP-only evidence does not create a fresh online confirmation;
+- a new ARP observation does not refresh an older TCP confirmation;
+- positive TCP discovery is carried separately from the merged inventory;
+- local-interface presence remains confirmed;
+- gateway evidence is classified independently from a passive MAC observation.
+
+This is an implementation checkpoint only. Full CI for the current branch head and physical retest remain pending. The six-port probe currently counts successful TCP connections as positive response; connection-refused/RST interpretation is not yet included. NSD/mDNS remains a possible complementary discovery path, not a universal LAN inventory guarantee.
