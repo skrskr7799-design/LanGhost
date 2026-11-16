@@ -118,6 +118,13 @@ fun DeviceDetailScreen(
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
+            state.saveError?.let { message ->
+                ErrorState(
+                    title = "Не удалось сохранить изменения",
+                    description = message,
+                    onRetry = { viewModel.saveCustomization() }
+                )
+            }
             ContentPanel {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
