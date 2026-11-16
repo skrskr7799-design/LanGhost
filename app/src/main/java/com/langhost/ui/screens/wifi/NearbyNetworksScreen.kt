@@ -151,7 +151,7 @@ fun NearbyNetworksScreen(onBack: () -> Unit) {
             contentAlignment = Alignment.TopCenter
         ) {
         LazyColumn(
-            modifier = Modifier.fillMaxWidth().widthIn(max = 1120.dp),
+            modifier = Modifier.widthIn(max = 1120.dp).fillMaxWidth(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
