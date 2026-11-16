@@ -22,6 +22,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.langhost.data.ExportHelper
+import com.langhost.data.AppSettings
+import com.langhost.data.AppSettingsData
+import com.langhost.data.PrivacyFormatter
 import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
 import com.langhost.ui.components.ContentPanel
@@ -49,6 +52,7 @@ fun DevicesScreen(
     val state by viewModel.uiState.collectAsState()
     val devices = state.devices
     val context = LocalContext.current
+    val appSettings by remember(context) { AppSettings(context.applicationContext).settingsFlow }.collectAsState(initial = AppSettingsData())
     var showExportMenu by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(DeviceFilter.ALL) }
@@ -100,7 +104,7 @@ fun DevicesScreen(
                                     text = { Text("Экспорт в TXT") },
                                     onClick = {
                                         showExportMenu = false
-                                        val intent = ExportHelper.exportDevicesAsText(context, devices)
+                                        val intent = ExportHelper.exportDevicesAsText(context, devices, appSettings.maskNetworkIdentifiers)
                                         if (intent != null) context.startActivity(Intent.createChooser(intent, "Экспорт устройств"))
                                         else Toast.makeText(context, "Ошибка экспорта", Toast.LENGTH_SHORT).show()
                                     },
@@ -110,7 +114,7 @@ fun DevicesScreen(
                                     text = { Text("Экспорт в CSV") },
                                     onClick = {
                                         showExportMenu = false
-                                        val intent = ExportHelper.exportDevicesAsCsv(context, devices)
+                                        val intent = ExportHelper.exportDevicesAsCsv(context, devices, appSettings.maskNetworkIdentifiers)
                                         if (intent != null) context.startActivity(Intent.createChooser(intent, "Экспорт устройств"))
                                         else Toast.makeText(context, "Ошибка экспорта", Toast.LENGTH_SHORT).show()
                                     },
@@ -260,7 +264,7 @@ fun DevicesScreen(
                 }
             } else {
                 items(filteredDevices, key = { it.stableId }) { device ->
-                    DeviceInventoryRow(device = device, onClick = { onDeviceClick(device.ip) })
+                    DeviceInventoryRow(device = device, maskIdentifiers = appSettings.maskNetworkIdentifiers, onClick = { onDeviceClick(device.ip) })
                 }
             }
         }
@@ -284,7 +288,7 @@ private fun DeviceMetric(
 }
 
 @Composable
-private fun DeviceInventoryRow(device: Device, onClick: () -> Unit) {
+private fun DeviceInventoryRow(device: Device, maskIdentifiers: Boolean, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -312,8 +316,8 @@ private fun DeviceInventoryRow(device: Device, onClick: () -> Unit) {
                 }
                 Text(
                     buildString {
-                        append(device.ip)
-                        if (device.mac.isNotBlank()) append("  ·  ${device.mac}")
+                        append(PrivacyFormatter.ip(device.ip, maskIdentifiers))
+                        if (device.mac.isNotBlank()) append("  ·  ${PrivacyFormatter.mac(device.mac, maskIdentifiers)})
                     },
                     style = TechnicalTypography,
                     color = TextSecondary,
