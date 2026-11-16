@@ -66,7 +66,11 @@ fun DeviceDetailScreen(
 
     fun copyToClipboard(label: String, value: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val safeValue = when (label) {\n            "IP" -> PrivacyFormatter.ip(value, appSettings.maskNetworkIdentifiers)\n            "MAC" -> PrivacyFormatter.mac(value, appSettings.maskNetworkIdentifiers)\n            else -> value\n        }\n        clipboard.setPrimaryClip(ClipData.newPlainText(label, safeValue))
+        val safeValue = when (label) {
+            "IP" -> PrivacyFormatter.ip(value, appSettings.maskNetworkIdentifiers)
+            "MAC" -> PrivacyFormatter.mac(value, appSettings.maskNetworkIdentifiers)
+            else -> value
+        }\n        clipboard.setPrimaryClip(ClipData.newPlainText(label, safeValue))
         Toast.makeText(context, "$label скопирован", Toast.LENGTH_SHORT).show()
     }
 
