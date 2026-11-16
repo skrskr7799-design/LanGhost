@@ -79,9 +79,9 @@ GitHub Actions runs Android Lint, unit tests, and Debug/Release APK builds on pu
 
 ## Project status
 
-The `main` branch contains the completed network-engine, security-evidence, data-architecture and broad UI redesign work merged through PR #1. Phase 5 final-polish implementation is complete on PR #2: shared accessibility semantics, clear recoverable operation feedback and documentation reconciliation are in place.
+The `main` branch contains the completed network-engine, security-evidence, data-architecture and broad UI redesign work. Phase 5 final-polish implementation is complete and merged. The first tablet audit exposed a major functional gap: discovery currently found only three expected LAN devices while several known clients were absent. Phase 7 — Network Discovery Reliability is now active on `audit/phase-7-discovery-reliability`; see `docs/AUDIT_PLAN.md` for scope, acceptance criteria and status.
 
-Automated CI verifies Android Lint, unit tests and Debug/Release APK builds. It does not replace hands-on validation on real Android devices and networks. TalkBack, system font scaling, touch targets, visual review across phone/tablet/landscape, Android permission behavior, Wi-Fi scan throttling, ARP visibility, VPN/multi-network behavior and biometric lifecycle checks remain explicit device-validation work in `docs/AUDIT_PLAN.md`.
+Automated CI verifies Android Lint, unit tests and Debug/Release APK builds. It does not replace hands-on validation on real Android devices and networks. Physical-device validation remains open, including ARP visibility, Android permission behavior, router isolation, VPN/multi-network behavior, Wi-Fi scan throttling, TalkBack, font scaling, touch targets and phone/tablet/landscape review.
 
 ## App stack
 
