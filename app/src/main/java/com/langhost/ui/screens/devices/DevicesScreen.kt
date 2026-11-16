@@ -129,7 +129,7 @@ fun DevicesScreen(
         },
         containerColor = Background
     ) { padding ->
-        BoxWithConstraints(
+        Box(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentAlignment = Alignment.TopCenter
         ) {
