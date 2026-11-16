@@ -2,6 +2,7 @@ package com.langhost.data
 
 import com.langhost.data.model.ScanCoverage
 import com.langhost.data.network.Ipv4Subnet
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
@@ -56,7 +57,16 @@ internal class NetworkDiscoveryEngine(
         ensureCurrentNetworkScope(networkScope)
         val (refreshedArpEntries, nsdServiceIps) = coroutineScope {
             val arpRefresh = async { refreshArpEntries() }
-            val nsdDiscovery = async { discoverNsdServiceIps() }
+            val nsdDiscovery = async {
+                try {
+                    discoverNsdServiceIps()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // Optional DNS-SD must not discard successful ARP/TCP evidence.
+                    emptySet()
+                }
+            }
             arpRefresh.await() to nsdDiscovery.await()
         }
         ensureCurrentNetworkScope(networkScope)
