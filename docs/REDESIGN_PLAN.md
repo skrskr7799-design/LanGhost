@@ -220,3 +220,5 @@ These screens now have distinct information hierarchies instead of being simple 
 - [x] Device port scanning now distinguishes never-run from a completed scan with no detected open ports.
 - [x] Port-scan failures retain the last known result and expose a truthful shared error state with a working retry action.
 - [x] Active port checks use the shared loading treatment rather than an ambiguous empty-state message.
+
+- [x] Channel analysis now uses the shared loading and retryable error surfaces while preserving its band-specific evidence and freshness indicators.
