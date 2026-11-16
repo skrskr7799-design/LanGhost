@@ -240,3 +240,12 @@ These screens now have distinct information hierarchies instead of being simple 
 - [x] Device detail now initializes its completed-scan state from the timestamp, not from whether any ports were found.
 - [x] Added regression tests for completed empty scans, never-scanned devices and timestamp preservation through enrichment.
 - [ ] Full CI and physical-device regression remain required; device snapshots and scan timestamps remain transient and are intentionally not restored after process death.
+
+
+### 2026-11-16 — final data-state and scan-commit hardening
+
+- [x] Closed the port-scan lifecycle gap: a completed scan with zero open ports now retains an explicit completion timestamp, distinct from a device that has never been scanned.
+- [x] Kept the completion timestamp through discovery enrichment within the active in-memory network cache; it is intentionally not persisted across process death, consistent with the transient scan-evidence policy.
+- [x] Corrected a stale-endpoint race in `NetworkRepository.scanDevicePorts`: the UI now receives a successful result only when the result was committed to the same current device endpoint and network scope. A scan that finishes after the device endpoint disappears or changes is rejected as stale.
+- [x] Added unit regression coverage for empty completed scans, never-scanned state and enrichment timestamp preservation.
+- [ ] Physical-device validation, representative Android API/router testing, Compose UI tests, TalkBack/font-scaling review and visual sign-off remain open. CI success must not be presented as completing those device-only checks.
