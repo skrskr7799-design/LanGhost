@@ -51,6 +51,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.langhost.data.NetworkRepository
+import com.langhost.data.AppSettings
+import com.langhost.data.AppSettingsData
+import com.langhost.data.PrivacyFormatter
 import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
 import com.langhost.ui.components.ContentPanel
@@ -89,6 +92,7 @@ fun TopologyScreen(
 ) {
     val context = LocalContext.current
     val repository = remember { NetworkRepository.getInstance(context) }
+    val appSettings by remember(context) { AppSettings(context.applicationContext).settingsFlow }.collectAsState(initial = AppSettingsData())
     val devices by repository.devices.collectAsState()
     val network by repository.networkInfo.collectAsState()
     val isScanning by repository.isScanning.collectAsState()
@@ -271,11 +275,11 @@ fun TopologyScreen(
                 }
                 if (gateway != null) {
                     item {
-                        TopologyDeviceRow(device = gateway, isGateway = true, onClick = { onDeviceClick(gateway.ip) })
+                        TopologyDeviceRow(device = gateway, isGateway = true, maskIdentifiers = appSettings.maskNetworkIdentifiers, onClick = { onDeviceClick(gateway.ip) })
                     }
                 }
                 items(discoveredDevices, key = { it.stableId }) { device ->
-                    TopologyDeviceRow(device = device, isGateway = false, onClick = { onDeviceClick(device.ip) })
+                    TopologyDeviceRow(device = device, isGateway = false, maskIdentifiers = appSettings.maskNetworkIdentifiers, onClick = { onDeviceClick(device.ip) })
                 }
             }
         }
@@ -420,7 +424,7 @@ private fun topologyPositions(nodes: List<Device>, canvasSize: IntSize): Map<Str
 }
 
 @Composable
-private fun TopologyDeviceRow(device: Device, isGateway: Boolean, onClick: () -> Unit) {
+private fun TopologyDeviceRow(device: Device, isGateway: Boolean, maskIdentifiers: Boolean, onClick: () -> Unit) {
     androidx.compose.material3.Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -447,7 +451,7 @@ private fun TopologyDeviceRow(device: Device, isGateway: Boolean, onClick: () ->
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(device.displayName, style = MaterialTheme.typography.titleSmall, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "${device.ip} · ${typeLabel(device.deviceType)}",
+                    "${PrivacyFormatter.ip(device.ip, maskIdentifiers)} · ${typeLabel(device.deviceType)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
