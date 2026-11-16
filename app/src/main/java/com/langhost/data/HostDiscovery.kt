@@ -7,6 +7,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Bounded host discovery orchestration.
@@ -16,7 +17,7 @@ import kotlinx.coroutines.sync.withPermit
  */
 internal object HostDiscovery {
     /**
-     * Maps items in bounded batches, preserving input order and propagating cancellation.
+     * Maps items through a sliding concurrency window, preserving input order and cancellation.
      */
     suspend fun <T, R> mapBounded(
         items: List<T>,
@@ -27,11 +28,12 @@ internal object HostDiscovery {
         require(maxConcurrency > 0) { "maxConcurrency must be positive" }
         if (items.isEmpty()) return emptyList()
         val semaphore = Semaphore(maxConcurrency)
+        val scheduled = AtomicInteger(0)
         return coroutineScope {
             items.map { item ->
                 async {
                     semaphore.withPermit {
-                        beforeBatch()
+                        if (scheduled.getAndIncrement() % maxConcurrency == 0) beforeBatch()
                         transform(item)
                     }
                 }
@@ -51,12 +53,13 @@ internal object HostDiscovery {
         val budget = timeoutMs.coerceIn(100, 500) * 2
         val uniqueCandidates = candidates.asSequence().filter { it.isNotBlank() }.distinct().toList()
         val semaphore = Semaphore(maxConcurrency)
+        val scheduled = AtomicInteger(0)
 
         suspend fun runPass(targets: List<String>, passBudget: Int): Set<String> = coroutineScope {
             targets.map { ip ->
                 async(Dispatchers.IO) {
                     semaphore.withPermit {
-                        beforeBatch()
+                        if (scheduled.getAndIncrement() % maxConcurrency == 0) beforeBatch()
                         if (ip == localIp) return@withPermit ip
                         try {
                             if (probe(ip, passBudget)) ip else null
