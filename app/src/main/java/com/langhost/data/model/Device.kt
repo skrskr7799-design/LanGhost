@@ -1,5 +1,13 @@
 package com.langhost.data.model
 
+enum class DiscoveryEvidence {
+    TCP_RESPONSE,
+    ARP_OBSERVATION,
+    LOCAL_INTERFACE,
+    GATEWAY_CONFIGURATION,
+    UNKNOWN
+}
+
 enum class DeviceType {
     PHONE, TABLET, TV, PC, LAPTOP, ROUTER, PRINTER, NAS, CAMERA, IOT, SERVER, UNKNOWN
 }
@@ -12,7 +20,12 @@ data class Device(
     val isLocalDevice: Boolean = false,
     val isGateway: Boolean = false,
     val firstSeen: Long = System.currentTimeMillis(),
+    /** Most recent observation of this IP/device, including passive ARP-table evidence. */
     val lastSeen: Long = System.currentTimeMillis(),
+    /** Most recent positive reachability confirmation; zero means never confirmed. */
+    val lastConfirmedOnline: Long = lastSeen,
+    /** Source of the latest discovery observation; ARP presence alone is not a reachability proof. */
+    val discoveryEvidence: DiscoveryEvidence = DiscoveryEvidence.TCP_RESPONSE,
     val openPorts: List<Int> = emptyList(),
     /** Ports confirmed by the dedicated security-service scan, kept separate from general discovery. */
     val auditedPorts: List<Int> = emptyList(),
@@ -42,7 +55,9 @@ data class Device(
         }
 
     val isOnline: Boolean
-        get() = (System.currentTimeMillis() - lastSeen) < 10 * 60 * 1000
+        get() = lastConfirmedOnline > 0L &&
+            System.currentTimeMillis() >= lastConfirmedOnline &&
+            (System.currentTimeMillis() - lastConfirmedOnline) < 10 * 60 * 1000L
 
     val stableId: String
         get() = when {
