@@ -47,6 +47,7 @@ fun NearbyNetworksScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val repo = remember { NetworkRepository.getInstance(context) }
+    val appSettings by remember(context) { AppSettings(context.applicationContext).settingsFlow }.collectAsState(initial = AppSettingsData())
     val networks by repo.nearbyNetworks.collectAsState()
     val scanCompleted by repo.nearbyScanCompleted.collectAsState()
     val scanTime by repo.nearbyScanTime.collectAsState()
