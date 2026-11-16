@@ -417,7 +417,8 @@ class NetworkRepository(context: Context) {
 
         val ports = probeEngine.scanPorts(currentDevice.ip, COMMON_PORTS, expectedScope)
         ensureCurrentNetworkScope(expectedScope)
-        updateDevicePorts(currentDevice.stableId, expectedScope, currentDevice.ip, ports)
+        val updated = updateDevicePorts(currentDevice.stableId, expectedScope, currentDevice.ip, ports)
+            ?: return@withContext null
         ports
     }
 
@@ -426,7 +427,7 @@ class NetworkRepository(context: Context) {
         expectedScope: String,
         expectedIp: String,
         ports: List<Int>
-    ) {
+    ): Device? {
         ensureCurrentNetworkScope(expectedScope)
         var updated: Device? = null
         val committed = commitIfCurrentNetwork(expectedScope) {
@@ -441,6 +442,7 @@ class NetworkRepository(context: Context) {
             updated = next
         }
         if (committed) updated?.let { enrichDevice(it) }
+        return updated.takeIf { committed }
     }
 
     /** Enrichment results are committed only if the originating network/device is still current. */
