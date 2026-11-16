@@ -413,6 +413,18 @@ The first tablet audit identified a high-impact discovery discrepancy: only the 
 
 Phase 7 is active on `audit/phase-7-discovery-reliability`, branched from main commit `6c36723497925e69d97081f944f82ff6bd4dc9e4`. The scope and exit criteria are recorded above. No root cause is declared yet. The first implementation task is a source-level trace of candidate generation, active-interface selection, ARP neighbor collection, positive TCP evidence, endpoint merging and enrichment. The audit must specifically test the current design's dependence on positive TCP responses and determine whether additional Android-compatible discovery evidence can safely improve coverage.
 
+### Phase 7.1 — Initial source audit findings (2026-11-16)
+
+The first source trace confirms the following current behavior:
+
+- `NetworkRepository.scanDevices()` reads `/proc/net/arp` once **before** the subnet TCP-probe pass. It does not deliberately prime the neighbor table first and then re-read it.
+- `parseArpTable()` accepts only complete ARP entries (ATF_COM), usable unicast MAC addresses and the exact active interface. `NetworkDiscoveryEngine` then filters those entries to the current IPv4 subnet. This is conservative, but it means a client absent from the kernel neighbor table at that instant contributes no ARP evidence.
+- Candidate discovery probes each usable IPv4 address through TCP ports `80, 443, 22, 445, 8080, 53`. A host is included from this path only if one of those TCP connections succeeds. Refused, filtered, timed-out and other failed probes are intentionally treated as unconfirmed, not as proof of offline status.
+- Consequently, a live client that has not recently populated the ARP table and does not accept a connection on those six ports can be omitted. This is a confirmed limitation of the current implementation and a strong candidate explanation for the tablet audit; it is **not yet proof** that this was the only cause on the user's router.
+- The current probe budget is bounded (up to 1 second per host, with at most 32 concurrent host probes); subnet candidate generation is capped at 1,024 and scan coverage reports checked versus total usable addresses.
+
+**Next investigation:** evaluate a bounded neighbor-discovery/ARP-priming stage followed by a fresh neighbor-table read, plus stock-Android-compatible service discovery (for example, carefully scoped NSD/mDNS). Compare reliability, Android API behavior, permissions, multicast requirements, cancellation and battery cost before selecting an implementation. Do not add a blanket ping/port sweep or treat absence of a response as host absence.
+
 The user also reported missing vendor/OS identification. This is tracked as Phase 8 rather than mixed into discovery reliability. Nearby Wi-Fi interactivity, discovered-device-to-Wake-on-LAN integration, ping layout stability and navigation consistency are tracked in Phases 9–11. The tablet's real-network retest is a required Phase 7 exit criterion; CI alone cannot close the phase.
 
 **Phase status rule:** a phase is marked complete only after implementation, relevant regression tests, full CI review, documentation update and any required physical-device acceptance. Until then it remains explicitly IN PROGRESS or BLOCKED, never checked off by assumption.
