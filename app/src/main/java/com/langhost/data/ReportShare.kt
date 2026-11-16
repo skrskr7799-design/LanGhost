@@ -17,21 +17,21 @@ import java.util.Locale
 
 object ReportShare {
 
-    fun buildTextReport(network: NetworkInfo, devices: List<Device>, score: Int?): String {
+    fun buildTextReport(network: NetworkInfo, devices: List<Device>, score: Int?, maskIdentifiers: Boolean = false): String {
         val date = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date())
         return buildString {
             appendLine("LanGhost — отчёт о сети")
             appendLine(date)
             appendLine("—".repeat(28))
             appendLine("SSID: ${network.ssid}")
-            appendLine("BSSID: ${network.bssid}")
-            appendLine("Шлюз: ${network.gateway}")
+            appendLine("BSSID: ${PrivacyFormatter.bssid(network.bssid, maskIdentifiers)}")
+            appendLine("Шлюз: ${PrivacyFormatter.ip(network.gateway, maskIdentifiers)}")
             appendLine("Канал: ${network.channel} · ${network.signalDbm} dBm")
             if (score != null) appendLine("Оценка безопасности: $score/100")
             appendLine("Устройств: ${devices.size} (онлайн ${devices.count { it.isOnline }})")
             appendLine()
             devices.take(30).forEach { d ->
-                appendLine("• ${d.displayName} — ${d.ip}${if (d.mac.isNotBlank()) " (${d.mac})" else ""}")
+                appendLine("• ${d.displayName} — ${PrivacyFormatter.ip(d.ip, maskIdentifiers)}${if (d.mac.isNotBlank()) " (${PrivacyFormatter.mac(d.mac, maskIdentifiers)})" else ""}")
             }
         }
     }
@@ -44,9 +44,9 @@ object ReportShare {
         }
     }
 
-    fun shareImageCard(context: Context, network: NetworkInfo, devices: List<Device>, score: Int?): Intent? {
+    fun shareImageCard(context: Context, network: NetworkInfo, devices: List<Device>, score: Int?, maskIdentifiers: Boolean = false): Intent? {
         return try {
-            val bmp = renderCard(network, devices, score)
+            val bmp = renderCard(network, devices, score, maskIdentifiers)
             val file = ShareFileStore.create(context, "langhost_report_${System.currentTimeMillis()}.png")
             FileOutputStream(file).use { out ->
                 bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
@@ -63,7 +63,7 @@ object ReportShare {
         }
     }
 
-    private fun renderCard(network: NetworkInfo, devices: List<Device>, score: Int?): Bitmap {
+    private fun renderCard(network: NetworkInfo, devices: List<Device>, score: Int?, maskIdentifiers: Boolean): Bitmap {
         val w = 1080
         val h = 1400
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -92,7 +92,7 @@ object ReportShare {
         y += 70f
         c.drawText("Канал ${network.channel} · ${network.signalDbm} dBm", 80f, y, body)
         y += 55f
-        c.drawText("Шлюз ${network.gateway}", 80f, y, body)
+        c.drawText("Шлюз ${PrivacyFormatter.ip(network.gateway, maskIdentifiers)}", 80f, y, body)
         y += 55f
         if (score != null) {
             c.drawText("Безопасность: $score/100", 80f, y, body)
@@ -106,7 +106,7 @@ object ReportShare {
         y += 60f
 
         devices.take(12).forEach { d ->
-            c.drawText("${d.displayName.take(22)}  ${d.ip}", 80f, y, body)
+            c.drawText("${d.displayName.take(22)}  ${PrivacyFormatter.ip(d.ip, maskIdentifiers)}", 80f, y, body)
             y += 50f
         }
 
