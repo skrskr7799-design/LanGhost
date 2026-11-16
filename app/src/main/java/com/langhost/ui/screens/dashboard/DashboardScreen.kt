@@ -63,6 +63,8 @@ import com.langhost.data.AppSettings
 import com.langhost.data.AppSettingsData
 import com.langhost.data.PrivacyFormatter
 import com.langhost.ui.components.ContentPanel
+import com.langhost.ui.components.DataNoticeTone
+import com.langhost.ui.components.DataQualityNotice
 import com.langhost.ui.components.MetricTile
 import com.langhost.ui.components.NetworkOrbit
 import com.langhost.ui.components.PageHeading
@@ -180,6 +182,23 @@ fun DashboardScreen(
 
             if (!permissionState.allPermissionsGranted) {
                 PermissionNotice(onRequest = { permissionState.launchMultiplePermissionRequest() })
+            }
+            if (!network.isConnected) {
+                DataQualityNotice(
+                    title = "Нет активного сетевого подключения",
+                    description = "Сведения о локальной сети и результаты новых проверок могут быть недоступны. Подключитесь к Wi-Fi или Ethernet и обновите обзор.",
+                    tone = DataNoticeTone.Warning
+                )
+            } else if (
+                state.lastScanTime > 0L &&
+                System.currentTimeMillis() >= state.lastScanTime &&
+                System.currentTimeMillis() - state.lastScanTime > 5 * 60 * 1000L
+            ) {
+                DataQualityNotice(
+                    title = "Инвентарь требует обновления",
+                    description = "Последнее сканирование было более пяти минут назад. Используйте обновление, чтобы проверить текущее состояние устройств.",
+                    tone = DataNoticeTone.Info
+                )
             }
 
             if (isWideLayout) {
