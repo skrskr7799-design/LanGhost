@@ -275,7 +275,10 @@ fun DevicesScreen(
                 }
             } else {
                 items(filteredDevices, key = { it.stableId }) { device ->
-                    DeviceInventoryRow(device = device, maskIdentifiers = appSettings.maskNetworkIdentifiers, onClick = {\n                        selectedDeviceIp = device.ip\n                        if (!isWideLayout) onDeviceClick(device.ip)\n                    })
+                    DeviceInventoryRow(device = device, maskIdentifiers = appSettings.maskNetworkIdentifiers, onClick = {
+                        selectedDeviceIp = device.ip
+                        if (!isWideLayout) onDeviceClick(device.ip)
+                    })
                 }
             }
         }
