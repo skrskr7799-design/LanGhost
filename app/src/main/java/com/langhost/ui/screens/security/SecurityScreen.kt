@@ -25,6 +25,7 @@ import com.langhost.data.NetworkRepository
 import com.langhost.data.SecurityAudit
 import com.langhost.data.SecurityFinding
 import com.langhost.data.network.NetworkIdentity
+import com.langhost.ui.components.SecurityScoreDial
 import com.langhost.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
@@ -95,7 +96,7 @@ fun SecurityScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Аудит безопасности", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) },
+                title = { Text("Аудит безопасности", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = TextPrimary)
@@ -115,25 +116,21 @@ fun SecurityScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = Surface),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(22.dp)
                 ) {
                     Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Оценка проверенных признаков", style = MaterialTheme.typography.titleMedium, color = TextSecondary)
+                        Text("SECURITY POSTURE", style = MaterialTheme.typography.labelSmall, color = AccentCyan)
+                        SecurityScoreDial(score = score, modifier = Modifier.size(132.dp))
                         Text(
-                            text = score?.toString() ?: "—",
-                            style = MaterialTheme.typography.displayLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = when {
-                                score == null -> TextTertiary
-                                score >= 80 -> Success
-                                score >= 50 -> Secondary
-                                else -> Danger
-                            }
+                            text = if (score == null) "Оценка пока недоступна" else "Итог по проверенным признакам",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = TextPrimary,
+                            fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = if (score == null) "недостаточно данных" else "из 100",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextTertiary
+                            text = if (score == null) "Нужны свежие и полные данные по сети, сервисам и Wi-Fi." else "Результат ограничен фактически проверенными данными.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
                         )
                         if (report.deviceScanCompleted) {
                             Text(
@@ -327,7 +324,8 @@ private fun FindingCard(finding: SecurityFinding) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Surface),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(18.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.75f))
     ) {
         Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Icon(Icons.Default.Shield, contentDescription = null, tint = color)
