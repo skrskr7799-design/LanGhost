@@ -40,9 +40,12 @@ fun PingHistorySection(ip: String) {
                     onClick = {
                         scope.launch {
                             probing = true
-                            val ms = DeviceProbe.tcpPing(ip, 80) ?: DeviceProbe.tcpPing(ip, 443) ?: DeviceProbe.tcpPing(ip, 22)
-                            store.addSample(ip, ms)
-                            probing = false
+                            try {
+                                val ms = DeviceProbe.tcpPing(ip, 80) ?: DeviceProbe.tcpPing(ip, 443) ?: DeviceProbe.tcpPing(ip, 22)
+                                store.addSample(ip, ms)
+                            } finally {
+                                probing = false
+                            }
                         }
                     },
                     enabled = !probing,
