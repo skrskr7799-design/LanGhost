@@ -152,7 +152,7 @@ fun WolProfilesScreen(onBack: () -> Unit) {
                                 }
                             )
                         } else {
-                            ContentPanel(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                            ContentPanel(modifier = Modifier.fillMaxWidth()) {
                                 EmptyState(
                                     title = "Выберите устройство",
                                     description = "Параметры отправки и действие пробуждения появятся здесь.",
