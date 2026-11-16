@@ -1,7 +1,8 @@
 package com.langhost.ui.screens.internet
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -17,8 +18,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -109,7 +108,7 @@ fun PublicIpScreen(onBack: () -> Unit) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(padding)) {
             val wide = maxWidth >= 840.dp
             Column(
-                modifier = Modifier.fillMaxSize().padding(horizontal = if (wide) 28.dp else 18.dp, vertical = 22.dp),
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = if (wide) 28.dp else 18.dp, vertical = 22.dp),
                 verticalArrangement = Arrangement.spacedBy(22.dp)
             ) {
                 PageHeading(
