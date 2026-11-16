@@ -159,6 +159,7 @@ fun DashboardScreen(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentAlignment = Alignment.TopCenter
         ) {
+            val isWideLayout = maxWidth >= 840.dp
             Column(
                 modifier = Modifier
                     .widthIn(max = 1120.dp)
@@ -170,7 +171,7 @@ fun DashboardScreen(
                             radius = 920f
                         )
                     )
-                    .padding(horizontal = if (maxWidth >= 840.dp) 32.dp else LanGhostSpacing.md, vertical = LanGhostSpacing.lg),
+                    .padding(horizontal = if (isWideLayout) 32.dp else LanGhostSpacing.md, vertical = LanGhostSpacing.lg),
                 verticalArrangement = Arrangement.spacedBy(LanGhostSpacing.xl)
             ) {
             PageHeading(
@@ -183,7 +184,7 @@ fun DashboardScreen(
                 PermissionNotice(onRequest = { permissionState.launchMultiplePermissionRequest() })
             }
 
-            if (maxWidth >= 840.dp) {
+            if (isWideLayout) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(LanGhostSpacing.xl),
