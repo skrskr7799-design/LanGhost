@@ -39,6 +39,7 @@ class NetworkRepository(context: Context) {
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
     private val nsdDiscovery = AndroidNsdDiscovery(appContext)
     private val ssdpDiscovery = AndroidSsdpDiscovery()
+    private val icmpDiscovery = AndroidIcmpDiscovery()
     private val wifiScanCoordinator = WifiScanCoordinator(
         AndroidWifiScanPlatform(appContext, wifiManager) {
             _networkInfo.value.bssid.takeIf { it.isNotBlank() && it != "—" }
@@ -258,7 +259,17 @@ class NetworkRepository(context: Context) {
                     }.entries
                 },
                 discoverNsdServiceIps = { nsdDiscovery.discover(activeNetwork) },
-                discoverSsdpServiceIps = { ssdpDiscovery.discover(activeNetwork) }
+                discoverSsdpServiceIps = { ssdpDiscovery.discover(activeNetwork) },
+                discoverHostReachabilityIps = { candidates ->
+                    icmpDiscovery.discover(
+                        candidateIps = candidates,
+                        interfaceName = networkInfo.interfaceName,
+                        activeNetwork = activeNetwork,
+                        maxConcurrency = MAX_CONCURRENT_HOST_PROBES,
+                        timeoutMs = 250,
+                        beforeWindow = { ensureCurrentNetworkScope(networkScope) }
+                    )
+                }
             )
             val arpDevices = discovery.arpAddresses
             val allIps = discovery.ips
@@ -287,6 +298,7 @@ class NetworkRepository(context: Context) {
                     hasTcpResponse = ip in discovery.tcpResponsiveIps,
                     hasNsdServiceObservation = ip in discovery.nsdServiceIps,
                     hasSsdpObservation = ip in discovery.ssdpServiceIps,
+                    hasHostReachabilityProbe = ip in discovery.hostReachabilityIps,
                     existing = existingByIp,
                     existingByStableId = devicesCache[
                         if (mac.isNotBlank()) "${mac.uppercase()}@${networkScope}" else "ip:${networkScope}:$ip"
