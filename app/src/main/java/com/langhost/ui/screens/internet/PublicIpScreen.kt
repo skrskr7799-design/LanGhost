@@ -46,6 +46,9 @@ import com.langhost.data.PrivacyFormatter
 import com.langhost.data.PublicIpLookup
 import com.langhost.data.PublicNetworkInfo
 import com.langhost.ui.components.ContentPanel
+import com.langhost.ui.components.DataNoticeTone
+import com.langhost.ui.components.DataQualityNotice
+import com.langhost.ui.components.ErrorState
 import com.langhost.ui.components.PageHeading
 import com.langhost.ui.components.StatusBadge
 import com.langhost.ui.components.StatusTone
@@ -213,11 +216,27 @@ private fun NetworkResultPanel(
                     NetworkInfoRow("Страна", info.country.ifBlank { "—" })
                     NetworkInfoRow("Регион", info.region.ifBlank { "—" })
                     NetworkInfoRow("Город", info.city.ifBlank { "—" })
-                    if (error != null) Text(error, style = MaterialTheme.typography.bodySmall, color = Warning)
+                    if (error != null) {
+                        ErrorState(
+                            title = "Обновление не завершено",
+                            description = error,
+                            onRetry = { /* retry is provided by the request panel */ }
+                        )
+                    } else if (info.isp.isBlank() && info.org.isBlank() && info.country.isBlank() && info.region.isBlank() && info.city.isBlank()) {
+                        DataQualityNotice(
+                            title = "Получены только основные данные",
+                            description = "Публичный IP определён, но внешняя служба не предоставила сведения о провайдере и регионе.",
+                            tone = DataNoticeTone.Info
+                        )
+                    }
                 }
                 else -> {
                     StatusBadge("LOOKUP FAILED", StatusTone.Warning)
-                    Text(error ?: "Не удалось получить сведения.", style = MaterialTheme.typography.bodyMedium, color = Warning)
+                    ErrorState(
+                        title = "Не удалось получить сведения",
+                        description = error ?: "Внешняя служба не вернула данные.",
+                        onRetry = { /* retry is provided by the request panel */ }
+                    )
                 }
             }
         }
