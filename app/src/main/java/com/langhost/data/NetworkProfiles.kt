@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import com.langhost.data.model.NetworkInfo
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -20,6 +21,27 @@ data class NetworkProfile(
     val ssid: String = "",
     val notes: String = ""
 )
+
+
+enum class ProfileConnectionMatch { None, SsidOnly, Exact }
+
+fun matchNetworkProfile(profile: NetworkProfile, network: NetworkInfo): ProfileConnectionMatch {
+    val connectedSsid = network.ssid.takeIf { it.isNotBlank() && it != "—" }
+        ?: return ProfileConnectionMatch.None
+    if (!network.isConnected || profile.ssid.isBlank() || profile.ssid == "—") return ProfileConnectionMatch.None
+    if (profile.ssid != connectedSsid) return ProfileConnectionMatch.None
+
+    val profileBssid = profile.bssid.takeIf { it.isNotBlank() && it != "—" }
+    val networkBssid = network.bssid.takeIf { it.isNotBlank() && it != "—" }
+    if (profileBssid != null && networkBssid != null) {
+        return if (profileBssid.equals(networkBssid, ignoreCase = true)) {
+            ProfileConnectionMatch.Exact
+        } else {
+            ProfileConnectionMatch.None
+        }
+    }
+    return ProfileConnectionMatch.SsidOnly
+}
 
 class NetworkProfiles(private val context: Context) {
 
