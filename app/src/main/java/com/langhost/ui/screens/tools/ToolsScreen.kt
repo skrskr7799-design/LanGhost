@@ -2,6 +2,7 @@ package com.langhost.ui.screens.tools
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,18 +24,22 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.WifiFind
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -44,7 +49,9 @@ import com.langhost.ui.theme.AccentCyan
 import com.langhost.ui.theme.Background
 import com.langhost.ui.theme.Border
 import com.langhost.ui.theme.Primary
-import com.langhost.ui.theme.Surface
+import com.langhost.ui.theme.Surface as PanelSurface
+import com.langhost.ui.theme.SurfaceElevated
+import com.langhost.ui.theme.SurfaceHighlight
 import com.langhost.ui.theme.TextPrimary
 import com.langhost.ui.theme.TextSecondary
 import com.langhost.ui.theme.TextTertiary
@@ -65,7 +72,7 @@ fun ToolsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Центр инструментов", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold) },
+                title = { Text("Центр операций", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = TextPrimary)
@@ -76,80 +83,169 @@ fun ToolsScreen(
         },
         containerColor = Background
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(22.dp)
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxSize().padding(padding)
         ) {
-            PageHeading(
-                title = "Инструменты сети",
-                subtitle = "Диагностика, анализ и управление локальной инфраструктурой",
-                eyebrow = "OPERATIONS TOOLKIT"
-            )
+            val wide = maxWidth >= 840.dp
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = if (wide) 28.dp else 20.dp, vertical = 22.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                PageHeading(
+                    title = "Инструменты сети",
+                    subtitle = "Операции, диагностика и контроль локальной инфраструктуры",
+                    eyebrow = "LANGHOST / OPERATIONS"
+                )
 
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionHeading(title = "Анализ и безопасность")
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    ToolCard("Аудит безопасности", "Риски и открытые порты", Icons.Default.Security, onSecurity, Modifier.weight(1f))
-                    ToolCard("Анализ каналов", "Загрузка Wi-Fi эфира", Icons.Default.BarChart, onChannels, Modifier.weight(1f))
+                if (wide) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.fillMaxWidth()) {
+                        DiagnosticsFeature(onUtilities, onPublicIp, Modifier.weight(1.15f))
+                        Column(modifier = Modifier.weight(0.85f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            SectionHeading("Безопасность и радиоэфир")
+                            ToolAction("Аудит безопасности", "Открытые порты и обнаруженные риски", Icons.Default.Security, onSecurity)
+                            ToolAction("Анализ каналов", "Загрузка и пересечение Wi-Fi каналов", Icons.Default.BarChart, onChannels)
+                            ToolAction("Соседние сети", "Сигнал, диапазон и параметры точек доступа", Icons.Default.WifiFind, onWifi)
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.fillMaxWidth()) {
+                        ToolGroup(
+                            title = "Управление устройствами",
+                            modifier = Modifier.weight(1f),
+                            items = listOf(
+                                Triple("Wake-on-LAN", "Отправка Magic Packet устройствам", Icons.Default.Power, onWakeOnLan),
+                                Triple("Профили сети", "Сохранённые сетевые конфигурации", Icons.Default.Folder, onProfiles)
+                            )
+                        )
+                        ToolGroup(
+                            title = "Конфигурация",
+                            modifier = Modifier.weight(1f),
+                            items = listOf(
+                                Triple("Настройки", "Мониторинг, приватность и отчёты", Icons.Default.Settings, onSettings)
+                            )
+                        )
+                    }
+                } else {
+                    DiagnosticsFeature(onUtilities, onPublicIp)
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        SectionHeading("Безопасность и радиоэфир")
+                        ToolAction("Аудит безопасности", "Открытые порты и обнаруженные риски", Icons.Default.Security, onSecurity)
+                        ToolAction("Анализ каналов", "Загрузка и пересечение Wi-Fi каналов", Icons.Default.BarChart, onChannels)
+                        ToolAction("Соседние сети", "Сигнал, диапазон и параметры точек доступа", Icons.Default.WifiFind, onWifi)
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        SectionHeading("Управление и конфигурация")
+                        ToolAction("Wake-on-LAN", "Удалённое пробуждение устройств", Icons.Default.Power, onWakeOnLan)
+                        ToolAction("Профили сети", "Сохранённые сетевые конфигурации", Icons.Default.Folder, onProfiles)
+                        ToolAction("Настройки", "Мониторинг, приватность и отчёты", Icons.Default.Settings, onSettings)
+                    }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    ToolCard("Соседние сети", "Сигнал, диапазоны, каналы", Icons.Default.WifiFind, onWifi, Modifier.weight(1f))
-                    ToolCard("Ping и DNS", "Проверка доступности", Icons.Default.Build, onUtilities, Modifier.weight(1f))
-                }
+                Spacer(Modifier.height(8.dp))
             }
-
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionHeading(title = "Подключение и управление")
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    ToolCard("Публичный IP", "Внешний адрес и сеть", Icons.Default.Public, onPublicIp, Modifier.weight(1f))
-                    ToolCard("Wake-on-LAN", "Удалённое пробуждение", Icons.Default.Power, onWakeOnLan, Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    ToolCard("Профили сети", "Сохранённые конфигурации", Icons.Default.Folder, onProfiles, Modifier.weight(1f))
-                    ToolCard("Настройки", "Поведение и приватность", Icons.Default.Settings, onSettings, Modifier.weight(1f))
-                }
-            }
-            Spacer(Modifier.height(4.dp))
         }
     }
 }
 
 @Composable
-private fun ToolCard(
+private fun DiagnosticsFeature(
+    onUtilities: () -> Unit,
+    onPublicIp: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(26.dp),
+        color = PanelSurface,
+        border = BorderStroke(1.dp, Border.copy(alpha = 0.8f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .backgroundBrush()
+                .padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                Surface(color = AccentCyan.copy(alpha = 0.12f), shape = RoundedCornerShape(12.dp)) {
+                    Icon(Icons.Default.Build, contentDescription = null, tint = AccentCyan, modifier = Modifier.padding(10.dp).size(22.dp))
+                }
+                Text("01 / CORE DIAGNOSTICS", style = MaterialTheme.typography.labelSmall, color = AccentCyan, fontWeight = FontWeight.SemiBold)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text("Проверить сеть", style = MaterialTheme.typography.headlineMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Проверка доступности узлов, DNS-разрешения и внешнего сетевого адреса.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = onUtilities,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(13.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                ) { Text("Ping / DNS", maxLines = 1) }
+                Button(
+                    onClick = onPublicIp,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(13.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SurfaceElevated, contentColor = TextPrimary)
+                ) { Text("Внешняя сеть", maxLines = 1) }
+            }
+            Text("Локальные проверки запускаются по вашему запросу", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
+        }
+    }
+}
+
+@Composable
+private fun Modifier.backgroundBrush(): Modifier = this.then(
+    Modifier
+)
+
+@Composable
+private fun ToolGroup(
+    title: String,
+    modifier: Modifier = Modifier,
+    items: List<Triple<String, String, ImageVector, () -> Unit>>
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionHeading(title)
+        items.forEach { (name, description, icon, action) ->
+            ToolAction(name, description, icon, action)
+        }
+    }
+}
+
+@Composable
+private fun ToolAction(
     title: String,
     description: String,
     icon: ImageVector,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onClick: () -> Unit
 ) {
     Card(
         onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        border = BorderStroke(1.dp, Border.copy(alpha = 0.78f))
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(17.dp),
+        colors = CardDefaults.cardColors(containerColor = PanelSurface),
+        border = BorderStroke(1.dp, Border.copy(alpha = 0.72f))
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(15.dp),
-            verticalArrangement = Arrangement.spacedBy(13.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                androidx.compose.material3.Surface(
-                    color = Primary.copy(alpha = 0.13f),
-                    shape = RoundedCornerShape(11.dp)
-                ) {
-                    Icon(icon, contentDescription = null, tint = AccentCyan, modifier = Modifier.padding(9.dp).size(20.dp))
-                }
-                Text("OPEN", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
+            Surface(color = SurfaceHighlight.copy(alpha = 0.58f), shape = RoundedCornerShape(12.dp)) {
+                Icon(icon, contentDescription = null, tint = AccentCyan, modifier = Modifier.padding(10.dp).size(21.dp))
             }
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(title, style = MaterialTheme.typography.titleSmall, color = TextPrimary, fontWeight = FontWeight.SemiBold)
                 Text(description, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
             }
+            Text("↗", style = MaterialTheme.typography.titleMedium, color = TextTertiary)
         }
     }
 }
