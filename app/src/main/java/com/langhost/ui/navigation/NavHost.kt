@@ -38,6 +38,7 @@ import com.langhost.ui.screens.internet.PublicIpScreen
 import com.langhost.ui.screens.profiles.NetworkProfilesScreen
 import com.langhost.ui.screens.security.SecurityScreen
 import com.langhost.ui.screens.settings.SettingsScreen
+import com.langhost.ui.screens.tools.ToolsScreen
 import com.langhost.ui.screens.tools.UtilitiesScreen
 import com.langhost.ui.screens.topology.TopologyScreen
 import com.langhost.ui.screens.wifi.NearbyNetworksScreen
@@ -65,6 +66,7 @@ object Routes {
     const val CHANNELS = "channels"
     const val PUBLIC_IP = "public_ip"
     const val PROFILES = "profiles"
+    const val TOOLS = "tools"
 
     fun deviceDetail(ip: String) = "device/${ip.replace('.', '_')}"
     fun decodeIp(encoded: String) = encoded.replace('_', '.')
@@ -245,7 +247,8 @@ private fun AppNavGraph(
                 onNavigateToWol = { navController.navigate(Routes.WOL) },
                 onNavigateToChannels = { navController.navigate(Routes.CHANNELS) },
                 onNavigateToPublicIp = { navController.navigate(Routes.PUBLIC_IP) },
-                onNavigateToProfiles = { navController.navigate(Routes.PROFILES) }
+                onNavigateToProfiles = { navController.navigate(Routes.PROFILES) },
+                onNavigateToTools = { navController.navigate(Routes.TOOLS) }
             )
         }
         composable(Routes.DEVICES) {
@@ -276,5 +279,18 @@ private fun AppNavGraph(
         composable(Routes.CHANNELS) { ChannelAnalyzerScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.PUBLIC_IP) { PublicIpScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.PROFILES) { NetworkProfilesScreen(onBack = { navController.popBackStack() }) }
+        composable(Routes.TOOLS) {
+            ToolsScreen(
+                onBack = { navController.popBackStack() },
+                onSecurity = { navController.navigate(Routes.SECURITY) },
+                onUtilities = { navController.navigate(Routes.UTILITIES) },
+                onChannels = { navController.navigate(Routes.CHANNELS) },
+                onPublicIp = { navController.navigate(Routes.PUBLIC_IP) },
+                onProfiles = { navController.navigate(Routes.PROFILES) },
+                onWakeOnLan = { navController.navigate(Routes.WOL) },
+                onWifi = { navController.navigate(Routes.NEARBY_WIFI) },
+                onSettings = { navController.navigate(Routes.SETTINGS) }
+            )
+        }
     }
 }
