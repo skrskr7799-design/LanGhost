@@ -51,6 +51,7 @@ class SettingsViewModel(
     fun setWatchMode(enabled: Boolean) = viewModelScope.launch { appSettings.setWatchMode(enabled) }
     fun setNotifyNew(enabled: Boolean) = viewModelScope.launch { appSettings.setNotifyNewDevices(enabled) }
     fun setAutoScan(enabled: Boolean) = viewModelScope.launch { appSettings.setAutoScanOnOpen(enabled) }
+    fun setMaskNetworkIdentifiers(enabled: Boolean) = viewModelScope.launch { appSettings.setMaskNetworkIdentifiers(enabled) }
     fun setBiometric(v: Boolean) = viewModelScope.launch { lockSettings.setBiometricEnabled(v) }
 }
 
@@ -133,6 +134,12 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
 
             SettingsSection("Приватность") {
+                SettingsSwitch(
+                    "Скрывать сетевые идентификаторы",
+                    "Маскировать IP, MAC и BSSID в интерфейсе и отчётах",
+                    settings.maskNetworkIdentifiers,
+                    viewModel::setMaskNetworkIdentifiers
+                )
                 SettingsSwitch("Блокировка приложения", "Биометрия / PIN при входе", biometric) { enabled ->
                     if (!enabled) {
                         biometricError = null
