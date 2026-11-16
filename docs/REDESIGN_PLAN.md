@@ -122,14 +122,26 @@ Each slice must pass Lint, unit tests and Debug APK build; full CI (including Re
 
 - [x] Added a dedicated Tools destination that groups security, Wi-Fi analysis, diagnostics, public IP, Wake-on-LAN, profiles and settings by operational task.
 - [x] Preserved the existing individual routes and added a dashboard entry point; no existing tool was removed or hidden.
-- [ ] Replace the remaining repeated dashboard tool shortcuts with a more compact overview action group after the new hub has passed CI and interaction review.
+- [x] Replaced repeated dashboard tool shortcuts with a compact workspace group for Devices, Topology, Security and Tools.
 
 ### Remaining visual acceptance work
 
 - [ ] Complete a composition pass on each screen; avoid relying on color and shape changes alone.
 - [ ] Build adaptive large-screen layouts with useful multi-pane content and verify phone / tablet / landscape separately.
 - [ ] Unify permission, loading, stale, partial, empty and error states with consistent hierarchy and retry affordances.
-- [ ] Implement end-to-end privacy masking for identifiers across display, copy, share and export.
+- [x] Added a persistent privacy preference and centralized masking for IP, MAC and BSSID across dashboard, device inventory/detail, topology list, Wi-Fi, security findings/diffs, network profiles, WoL profile display, public IP, DNS/Ping results, clipboard, TXT/CSV exports and shared reports.
 - [ ] Add purposeful transitions and scan feedback; keep motion restrained and respect reduced-motion / system animation settings where available.
 - [ ] Review accessibility semantics, touch targets, contrast, TalkBack and system font scaling.
 - [ ] Capture and review real screenshots on phone and tablet; visual sign-off is required before the redesign phase is considered complete.
+
+
+### 2026-11-16 — adaptive workspaces and privacy coverage
+
+- [x] Added a tablet device workspace with inventory on the left and a selected-device preview on the right; full device detail remains a separate destination.
+- [x] Added a tablet topology workspace with the logical graph and complete discovered-node list side by side; the graph remains explicitly evidence-aware.
+- [x] Added persistent identifier masking preference (off by default) and centralized IP/MAC/BSSID formatting.
+- [x] Applied masking to the remaining identifier surfaces discovered in the audit: public IP, DNS/Ping results, security finding details, network profiles and Wake-on-LAN profiles.
+- [x] Kept raw identifiers for network operations and profile actions; masking is presentation/export-only.
+- [x] Added unit coverage for IPv4, IPv6, MAC/BSSID and disabled masking.
+
+The adaptive and privacy changes are still subject to the current full CI run and device-level visual review.
