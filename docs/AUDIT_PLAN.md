@@ -1,9 +1,9 @@
 # LanGhost — Engineering Roadmap & Audit Register
 
-> Status: Phases 1–4 implementation and CI complete; Phase 5 — Full UI/UX redesign active; physical-device validation remains open
-> Baseline branch: main  
-> Baseline commit reviewed: c8e13219461fd1488ccbb83b4fa5ab721ba3eb62  
-> Working branch: work/data-architecture
+> Status: Phases 1–4 complete; Phase 5 final-polish implementation in progress; physical-device validation tracked separately in Phase 6
+> Baseline branch: main
+> Baseline commit reviewed: e581fd0523aa90fd57a9338ac8eaae4e5a17408f (merge of PR #1)
+> Working branch: work/phase-5-final-polish
 
 ## Project direction
 
@@ -85,19 +85,25 @@ Phase 2 implementation is complete. The NetworkRepository service-boundary refac
 - [x] Add structured diagnostic events with fixed component/event identifiers only; logs do not include SSIDs, IPs, MACs, URLs or raw payloads.
 - [x] Complete full CI validation (Lint, unit tests, Debug APK and Release APK) on the final Phase 4 head before closing the phase. Run [#43714028759](https://github.com/skrskr7799-design/LanGhost/actions/runs/43714028759) passed all steps on final Phase 4 head `4cc6d383df5ceda30f171072c93820ec4d7ce55d`.
 
-### Phase 5 — Full UI/UX and visual redesign (active)
-- [x] Audit the current screen inventory and navigation structure. Confirmed baseline issues: dashboard is a long vertical action list; most screens repeat bespoke Scaffold/TopAppBar/Card patterns; phone navigation is route-driven without a persistent primary navigation surface; tablet uses a fixed 40/60 split; design tokens are limited to a small dark palette and typography scale. Detailed redesign direction is in `docs/REDESIGN_PLAN.md`.
-- [ ] Audit empty/loading/error states and interaction consistency screen by screen.
-- [ ] Implement consistent privacy masking for MAC/IP/BSSID in device views, screenshots, reports and exports; the previous nonfunctional toggle was removed until the behavior is implemented.
-- [ ] Define a coherent design system: color, typography, spacing, shapes, elevation, icons and reusable components.
-- [ ] Redesign dashboard around clear network status, actionable insights and live/refreshable data.
-- [ ] Improve device list/detail, topology, Wi-Fi analysis, security, tools, profiles and settings.
-- [ ] Improve charts and topology visualization without sacrificing performance or accessibility.
-- [ ] Add restrained motion, transitions, loading feedback and haptics where useful.
-- [ ] Review dark theme and decide whether a complete light theme is worthwhile.
-- [ ] Optimize layouts for compact phones, large phones, tablets, landscape and system font scaling.
-- [ ] Verify contrast, touch targets, TalkBack semantics and localization.
+### Phase 5 — Full UI/UX and visual redesign (final-polish implementation)
 
+- [x] Audit the screen inventory, route structure and primary/secondary navigation.
+- [x] Establish a coherent dark-first design system: semantic colors, typography, spacing, shapes, borders and reusable Compose components.
+- [x] Redesign the overview around live network state, scan coverage, meaningful metrics and explicit user-initiated actions.
+- [x] Redesign Devices, device detail, Topology, Wi-Fi environment, Channel Analysis, Security Center, Tools, Utilities, Public IP, Network Profiles, Wake-on-LAN and Settings.
+- [x] Implement adaptive phone and expanded layouts, including multi-pane workspaces for device inventory, topology, Wi-Fi, profiles, diagnostics and settings.
+- [x] Preserve all existing routes and operational behavior while making network evidence, freshness, uncertainty and limitations visible.
+- [x] Apply centralized IP/MAC/BSSID masking to UI, clipboard, exports and reports; retain raw values only for the underlying network operations.
+- [x] Add shared loading, retryable error and stale/partial-data states; distinguish never-scanned from completed-empty results.
+- [x] Correct TCP history language so service-port connection failures are not described as ICMP packet loss or host downtime.
+- [x] Surface retryable persistence failures for device customizations instead of silently swallowing save errors.
+- [x] Improve TalkBack semantics at the shared-component and app-navigation level: page/section headings, merged status badges, live operation-state announcements and selected-tab semantics.
+- [x] Keep animation restrained and evidence-led; do not add decorative motion or external animation dependencies without a concrete interaction benefit.
+- [ ] Complete hands-on TalkBack, contrast, touch-target and system-font-scaling checks on representative Android devices (tracked in Phase 6).
+- [ ] Capture and review real phone/tablet screenshots and sign off visual behavior on physical devices (tracked in Phase 6).
+
+Phase 5 implementation is considered complete when the final branch CI passes. Device-only validation is deliberately not represented as complete by source review or CI; it remains an explicit Phase 6 acceptance task.
+ 
 ### Phase 6 — Automated and device testing
 - [x] Add unit tests for pure network calculations, identity merging, scoring, diff, discovery orchestration, public-IP response validation/limits, CSV safety, retention bounds and evidence expiry (70 tests; all pass in CI run 43697709829 on commit 8db7f710).
 - [ ] Add repository/integration tests for persistence, scanning orchestration and failure cases.
@@ -129,9 +135,9 @@ Phase 2 implementation is complete. The NetworkRepository service-boundary refac
 
 These are repository observations, not a complete audit verdict:
 
-- The latest reviewed main commit is c8e13219461fd1488ccbb83b4fa5ab721ba3eb62.
+- The original audit baseline was `c8e13219461fd1488ccbb83b4fa5ab721ba3eb62`. The current main baseline for Phase 5 is merge commit `e581fd0523aa90fd57a9338ac8eaae4e5a17408f` (PR #1).
 - The baseline GitHub Actions run #33 (43682690627) failed during Kotlin compilation. The compiler output identified invalid named Modifier arguments in LockGate.kt and SecurityScreen.kt. These were corrected on this branch; validation runs #2 (43683564098) and #3 (43683602775) both completed successfully, including Debug APK artifact upload.
-- The repository contains gradle/wrapper/gradle-wrapper.properties, but the recursive tree reviewed did not contain gradlew, gradlew.bat, or gradle/wrapper/gradle-wrapper.jar.
+- At the original baseline, the Gradle Wrapper scripts/JAR were absent; the Wrapper has since been restored and is part of current main.
 - The README still describes several features already present in the source tree as roadmap items. Documentation needs reconciliation.
 - Release build/signing and test coverage require a dedicated review; do not infer readiness from the existence of a release build type.
 
