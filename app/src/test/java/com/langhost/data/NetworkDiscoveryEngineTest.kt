@@ -242,7 +242,7 @@ class NetworkDiscoveryEngineTest {
     @Test
     fun includesOnlyInSubnetDnsSdServiceObservations() = runBlocking {
         val result = NetworkDiscoveryEngine(
-            probeHost = { _, _ -> false },
+            probeHost = { ip, _ -> ip == "192.168.10.5" },
             ensureCurrentNetworkScope = {}
         ).discover(
             localIp = "192.168.10.2",
@@ -262,7 +262,30 @@ class NetworkDiscoveryEngineTest {
         assertTrue(result.ips.contains("192.168.10.5"))
         assertFalse(result.ips.contains("192.168.20.5"))
         assertFalse(result.ips.contains("127.0.0.1"))
-        assertTrue(result.tcpResponsiveIps.isEmpty())
+        assertEquals(setOf("192.168.10.5"), result.tcpResponsiveIps)
+        assertEquals(1, result.ips.count { it == "192.168.10.5" })
+    }
+
+    @Test
+    fun optionalDnsSdFailureDoesNotDiscardOtherDiscoveryEvidence() = runBlocking {
+        val result = NetworkDiscoveryEngine(
+            probeHost = { ip, _ -> ip == "192.168.10.3" },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = mapOf("192.168.10.4" to "AA:BB:CC:DD:EE:04"),
+            networkScope = "scope-nsd-failure",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2,
+            discoverNsdServiceIps = { throw IllegalStateException("NSD unavailable") }
+        )
+
+        assertTrue(result.ips.contains("192.168.10.3"))
+        assertTrue(result.ips.contains("192.168.10.4"))
+        assertTrue(result.nsdServiceIps.isEmpty())
     }
 
 }
