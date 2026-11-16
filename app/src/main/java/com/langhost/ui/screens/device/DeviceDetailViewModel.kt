@@ -17,6 +17,8 @@ data class DeviceDetailUiState(
     val device: Device? = null,
     val isScanningPorts: Boolean = false,
     val openPorts: List<Int> = emptyList(),
+    val hasScannedPorts: Boolean = false,
+    val portScanError: String? = null,
     val nickname: String = "",
     val notes: String = "",
     val isFavorite: Boolean = false,
@@ -47,7 +49,8 @@ class DeviceDetailViewModel(
                 notes = device?.notes ?: "",
                 isFavorite = device?.isFavorite ?: false,
                 isWatched = device?.isWatched ?: false,
-                openPorts = device?.openPorts ?: emptyList()
+                openPorts = device?.openPorts ?: emptyList(),
+                hasScannedPorts = !device?.openPorts.isNullOrEmpty()
             )
         }
     }
@@ -57,20 +60,22 @@ class DeviceDetailViewModel(
 
         val scanTarget = _uiState.value.device ?: return
         viewModelScope.launch {
-            _uiState.update { it.copy(isScanningPorts = true) }
+            _uiState.update { it.copy(isScanningPorts = true, portScanError = null) }
             try {
                 val ports = repository.scanDevicePorts(scanTarget)
                 val updatedDevice = repository.getDevice(deviceIp)
                 _uiState.update {
                     it.copy(
                         openPorts = ports ?: updatedDevice?.openPorts.orEmpty(),
-                        device = updatedDevice
+                        device = updatedDevice,
+                        hasScannedPorts = true,
+                        portScanError = null
                     )
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                // Keep the last known result; the UI must not turn a failed scan into "no open ports".
+                _uiState.update { it.copy(portScanError = "Не удалось завершить проверку портов. Последние известные результаты сохранены.") }
             } finally {
                 _uiState.update { it.copy(isScanningPorts = false) }
             }
