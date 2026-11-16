@@ -312,7 +312,7 @@ private fun ProfileDetailPanel(
     onActivate: () -> Unit,
     onDelete: () -> Unit
 ) {
-    ContentPanel(modifier = Modifier.fillMaxWidth().weight(1f)) {
+    ContentPanel(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(18.dp)
