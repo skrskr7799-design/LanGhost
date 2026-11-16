@@ -313,4 +313,28 @@ class NetworkDiscoveryEngineTest {
         }
     }
 
+    @Test
+    fun dnsSdResultsHaveIndependentHardHostLimit() = runBlocking {
+        val dnsSdIps = (1..300).map { offset ->
+            "10.0.${offset / 256}.${offset % 256}"
+        }.toSet()
+        val result = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "10.0.0.2",
+            gateway = "10.0.0.1",
+            netmask = "255.255.254.0",
+            arpEntries = emptyMap(),
+            networkScope = "scope-nsd-cap",
+            timeoutMs = 150,
+            maxTargets = 0,
+            maxConcurrency = 1,
+            discoverNsdServiceIps = { dnsSdIps }
+        )
+
+        assertEquals(256, result.nsdServiceIps.size)
+        assertTrue(result.nsdServiceIps.all { it.startsWith("10.0.") })
+    }
+
 }
