@@ -35,6 +35,7 @@ class DeviceLifecycleEngineTest {
         val fresh = old.copy(
             ip = "192.168.1.21",
             lastSeen = now,
+            lastConfirmedOnline = now,
             openPorts = listOf(22, 443),
             isFavorite = true
         )
