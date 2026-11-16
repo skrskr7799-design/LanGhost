@@ -48,6 +48,7 @@ import com.langhost.ui.theme.Border
 import com.langhost.ui.theme.Divider
 import com.langhost.ui.theme.Primary
 import com.langhost.ui.theme.Surface
+import com.langhost.ui.theme.SurfaceHighlight
 import com.langhost.ui.theme.TextPrimary
 import com.langhost.ui.theme.TextSecondary
 
