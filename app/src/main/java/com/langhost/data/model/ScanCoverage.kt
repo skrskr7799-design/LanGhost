@@ -7,7 +7,13 @@ data class ScanCoverage(
     val truncated: Boolean = false,
     val scannedAt: Long = 0L,
     /** Logical network identity for which this coverage was measured. */
-    val networkScope: String = ""
+    val networkScope: String = "",
+    /** Distinct in-subnet hosts observed in the kernel ARP table after the scan. */
+    val arpObservedHosts: Int = 0,
+    /** Hosts that positively answered a TCP connection attempt (open or refused). */
+    val tcpResponsiveHosts: Int = 0,
+    /** Hosts resolved through one of the supported DNS-SD service types. */
+    val dnsSdResolvedHosts: Int = 0
 ) {
     val coveragePercent: Int
         get() = if (totalUsableAddresses <= 0L) 0 else
