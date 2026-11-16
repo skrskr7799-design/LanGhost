@@ -3,6 +3,7 @@ package com.langhost.ui.screens.dashboard
 import android.Manifest
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -50,6 +51,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -58,6 +60,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.langhost.ui.components.ContentPanel
 import com.langhost.ui.components.MetricTile
+import com.langhost.ui.components.NetworkOrbit
 import com.langhost.ui.components.PageHeading
 import com.langhost.ui.components.SectionHeading
 import com.langhost.ui.components.StatusBadge
@@ -76,6 +79,8 @@ import com.langhost.ui.theme.Success
 import com.langhost.ui.theme.AccentCyan
 import com.langhost.ui.theme.OnPrimary
 import com.langhost.ui.theme.LanGhostSpacing
+import com.langhost.ui.theme.TechnicalTypography
+import com.langhost.ui.theme.AmbientBlue
 
 @OptIn(ExperimentalPermissionsApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -115,12 +120,15 @@ fun DashboardScreen(
             TopAppBar(
                 title = {
                     Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Text(
-                            "LanGhost",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            NetworkOrbit(isConnected = true, modifier = Modifier.size(30.dp))
+                            Text(
+                                "LanGhost",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
                         Text(
                             "NETWORK INTELLIGENCE",
                             style = MaterialTheme.typography.labelSmall,
@@ -149,6 +157,12 @@ fun DashboardScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(AmbientBlue.copy(alpha = 0.22f), Background),
+                        radius = 920f
+                    )
+                )
                 .padding(horizontal = LanGhostSpacing.md, vertical = LanGhostSpacing.lg),
             verticalArrangement = Arrangement.spacedBy(LanGhostSpacing.xl)
         ) {
@@ -284,23 +298,17 @@ private fun NetworkOverview(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(LanGhostSpacing.md)
             ) {
-                androidx.compose.material3.Surface(
-                    color = if (isConnected) Primary.copy(alpha = 0.14f) else SurfaceVariant,
-                    shape = RoundedCornerShape(18.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Wifi,
-                        contentDescription = null,
-                        tint = if (isConnected) Primary else TextTertiary,
-                        modifier = Modifier.padding(14.dp).size(26.dp)
-                    )
-                }
+                NetworkOrbit(
+                    isConnected = isConnected,
+                    modifier = Modifier.size(104.dp)
+                )
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
                         text = if (isConnected && ssid.isNotBlank()) ssid else "Нет активной сети",
                         style = MaterialTheme.typography.headlineMedium,
                         color = TextPrimary,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2
                     )
                     Text(
                         text = if (isConnected) "Локальное сетевое окружение" else "Подключитесь к Wi-Fi или Ethernet",
@@ -328,7 +336,7 @@ private fun NetworkFact(label: String, value: String, modifier: Modifier = Modif
         Text(label, style = MaterialTheme.typography.labelSmall, color = TextTertiary)
         Text(
             value.ifBlank { "—" },
-            style = MaterialTheme.typography.bodyMedium,
+            style = TechnicalTypography,
             color = TextPrimary,
             fontWeight = FontWeight.Medium,
             maxLines = 1
