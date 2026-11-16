@@ -1,11 +1,9 @@
 package com.langhost.data
 
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.selects.onAwait
-import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.launch
 
 /**
  * Bounded host discovery orchestration.
@@ -15,8 +13,8 @@ import kotlinx.coroutines.selects.select
  */
 internal object HostDiscovery {
     /**
-     * Maps items through a sliding window. A completed task immediately frees a slot
-     * for the next item; the scheduler never waits for a whole fixed batch to finish.
+     * Maps items through a sliding concurrency window. A completed task immediately frees
+     * a slot for the next item; no fixed batch waits for its slowest member.
      */
     suspend fun <T, R> mapBounded(
         items: List<T>,
@@ -29,27 +27,37 @@ internal object HostDiscovery {
 
         return coroutineScope {
             val results = arrayOfNulls<Any?>(items.size)
-            val inFlight = mutableListOf<Deferred<Pair<Int, R>>>()
+            val completed = Channel<Pair<Int, Result<R>>>(Channel.UNLIMITED)
             var nextIndex = 0
+            var active = 0
             var scheduled = 0
 
-            while (nextIndex < items.size || inFlight.isNotEmpty()) {
-                while (nextIndex < items.size && inFlight.size < maxConcurrency) {
-                    if (scheduled % maxConcurrency == 0) beforeBatch()
-                    val index = nextIndex++
-                    inFlight += async { index to transform(items[index]) }
-                    scheduled++
-                }
-
-                if (inFlight.isNotEmpty()) {
-                    val completed = select<Pair<Deferred<Pair<Int, R>>, Pair<Int, R>>> {
-                        inFlight.forEach { deferred ->
-                            deferred.onAwait { value -> deferred to value }
-                        }
+            suspend fun scheduleNext() {
+                if (nextIndex >= items.size) return
+                if (scheduled % maxConcurrency == 0) beforeBatch()
+                val index = nextIndex++
+                active++
+                scheduled++
+                launch {
+                    val outcome = try {
+                        Result.success(transform(items[index]))
+                    } catch (error: Throwable) {
+                        Result.failure(error)
                     }
-                    inFlight.remove(completed.first)
-                    results[completed.second.first] = completed.second.second
+                    completed.send(index to outcome)
                 }
+            }
+
+            try {
+                while (active < maxConcurrency && nextIndex < items.size) scheduleNext()
+                while (active > 0) {
+                    val (index, outcome) = completed.receive()
+                    results[index] = outcome.getOrThrow()
+                    active--
+                    if (nextIndex < items.size) scheduleNext()
+                }
+            } finally {
+                completed.close()
             }
 
             @Suppress("UNCHECKED_CAST")
