@@ -149,7 +149,7 @@ class HostDiscoveryTest {
             HostDiscovery.discover(
                 candidates = (1..5).map { "192.168.1.$it" },
                 localIp = "192.168.1.254",
-                maxConcurrency = 2,
+                maxConcurrency = 1,
                 timeoutMs = 150,
                 beforeBatch = {
                     batchChecks++
@@ -164,7 +164,7 @@ class HostDiscoveryTest {
             throw AssertionError("Expected the network-scope checkpoint to cancel discovery")
         } catch (_: kotlinx.coroutines.CancellationException) {
             assertEquals(2, batchChecks)
-            assertEquals(2, probeCalls.get())
+            assertEquals(1, probeCalls.get())
         }
     }
 
@@ -178,7 +178,26 @@ class HostDiscoveryTest {
         ) { it * 2 }
 
         assertEquals((1..5).map { it * 2 }, result)
-        assertEquals(3, batchChecks)
+        assertEquals(5, batchChecks)
+    }
+ 
+    @Test
+    fun discoveryRetriesOnlyHostsWithoutPositiveEvidence() = runBlocking {
+        val attempts = java.util.concurrent.ConcurrentHashMap<String, AtomicInteger>()
+        val result = HostDiscovery.discover(
+            candidates = listOf("192.168.1.2", "192.168.1.3"),
+            localIp = "192.168.1.1",
+            maxConcurrency = 2,
+            timeoutMs = 350
+        ) { ip, budget ->
+            assertTrue("Retry budget should remain bounded", budget <= 700)
+            val count = attempts.computeIfAbsent(ip) { AtomicInteger() }.incrementAndGet()
+            ip.endsWith(".2") || count >= 2
+        }
+
+        assertEquals(setOf("192.168.1.2", "192.168.1.3"), result)
+        assertEquals(1, attempts["192.168.1.2"]?.get())
+        assertEquals(2, attempts["192.168.1.3"]?.get())
     }
 
 }
