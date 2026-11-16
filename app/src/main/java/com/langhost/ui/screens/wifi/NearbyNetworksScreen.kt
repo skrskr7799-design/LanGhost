@@ -146,6 +146,10 @@ fun NearbyNetworksScreen(onBack: () -> Unit) {
         },
         containerColor = Background
     ) { padding ->
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth().widthIn(max = 1120.dp),
+            contentAlignment = Alignment.TopCenter
+        ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
@@ -291,6 +295,7 @@ fun NearbyNetworksScreen(onBack: () -> Unit) {
                     )
                 }
             }
+        }
         }
     }
 }
