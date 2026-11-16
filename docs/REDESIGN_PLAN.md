@@ -222,3 +222,8 @@ These screens now have distinct information hierarchies instead of being simple 
 - [x] Active port checks use the shared loading treatment rather than an ambiguous empty-state message.
 
 - [x] Channel analysis now uses the shared loading and retryable error surfaces while preserving its band-specific evidence and freshness indicators.
+
+- [x] Network profiles now distinguish the app-selected context from the live Android Wi-Fi connection; exact SSID+BSSID matches and SSID-only matches are labelled separately.
+- [x] Profile actions now say “Choose context” rather than implying a system Wi-Fi switch; the detail view explains that the OS connection is not changed.
+- [x] Connection status is based on the network monitor's explicit `isConnected` state, not merely on a non-empty SSID.
+- [ ] Clarify TCP reachability history so failed connections to selected service ports are never described as ICMP packet loss or host downtime.
