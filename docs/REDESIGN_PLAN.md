@@ -144,4 +144,16 @@ Each slice must pass Lint, unit tests and Debug APK build; full CI (including Re
 - [x] Kept raw identifiers for network operations and profile actions; masking is presentation/export-only.
 - [x] Added unit coverage for IPv4, IPv6, MAC/BSSID and disabled masking.
 
-The adaptive and privacy changes are still subject to the current full CI run and device-level visual review.
+The adaptive and privacy changes passed full CI on commit `575663b19da6f76093e0d61e01b2571abf29818c` (Lint, unit tests, Debug APK and Release APK). Device-level visual review remains outstanding.
+
+
+### 2026-11-16 — adaptive profiles, Wake-on-LAN and settings
+
+- [x] Rebuilt Network Profiles as a two-pane tablet workspace: current network context and saved-profile inventory on the left, selected profile details and explicit activation/removal actions on the right.
+- [x] Kept the compact phone flow focused on the profile list and direct activation; profile creation remains bound to the currently observed SSID/BSSID.
+- [x] Rebuilt Wake-on-LAN as a device operations workspace with a saved-device inventory, a selected-device detail panel and a clear Magic Packet action on expanded screens.
+- [x] Added an explicit explanation that successful packet transmission is not proof that the target device powered on.
+- [x] Reworked Settings into a two-column tablet control workspace and a focused single-column phone flow; grouped monitoring/scanning separately from privacy/access/report/about.
+- [x] Preserved notification permission handling, background watch worker controls, biometric availability checks, identifier masking, and report sharing.
+
+These screens now have distinct information hierarchies instead of being simple vertical lists of interchangeable cards. They still require compile/CI verification and real-device visual review.
