@@ -216,6 +216,7 @@ class NetworkRepository(context: Context) {
             val localIp = networkInfo.ipAddress
             val gateway = networkInfo.gateway
             val bssid = networkInfo.bssid
+            val activeNetwork = publishedActiveNetwork
             val networkScope = NetworkIdentity.scopeId(
                 ssid = networkInfo.ssid,
                 gateway = gateway,
@@ -240,7 +241,7 @@ class NetworkRepository(context: Context) {
                 maxTargets = MAX_DISCOVERY_TARGETS,
                 maxConcurrency = MAX_CONCURRENT_HOST_PROBES,
                 refreshArpEntries = { readArpTable(networkInfo.interfaceName) },
-                discoverNsdServiceIps = { nsdDiscovery.discover() }
+                discoverNsdServiceIps = { nsdDiscovery.discover(activeNetwork) }
             )
             val arpDevices = discovery.arpAddresses
             val allIps = discovery.ips
