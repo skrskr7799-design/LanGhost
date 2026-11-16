@@ -21,6 +21,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -189,7 +193,10 @@ private fun NavigationEntry(
     val iconTint = if (selected) AccentCyan else TextSecondary
     Surface(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.semantics {
+            this.selected = selected
+            this.role = Role.Tab
+        },
         shape = RoundedCornerShape(16.dp),
         color = if (selected) SurfaceHighlight.copy(alpha = 0.72f) else Color.Transparent,
         contentColor = TextPrimary,
@@ -211,7 +218,7 @@ private fun NavigationEntry(
             ) {
                 Icon(
                     imageVector = destination.icon,
-                    contentDescription = destination.label,
+                    contentDescription = null,
                     tint = iconTint,
                     modifier = Modifier.size(if (compact) 20.dp else 22.dp)
                 )

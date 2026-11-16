@@ -30,6 +30,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.langhost.ui.theme.AccentCyan
 import com.langhost.ui.theme.AmbientBlue
@@ -68,6 +70,7 @@ fun PageHeading(
         }
         Text(
             text = title,
+            modifier = Modifier.semantics { heading() },
             style = MaterialTheme.typography.headlineLarge,
             color = TextPrimary,
             maxLines = 2,
@@ -97,6 +100,7 @@ fun SectionHeading(
     ) {
         Text(
             text = title,
+            modifier = Modifier.semantics { heading() },
             style = MaterialTheme.typography.titleLarge,
             color = TextPrimary
         )
@@ -123,6 +127,7 @@ fun StatusBadge(
     }
     Row(
         modifier = modifier
+            .semantics(mergeDescendants = true) { }
             .background(tint.copy(alpha = 0.10f), CircleShape)
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -250,6 +255,7 @@ fun EmptyState(
         }
         Text(
             text = title,
+            modifier = Modifier.semantics { heading() },
             style = MaterialTheme.typography.titleLarge,
             color = TextPrimary
         )

@@ -29,7 +29,7 @@ LanGhost is a personal network-inspection tool for Android. It helps you discove
 - Optional periodic device monitoring through WorkManager, with optional new-device notifications.
 - Home-screen scan widget.
 - TXT/CSV device exports and shareable network summaries.
-- Optional biometric/device-credential app lock.
+- Optional biometric/device-credential app lock.\n- Optional presentation masking for IP, MAC and BSSID identifiers across the interface, clipboard and shared exports/reports.
 
 ## Important limitations
 
@@ -79,7 +79,9 @@ GitHub Actions runs Android Lint, unit tests, and Debug/Release APK builds on pu
 
 ## Project status
 
-The working branch `work/data-architecture` contains the network-engine, security-evidence, architecture and initial UI-foundation work. The full cohesive visual redesign and physical-device validation are separate remaining stages. A green CI run verifies the automated checks and APK builds; it does not replace testing on real Android devices and networks.
+The `main` branch contains the completed network-engine, security-evidence, data-architecture and broad UI redesign work merged through PR #1. Phase 5 final-polish implementation is complete on PR #2: shared accessibility semantics, clear recoverable operation feedback and documentation reconciliation are in place.
+
+Automated CI verifies Android Lint, unit tests and Debug/Release APK builds. It does not replace hands-on validation on real Android devices and networks. TalkBack, system font scaling, touch targets, visual review across phone/tablet/landscape, Android permission behavior, Wi-Fi scan throttling, ARP visibility, VPN/multi-network behavior and biometric lifecycle checks remain explicit device-validation work in `docs/AUDIT_PLAN.md`.
 
 ## App stack
 

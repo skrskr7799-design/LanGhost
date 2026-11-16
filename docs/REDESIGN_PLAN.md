@@ -1,8 +1,8 @@
 # LanGhost — UI/UX Redesign Plan
 
-> Status: Phase 5 active
-> Branch: `work/data-architecture`
-> Baseline: `4cc6d383df5ceda30f171072c93820ec4d7ce55d`
+> Status: Phase 5 implementation and automated CI complete; physical-device sign-off tracked in Phase 6
+> Branch: `work/phase-5-final-polish`
+> Baseline: `e581fd0523aa90fd57a9338ac8eaae4e5a17408f` (merged PR #1)
 
 ## Product experience
 
@@ -127,12 +127,14 @@ Each slice must pass Lint, unit tests and Debug APK build; full CI (including Re
 ### Remaining visual acceptance work
 
 - [x] Complete a composition pass on the Tools hub, Ping/DNS and Public IP; avoid relying on color and shape changes alone.
-- [ ] Build adaptive large-screen layouts with useful multi-pane content and verify phone / tablet / landscape separately.
-- [ ] Unify permission, loading, stale, partial, empty and error states with consistent hierarchy and retry affordances.
+- [x] Build adaptive large-screen layouts with useful multi-pane content across the main operational workspaces.
+- [ ] Verify phone / tablet / landscape behavior on physical devices.
+- [x] Unify permission, loading, stale, partial, empty and recoverable-error states with consistent hierarchy and retry affordances across the primary workflows.
 - [x] Added a persistent privacy preference and centralized masking for IP, MAC and BSSID across dashboard, device inventory/detail, topology list, Wi-Fi, security findings/diffs, network profiles, WoL profile display, public IP, DNS/Ping results, clipboard, TXT/CSV exports and shared reports.
 - [ ] Add purposeful transitions and scan feedback; keep motion restrained and respect reduced-motion / system animation settings where available.
-- [ ] Review accessibility semantics, touch targets, contrast, TalkBack and system font scaling.
-- [ ] Capture and review real screenshots on phone and tablet; visual sign-off is required before the redesign phase is considered complete.
+- [x] Add source-level accessibility semantics for page/section headings, status badges, live operation notices and selected primary-navigation tabs.
+- [ ] Verify touch targets, contrast, TalkBack behavior and system font scaling on physical devices.
+- [ ] Capture and review real screenshots on phone and tablet; visual sign-off remains a device-validation task in Phase 6.
 
 
 ### 2026-11-16 — adaptive workspaces and privacy coverage
@@ -249,3 +251,15 @@ These screens now have distinct information hierarchies instead of being simple 
 - [x] Corrected a stale-endpoint race in `NetworkRepository.scanDevicePorts`: the UI now receives a successful result only when the result was committed to the same current device endpoint and network scope. A scan that finishes after the device endpoint disappears or changes is rejected as stale.
 - [x] Added unit regression coverage for empty completed scans, never-scanned state and enrichment timestamp preservation.
 - [ ] Physical-device validation, representative Android API/router testing, Compose UI tests, TalkBack/font-scaling review and visual sign-off remain open. CI success must not be presented as completing those device-only checks.
+
+
+### 2026-11-16 — Phase 5 final-polish pass
+
+- [x] Added semantic heading roles to shared page and section headings so screen readers can navigate the information hierarchy.
+- [x] Merged status-badge semantics to avoid announcing decorative status dots as separate controls or content.
+- [x] Marked loading/data-quality notices as polite live regions and retryable errors as assertive live regions.
+- [x] Exposed selected state and tab role for persistent primary navigation; removed duplicate icon/label announcements.
+- [x] Closed a silent-failure gap in device customization persistence: failures now produce a visible retryable error instead of leaving the user with no feedback.
+- [x] Reconciled the implementation plan with the actual merged main baseline and moved physical-device sign-off to the device-validation phase.
+
+Full CI run [#43815487552](https://github.com/skrskr7799-design/LanGhost/actions/runs/43815487552) passed on commit `f37ee9022ff97642764cc7bbc2d29bf3a2baa12e` (Android Lint, unit tests, Debug APK, Release APK and artifact upload). Source-level accessibility improvements do not replace TalkBack, font-scaling, contrast or touch-target checks on real hardware; device-only acceptance remains tracked in Phase 6.
