@@ -6,7 +6,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class DataRetentionTest {\n    @Test
+class DataRetentionTest {
+    @Test
     fun newSettingsDoNotEnableNotificationsBeforeExplicitOptIn() {
         assertEquals(false, AppSettingsData().notifyNewDevices)
     }
