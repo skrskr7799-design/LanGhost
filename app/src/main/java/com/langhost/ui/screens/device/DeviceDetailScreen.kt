@@ -70,7 +70,8 @@ fun DeviceDetailScreen(
             "IP" -> PrivacyFormatter.ip(value, appSettings.maskNetworkIdentifiers)
             "MAC" -> PrivacyFormatter.mac(value, appSettings.maskNetworkIdentifiers)
             else -> value
-        }\n        clipboard.setPrimaryClip(ClipData.newPlainText(label, safeValue))
+        }
+        clipboard.setPrimaryClip(ClipData.newPlainText(label, safeValue))
         Toast.makeText(context, "$label скопирован", Toast.LENGTH_SHORT).show()
     }
 
