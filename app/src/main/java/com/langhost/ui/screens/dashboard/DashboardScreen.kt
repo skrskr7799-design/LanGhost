@@ -95,6 +95,7 @@ fun DashboardScreen(
     onNavigateToChannels: () -> Unit = {},
     onNavigateToPublicIp: () -> Unit = {},
     onNavigateToProfiles: () -> Unit = {},
+    onNavigateToTools: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: DashboardViewModel = viewModel()
 ) {
@@ -242,6 +243,7 @@ fun DashboardScreen(
 
             Column(verticalArrangement = Arrangement.spacedBy(LanGhostSpacing.md)) {
                 SectionHeading(title = "Инструменты")
+                ShortcutTile("Центр инструментов", "Все средства диагностики и управления", Icons.Default.Build, onNavigateToTools, Modifier.fillMaxWidth())
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(LanGhostSpacing.sm)
