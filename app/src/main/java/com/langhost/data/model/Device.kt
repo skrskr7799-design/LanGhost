@@ -29,7 +29,9 @@ data class Device(
     val networkScope: String = "",
     val deviceType: DeviceType = DeviceType.UNKNOWN,
     val httpFingerprint: String = "",
-    val isRandomMac: Boolean = false
+    val isRandomMac: Boolean = false,
+    /** Timestamp of the most recent completed general TCP port scan; zero means never scanned. */
+    val portsScannedAt: Long = 0L
 ) {
     val displayName: String
         get() = when {
@@ -58,7 +60,7 @@ data class Device(
     fun withUpdatedPorts(ports: List<Int>): Device {
         val os = guessOs(ports, vendor, hostname)
         val type = guessType(ports, vendor, hostname, isGateway)
-        return copy(openPorts = ports, osGuess = os, deviceType = type)
+        return copy(openPorts = ports, osGuess = os, deviceType = type, portsScannedAt = System.currentTimeMillis())
     }
 
     companion object {
