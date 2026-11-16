@@ -123,7 +123,7 @@ Phase 5 implementation and automated validation are complete. Full CI run [#4381
 
 #### Work packages
 
-- [ ] **7.1 Baseline and evidence audit**
+- [x] **7.1 Baseline and evidence audit**
   - [x] Trace the complete discovery pipeline and current Android permissions / network APIs.
   - [x] Verify active interface selection, IPv4 address/netmask/gateway calculation and candidate coverage.
   - [x] Inspect `/proc/net/arp` parsing and filtering (interface, flags, MAC validity, freshness, address scope).
