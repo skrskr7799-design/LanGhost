@@ -187,3 +187,11 @@ These screens now have distinct information hierarchies instead of being simple 
 - [x] Prioritized findings by severity and retained the distinction between a configuration difference and proof of an attack.
 - [x] Preserved network-scope/freshness checks, privacy masking, scan permission handling and the rule that insufficient evidence withholds the score.
 - [ ] Run full CI and inspect the new composition on a phone and expanded/tablet layout.
+
+### 2026-11-16 — contextual permission and scan entry states
+
+- [x] Removed the dashboard's automatic Wi-Fi permission prompt on first composition; permission is now requested only after an explicit user action.
+- [x] Kept the permission notice visible with a direct, understandable action when access is missing.
+- [x] Made the primary scan control request the required permission when needed, and start discovery only after permission is granted.
+- [x] Corrected the LanGhost header network-orbit indicator to reflect the actual connection state instead of always appearing connected.
+- [ ] Verify first-run, permission-denied, permission-granted and scan-start flows on Android; run full CI.
