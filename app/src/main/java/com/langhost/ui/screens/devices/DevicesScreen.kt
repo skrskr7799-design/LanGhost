@@ -32,6 +32,7 @@ import com.langhost.ui.components.StatusBadge
 import com.langhost.ui.components.StatusTone
 import com.langhost.ui.screens.dashboard.DashboardViewModel
 import com.langhost.ui.theme.*
+import com.langhost.ui.theme.TechnicalTypography
 
 private enum class DeviceFilter(val label: String) {
     ALL("Все"), ONLINE("Онлайн"), OFFLINE("Оффлайн"), FAVORITES("Избранное"), WATCHED("Наблюдение")
@@ -285,7 +286,7 @@ private fun DeviceInventoryRow(device: Device, onClick: () -> Unit) {
         color = Surface,
         contentColor = TextPrimary,
         shape = LanGhostShapes.card,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Border)
+        border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.78f))
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 15.dp, vertical = 14.dp),
@@ -293,10 +294,10 @@ private fun DeviceInventoryRow(device: Device, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(13.dp)
         ) {
             Box(
-                modifier = Modifier.size(44.dp).clip(LanGhostShapes.control).background(SurfaceElevated),
+                modifier = Modifier.size(44.dp).clip(LanGhostShapes.control).background(if (device.isOnline) Primary.copy(alpha = 0.11f) else SurfaceElevated),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(deviceIcon(device.deviceType), contentDescription = null, tint = Primary, modifier = Modifier.size(22.dp))
+                Icon(deviceIcon(device.deviceType), contentDescription = null, tint = if (device.isOnline) AccentCyan else TextSecondary, modifier = Modifier.size(22.dp))
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -309,7 +310,7 @@ private fun DeviceInventoryRow(device: Device, onClick: () -> Unit) {
                         append(device.ip)
                         if (device.mac.isNotBlank()) append("  ·  ${device.mac}")
                     },
-                    style = MaterialTheme.typography.bodySmall,
+                    style = TechnicalTypography,
                     color = TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
