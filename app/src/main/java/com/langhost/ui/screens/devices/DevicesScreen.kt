@@ -27,6 +27,7 @@ import com.langhost.data.AppSettingsData
 import com.langhost.data.PrivacyFormatter
 import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
+import com.langhost.data.model.DiscoveryEvidence
 import com.langhost.ui.components.ContentPanel
 import com.langhost.ui.components.DataNoticeTone
 import com.langhost.ui.components.DataQualityNotice
@@ -40,7 +41,7 @@ import com.langhost.ui.theme.*
 import com.langhost.ui.theme.TechnicalTypography
 
 private enum class DeviceFilter(val label: String) {
-    ALL("Все"), ONLINE("Онлайн"), OFFLINE("Оффлайн"), FAVORITES("Избранное"), WATCHED("Наблюдение")
+    ALL("Все"), ONLINE("Онлайн"), OFFLINE("Не подтверждено"), FAVORITES("Избранное"), WATCHED("Наблюдение")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -166,7 +167,7 @@ fun DevicesScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     DeviceMetric(value = devices.size.toString(), label = "Всего", modifier = Modifier.weight(1f))
                     DeviceMetric(value = onlineCount.toString(), label = "Онлайн", accent = Success, modifier = Modifier.weight(1f))
-                    DeviceMetric(value = (devices.size - onlineCount).toString(), label = "Оффлайн", accent = TextSecondary, modifier = Modifier.weight(1f))
+                    DeviceMetric(value = (devices.size - onlineCount).toString(), label = "Не подтверждено", accent = TextSecondary, modifier = Modifier.weight(1f))
                 }
             }
             item {
@@ -335,7 +336,7 @@ private fun DevicePreviewPanel(
                 ) {
                     Icon(deviceIcon(device.deviceType), contentDescription = null, tint = if (device.isOnline) AccentCyan else TextSecondary, modifier = Modifier.size(30.dp))
                     StatusBadge(
-                        if (device.isOnline) "Онлайн" else "Оффлайн",
+                        deviceStatusLabel(device),
                         if (device.isOnline) StatusTone.Success else StatusTone.Neutral
                     )
                 }
@@ -427,7 +428,7 @@ private fun DeviceInventoryRow(device: Device, maskIdentifiers: Boolean, onClick
                     overflow = TextOverflow.Ellipsis
                 )
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    StatusBadge(if (device.isOnline) "Онлайн" else "Оффлайн", if (device.isOnline) StatusTone.Success else StatusTone.Neutral)
+                    StatusBadge(deviceStatusLabel(device), if (device.isOnline) StatusTone.Success else StatusTone.Neutral)
                     val role = when {
                         device.isGateway -> "Шлюз"
                         device.isLocalDevice -> "Это устройство"
@@ -442,6 +443,14 @@ private fun DeviceInventoryRow(device: Device, maskIdentifiers: Boolean, onClick
             Icon(Icons.Default.ChevronRight, contentDescription = "Открыть устройство", tint = TextTertiary)
         }
     }
+}
+
+private fun deviceStatusLabel(device: Device): String = when {
+    device.isOnline -> "Онлайн"
+    device.discoveryEvidence == DiscoveryEvidence.ARP_OBSERVATION -> "ARP-наблюдение"
+    device.discoveryEvidence == DiscoveryEvidence.GATEWAY_CONFIGURATION -> "Шлюз · не проверен"
+    device.discoveryEvidence == DiscoveryEvidence.UNKNOWN -> "Не подтверждено"
+    else -> "Оффлайн"
 }
 
 private fun deviceTypeLabel(type: DeviceType): String = when (type) {
