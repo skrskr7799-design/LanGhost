@@ -28,6 +28,8 @@ import com.langhost.data.PrivacyFormatter
 import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
 import com.langhost.ui.components.ContentPanel
+import com.langhost.ui.components.DataNoticeTone
+import com.langhost.ui.components.DataQualityNotice
 import com.langhost.ui.components.EmptyState
 import com.langhost.ui.components.PageHeading
 import com.langhost.ui.components.SectionHeading
@@ -194,6 +196,17 @@ fun DevicesScreen(
                             Text("Запустите сканирование, чтобы получить данные о покрытии сети.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         }
                         if (state.scanCoverage.truncated) StatusBadge("Ограниченное покрытие", StatusTone.Warning)
+                        if (
+                            state.scanCoverage.scannedAt > 0L &&
+                            System.currentTimeMillis() >= state.scanCoverage.scannedAt &&
+                            System.currentTimeMillis() - state.scanCoverage.scannedAt > 5 * 60 * 1000L
+                        ) {
+                            DataQualityNotice(
+                                title = "Результаты могут быть устаревшими",
+                                description = "Обновите инвентарь, чтобы проверить текущее состояние устройств.",
+                                tone = DataNoticeTone.Warning
+                            )
+                        }
                         if (state.isScanning) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Primary)
