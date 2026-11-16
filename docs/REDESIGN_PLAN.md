@@ -208,3 +208,7 @@ These screens now have distinct information hierarchies instead of being simple 
 - [ ] Apply the shared primitives to dashboard, device inventory, Security and diagnostic workflows.
 - [ ] Audit every operation for loading, permission-denied, partial, stale, empty, recoverable-error and success states.
 - [ ] Add focused UI/state tests where the current test setup supports deterministic Compose coverage.
+
+- [x] Dashboard now distinguishes disconnected network state from an active connection and flags device inventory older than five minutes.
+- [x] Public IP lookup now uses shared error and partial-data notices; existing request controls remain the truthful retry path.
+- [ ] Continue the same state audit across diagnostic tools, topology, device details and network profiles.
