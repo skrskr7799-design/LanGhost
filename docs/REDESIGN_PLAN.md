@@ -228,3 +228,5 @@ These screens now have distinct information hierarchies instead of being simple 
 - [x] Connection status is based on the network monitor's explicit `isConnected` state, not merely on a non-empty SSID.
 - [ ] Clarify TCP reachability history so failed connections to selected service ports are never described as ICMP packet loss or host downtime.
 - [x] Extracted profile-to-live-network matching into the data layer and added unit coverage for exact BSSID matches, SSID-only evidence, changed access points, disconnected state and unknown identifiers.
+- [x] Device history now calls its measurement TCP response rather than ICMP ping, labels failed service-port attempts separately from packet loss/uptime, and explains that closed or filtered ports do not prove host unavailability.
+- [x] TCP history shows shared loading and retryable persistence-error states; progress always resets even when saving fails or the coroutine is cancelled.
