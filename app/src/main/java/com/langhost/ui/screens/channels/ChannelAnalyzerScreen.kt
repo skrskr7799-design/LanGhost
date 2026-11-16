@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Radar
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -160,7 +161,7 @@ private fun SpectrumIntro(
                     Text("RADIO INTELLIGENCE / CHANNEL MAP", style = MaterialTheme.typography.labelSmall, color = AccentCyan, fontWeight = FontWeight.SemiBold)
                     Text("Загрузка радиоэфира", style = MaterialTheme.typography.titleLarge, color = TextPrimary, fontWeight = FontWeight.SemiBold)
                 }
-                Icon(Icons.Default.GraphicEq, null, tint = AccentCyan, modifier = Modifier.size(30.dp))
+                Icon(Icons.Default.Wifi, null, tint = AccentCyan, modifier = Modifier.size(30.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                 Column {
