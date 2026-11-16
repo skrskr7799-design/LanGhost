@@ -169,7 +169,7 @@ class HostDiscoveryTest {
     }
 
     @Test
-    fun mapBoundedChecksNetworkScopeForEachScheduledItem() = runBlocking {
+    fun mapBoundedChecksNetworkScopePerSlidingWindow() = runBlocking {
         var batchChecks = 0
         val result = HostDiscovery.mapBounded(
             items = (1..5).toList(),
@@ -178,7 +178,7 @@ class HostDiscoveryTest {
         ) { it * 2 }
 
         assertEquals((1..5).map { it * 2 }, result)
-        assertEquals(5, batchChecks)
+        assertEquals(3, batchChecks)
     }
  
     @Test
