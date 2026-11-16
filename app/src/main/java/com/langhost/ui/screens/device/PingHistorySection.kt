@@ -17,6 +17,8 @@ import com.langhost.data.PingHistoryStore
 import com.langhost.data.PingSample
 import com.langhost.ui.theme.*
 import com.langhost.ui.components.LoadingState
+import com.langhost.ui.components.ErrorState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
@@ -27,6 +29,7 @@ fun PingHistorySection(ip: String) {
     val stats = remember(samples) { store.computeStats(samples) }
     val scope = rememberCoroutineScope()
     var probing by remember { mutableStateOf(false) }
+    var probeError by remember { mutableStateOf<String?>(null) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -40,9 +43,14 @@ fun PingHistorySection(ip: String) {
                     onClick = {
                         scope.launch {
                             probing = true
+                            probeError = null
                             try {
                                 val ms = DeviceProbe.tcpPing(ip, 80) ?: DeviceProbe.tcpPing(ip, 443) ?: DeviceProbe.tcpPing(ip, 22)
                                 store.addSample(ip, ms)
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                probeError = "Не удалось сохранить результат проверки. Предыдущая история сохранена."
                             } finally {
                                 probing = false
                             }
@@ -55,6 +63,7 @@ fun PingHistorySection(ip: String) {
                 }
             }
 
+            probeError?.let { ErrorState(title = "Ошибка истории TCP", description = it, onRetry = { scope.launch { probing = true; try { val ms = DeviceProbe.tcpPing(ip, 80) ?: DeviceProbe.tcpPing(ip, 443) ?: DeviceProbe.tcpPing(ip, 22); store.addSample(ip, ms); probeError = null } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { probeError = "Не удалось сохранить результат проверки. Предыдущая история сохранена." } finally { probing = false } } }) }
             if (probing) LoadingState(title = "Проверяем TCP-отклик", description = "Пробуем TCP-подключение к портам 80, 443 и 22; это не ICMP ping.")
             if (samples.isEmpty()) {
                 Text("Запустите проверку TCP-отклика, чтобы начать историю", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
