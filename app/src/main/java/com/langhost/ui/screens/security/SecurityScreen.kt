@@ -297,7 +297,7 @@ fun SecurityScreen(
                 Text("Находки", style = MaterialTheme.typography.titleMedium, color = TextSecondary)
             }
             items(report.findings) { finding ->
-                FindingCard(finding)
+                FindingCard(finding, devices, appSettings.maskNetworkIdentifiers)
             }
 
             diff?.let { result ->
@@ -318,7 +318,19 @@ fun SecurityScreen(
 }
 
 @Composable
-private fun FindingCard(finding: SecurityFinding) {
+private fun FindingCard(
+    finding: SecurityFinding,
+    devices: List<com.langhost.data.model.Device>,
+    maskIdentifiers: Boolean
+) {
+    val safeDetail = if (maskIdentifiers) {
+        devices.fold(finding.detail) { text, device ->
+            if (device.ip.isBlank()) text
+            else text.replace(device.ip, PrivacyFormatter.ip(device.ip, true))
+        }
+    } else {
+        finding.detail
+    }
     val color = when (finding.severity) {
         SecurityFinding.Severity.HIGH -> Danger
         SecurityFinding.Severity.MEDIUM -> Warning
@@ -335,7 +347,7 @@ private fun FindingCard(finding: SecurityFinding) {
             Icon(Icons.Default.Shield, contentDescription = null, tint = color)
             Column {
                 Text(finding.title, fontWeight = FontWeight.Medium, color = TextPrimary)
-                Text(finding.detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                Text(safeDetail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
             }
         }
     }
