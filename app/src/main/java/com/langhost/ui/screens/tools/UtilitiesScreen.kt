@@ -10,8 +10,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.langhost.data.AppSettings
+import com.langhost.data.AppSettingsData
 import com.langhost.data.DeviceProbe
+import com.langhost.data.PrivacyFormatter
 import com.langhost.ui.theme.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +27,8 @@ import java.net.InetAddress
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UtilitiesScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val appSettings by remember(context) { AppSettings(context.applicationContext).settingsFlow }.collectAsState(initial = AppSettingsData())
     var host by remember { mutableStateOf("") }
     var result by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
@@ -70,7 +76,7 @@ fun UtilitiesScreen(onBack: () -> Unit) {
                     onClick = {
                         scope.launch {
                             loading = true
-                            result = runPing(host.trim())
+                            result = runPing(host.trim(), appSettings.maskNetworkIdentifiers)
                             loading = false
                         }
                     },
@@ -82,7 +88,7 @@ fun UtilitiesScreen(onBack: () -> Unit) {
                     onClick = {
                         scope.launch {
                             loading = true
-                            result = runDns(host.trim())
+                            result = runDns(host.trim(), appSettings.maskNetworkIdentifiers)
                             loading = false
                         }
                     },
@@ -124,7 +130,7 @@ private fun isValidHostInput(host: String): Boolean =
         !host.any(Char::isWhitespace) &&
         host.none { it == '/' || it == '\\' }
 
-private suspend fun runPing(host: String): String {
+private suspend fun runPing(host: String, maskIdentifiers: Boolean): String {
     if (!isValidHostInput(host)) return "Укажите корректный IP или доменное имя"
     val addresses = try {
         resolveHost(host) ?: return "Время ожидания DNS истекло"
@@ -136,17 +142,17 @@ private suspend fun runPing(host: String): String {
     val address = addresses.firstOrNull()?.hostAddress
         ?: return "DNS не вернул адресов"
     val ms = DeviceProbe.tcpPing(address, 80) ?: DeviceProbe.tcpPing(address, 443)
-    return if (ms != null) "TCP reachable ≈ ${ms} ms" else "Недоступен (TCP 80/443)"
+    return if (ms != null) "TCP reachable ≈ ${ms} ms · ${PrivacyFormatter.ip(address, maskIdentifiers)}" else "Недоступен (TCP 80/443)"
 }
 
-private suspend fun runDns(host: String): String {
+private suspend fun runDns(host: String, maskIdentifiers: Boolean): String {
     if (!isValidHostInput(host)) return "Укажите корректный IP или доменное имя"
     return try {
         val all = resolveHost(host) ?: return "Время ожидания DNS истекло"
         if (all.isEmpty()) return "DNS не вернул адресов"
         buildString {
-            appendLine("DNS: $host")
-            all.take(16).forEach { appendLine(it.hostAddress) }
+            appendLine("DNS: ${maskHostIfAddress(host, maskIdentifiers)}")
+            all.take(16).forEach { appendLine(PrivacyFormatter.ip(it.hostAddress ?: "", maskIdentifiers)) }
             if (all.size > 16) appendLine("Показаны первые 16 адресов")
         }
     } catch (cancelled: CancellationException) {
@@ -155,3 +161,6 @@ private suspend fun runDns(host: String): String {
         "Не удалось выполнить DNS-запрос"
     }
 }
+
+private fun maskHostIfAddress(host: String, enabled: Boolean): String =
+    if (host.count { it == '.' } == 3 || ':' in host) PrivacyFormatter.ip(host, enabled) else host
