@@ -85,7 +85,10 @@ internal class NetworkDiscoveryEngine(
             checkedAddresses = candidates.size,
             totalUsableAddresses = subnet?.usableHostCount ?: 0L,
             truncated = subnet != null && candidates.size.toLong() < subnet.usableHostCount,
-            networkScope = networkScope
+            networkScope = networkScope,
+            arpObservedHosts = allArpEntries.size,
+            tcpResponsiveHosts = (discoveredIps - localIp).size,
+            dnsSdResolvedHosts = scopedNsdServiceIps.size
         )
 
         return NetworkDiscoverySnapshot(
