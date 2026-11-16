@@ -297,12 +297,10 @@ private fun ChannelInventory(loads: List<ChannelLoad>, best: Int?, current: Int,
                 Text("Пока нет данных по каналам. Выполните сканирование.", modifier = Modifier.padding(18.dp), color = TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f, fill = false),
-                contentPadding = PaddingValues(bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(loads, key = { "${band.name}-${it.channel}" }) { load -> ChannelLoadRow(load, load.channel == best, load.channel == current) }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                loads.forEach { load ->
+                    ChannelLoadRow(load, load.channel == best, load.channel == current)
+                }
             }
         }
     }
