@@ -288,4 +288,29 @@ class NetworkDiscoveryEngineTest {
         assertTrue(result.nsdServiceIps.isEmpty())
     }
 
+    @Test
+    fun dnsSdCancellationIsNotSwallowedAsOptionalFailure() = runBlocking {
+        try {
+            NetworkDiscoveryEngine(
+                probeHost = { _, _ -> false },
+                ensureCurrentNetworkScope = {}
+            ).discover(
+                localIp = "192.168.10.2",
+                gateway = "192.168.10.1",
+                netmask = "255.255.255.248",
+                arpEntries = emptyMap(),
+                networkScope = "scope-nsd-cancel",
+                timeoutMs = 150,
+                maxTargets = 0,
+                maxConcurrency = 1,
+                discoverNsdServiceIps = {
+                    throw CancellationException("scan cancelled")
+                }
+            )
+            throw AssertionError("Expected DNS-SD cancellation to propagate")
+        } catch (cancelled: CancellationException) {
+            assertEquals("scan cancelled", cancelled.message)
+        }
+    }
+
 }
