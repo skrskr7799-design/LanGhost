@@ -346,7 +346,7 @@ private fun DevicePreviewPanel(
                 ) {
                     Text("Открыть полный профиль")
                     Spacer(Modifier.width(8.dp))
-                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, modifier = Modifier.size(16.dp))
                 }
             }
         }
