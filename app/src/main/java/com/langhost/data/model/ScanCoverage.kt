@@ -14,6 +14,8 @@ data class ScanCoverage(
     val tcpResponsiveHosts: Int = 0,
     /** Hosts resolved through one of the supported DNS-SD service types. */
     val dnsSdResolvedHosts: Int = 0,
+    /** Hosts that returned a valid SSDP/UPnP discovery response. */
+    val ssdpResponsiveHosts: Int = 0,
     /** Whether /proc/net/arp could be read during this scan; null means not checked. */
     val arpAvailable: Boolean? = null
 ) {
