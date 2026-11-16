@@ -69,6 +69,18 @@ class DeviceTest {
 
         assertEquals(listOf(443, 8080), updated.openPorts)
         assertEquals(listOf(23), updated.auditedPorts)
+        assertTrue(updated.portsScannedAt > 0L)
+        assertEquals(0L, device.portsScannedAt)
+    }
+
+    @Test
+    fun emptyCompletedPortScanIsDistinguishableFromNeverScanned() {
+        val neverScanned = Device(ip = "192.168.1.10")
+        val completedEmptyScan = neverScanned.withUpdatedPorts(emptyList())
+
+        assertEquals(0L, neverScanned.portsScannedAt)
+        assertTrue(completedEmptyScan.portsScannedAt > 0L)
+        assertTrue(completedEmptyScan.openPorts.isEmpty())
     }
 
     @Test
