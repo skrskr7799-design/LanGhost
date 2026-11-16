@@ -81,8 +81,12 @@ internal object SsdpResponseParser {
             .map(String::trim)
             .filter(String::isNotEmpty)
             .toList()
-        val status = lines.firstOrNull().orEmpty()
-        if (!status.startsWith("HTTP/1.1 200") && !status.startsWith("HTTP/1.0 200")) return false
+        val status = lines.firstOrNull().orEmpty().split(' ')
+        if (
+            status.size < 2 ||
+            (status[0] != "HTTP/1.1" && status[0] != "HTTP/1.0") ||
+            status[1] != "200"
+        ) return false
 
         val headers = lines.drop(1).mapNotNull { line ->
             val separator = line.indexOf(':')
