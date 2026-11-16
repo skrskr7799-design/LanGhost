@@ -60,7 +60,7 @@ fun PingHistorySection(ip: String) {
                 Text("Запустите проверку TCP-отклика, чтобы начать историю", style = MaterialTheme.typography.bodySmall, color = TextTertiary)
             } else {
                 Text(
-                    "avg ${stats.avgMs.toInt()} ms · min ${stats.minMs} · max ${stats.maxMs} · неуспешные TCP-пробы ${stats.lossPercent.toInt()}%",
+                    if (samples.any { it.latencyMs != null }) "Среднее ${stats.avgMs.toInt()} ms · минимум ${stats.minMs} ms · максимум ${stats.maxMs} ms · неуспешные TCP-пробы ${stats.lossPercent.toInt()}%" else "Нет успешных TCP-подключений · неуспешные TCP-пробы 100%",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
