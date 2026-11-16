@@ -38,6 +38,7 @@ class NetworkRepository(context: Context) {
     private val connectivityManager = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
     private val nsdDiscovery = AndroidNsdDiscovery(appContext)
+    private val ssdpDiscovery = AndroidSsdpDiscovery()
     private val wifiScanCoordinator = WifiScanCoordinator(
         AndroidWifiScanPlatform(appContext, wifiManager) {
             _networkInfo.value.bssid.takeIf { it.isNotBlank() && it != "—" }
@@ -256,7 +257,8 @@ class NetworkRepository(context: Context) {
                         if (snapshot.available) arpReadable.set(true)
                     }.entries
                 },
-                discoverNsdServiceIps = { nsdDiscovery.discover(activeNetwork) }
+                discoverNsdServiceIps = { nsdDiscovery.discover(activeNetwork) },
+                discoverSsdpServiceIps = { ssdpDiscovery.discover(activeNetwork) }
             )
             val arpDevices = discovery.arpAddresses
             val allIps = discovery.ips
@@ -284,6 +286,7 @@ class NetworkRepository(context: Context) {
                     gateway = gateway,
                     hasTcpResponse = ip in discovery.tcpResponsiveIps,
                     hasNsdServiceObservation = ip in discovery.nsdServiceIps,
+                    hasSsdpObservation = ip in discovery.ssdpServiceIps,
                     existing = existingByIp,
                     existingByStableId = devicesCache[
                         if (mac.isNotBlank()) "${mac.uppercase()}@${networkScope}" else "ip:${networkScope}:$ip"
