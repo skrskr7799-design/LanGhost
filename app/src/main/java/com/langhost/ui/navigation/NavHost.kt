@@ -41,6 +41,9 @@ import com.langhost.ui.screens.tools.UtilitiesScreen
 import com.langhost.ui.screens.topology.TopologyScreen
 import com.langhost.ui.screens.wifi.NearbyNetworksScreen
 import com.langhost.ui.screens.wol.WolProfilesScreen
+import com.langhost.ui.components.NetworkOrbit
+import com.langhost.ui.theme.AccentCyan
+import com.langhost.ui.theme.Surface
 import com.langhost.ui.theme.Background
 import com.langhost.ui.theme.Divider
 import com.langhost.ui.theme.TextPrimary
@@ -98,14 +101,20 @@ fun LanGhostNavHost(windowSizeClass: WindowSizeClass? = null) {
     if (expanded) {
         Row(modifier = Modifier.fillMaxSize()) {
             NavigationRail(
-                containerColor = Background,
+                containerColor = Surface,
                 contentColor = TextPrimary,
                 header = {
-                    Text(
-                        text = "LG",
-                        color = TextPrimary,
-                        modifier = Modifier.padding(vertical = 20.dp)
-                    )
+                    Column(
+                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(vertical = 20.dp, horizontal = 8.dp)
+                    ) {
+                        NetworkOrbit(isConnected = true, modifier = Modifier.size(42.dp))
+                        Text(
+                            text = "LanGhost",
+                            color = TextPrimary,
+                            style = androidx.compose.material3.MaterialTheme.typography.labelSmall
+                        )
+                    }
                 }
             ) {
                 primaryDestinations.forEach { destination ->
@@ -116,9 +125,9 @@ fun LanGhostNavHost(windowSizeClass: WindowSizeClass? = null) {
                         label = { Text(destination.label) },
                         alwaysShowLabel = true,
                         colors = androidx.compose.material3.NavigationRailItemDefaults.colors(
-                            selectedIconColor = TextPrimary,
+                            selectedIconColor = AccentCyan,
                             selectedTextColor = TextPrimary,
-                            indicatorColor = androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                            indicatorColor = androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
                             unselectedIconColor = TextSecondary,
                             unselectedTextColor = TextSecondary
                         )
@@ -136,8 +145,9 @@ fun LanGhostNavHost(windowSizeClass: WindowSizeClass? = null) {
             containerColor = Background,
             bottomBar = {
                 NavigationBar(
-                    containerColor = Background,
-                    contentColor = TextPrimary
+                    containerColor = Surface,
+                    contentColor = TextPrimary,
+                    tonalElevation = 0.dp
                 ) {
                     primaryDestinations.forEach { destination ->
                         NavigationBarItem(
@@ -147,9 +157,9 @@ fun LanGhostNavHost(windowSizeClass: WindowSizeClass? = null) {
                             label = { Text(destination.label) },
                             alwaysShowLabel = true,
                             colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
-                                selectedIconColor = TextPrimary,
+                                selectedIconColor = AccentCyan,
                                 selectedTextColor = TextPrimary,
-                                indicatorColor = androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                                indicatorColor = androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
                                 unselectedIconColor = TextSecondary,
                                 unselectedTextColor = TextSecondary
                             )
