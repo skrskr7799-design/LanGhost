@@ -22,7 +22,8 @@ internal class NetworkDiscoveryEngine(
         networkScope: String,
         timeoutMs: Int,
         maxTargets: Int,
-        maxConcurrency: Int
+        maxConcurrency: Int,
+        refreshArpEntries: suspend () -> Map<String, String> = { emptyMap() }
     ): NetworkDiscoverySnapshot {
         require(maxTargets >= 0) { "maxTargets must not be negative" }
         require(maxConcurrency > 0) { "maxConcurrency must be positive" }
@@ -45,7 +46,17 @@ internal class NetworkDiscoveryEngine(
             beforeBatch = { ensureCurrentNetworkScope(networkScope) },
             probe = probeHost
         )
-        val endpoints = (scopedArpEntries.keys + discoveredIps + setOf(localIp, gateway).filter {
+        // TCP connection attempts also trigger kernel neighbor resolution for candidate IPs.
+        // Re-read the active interface's ARP table afterwards so hosts that answer ARP but
+        // expose none of the probed TCP services are not silently omitted from inventory.
+        // Scope checks on both sides prevent evidence from a previous network being committed.
+        ensureCurrentNetworkScope(networkScope)
+        val refreshedArpEntries = refreshArpEntries()
+        ensureCurrentNetworkScope(networkScope)
+        val allArpEntries = (scopedArpEntries + (subnet?.let { currentSubnet ->
+            refreshedArpEntries.filterKeys(currentSubnet::contains)
+        }.orEmpty()))
+        val endpoints = (allArpEntries.keys + discoveredIps + setOf(localIp, gateway).filter {
             it != "0.0.0.0" && it != "—" && it.isNotBlank()
         }).toCollection(LinkedHashSet())
 
@@ -59,7 +70,7 @@ internal class NetworkDiscoveryEngine(
 
         return NetworkDiscoverySnapshot(
             ips = endpoints,
-            arpAddresses = scopedArpEntries,
+            arpAddresses = allArpEntries,
             coverage = coverage
         )
     }
