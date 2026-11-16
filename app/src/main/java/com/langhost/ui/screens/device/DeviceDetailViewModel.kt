@@ -23,7 +23,8 @@ data class DeviceDetailUiState(
     val notes: String = "",
     val isFavorite: Boolean = false,
     val isWatched: Boolean = false,
-    val isSaving: Boolean = false
+    val isSaving: Boolean = false,
+    val saveError: String? = null
 )
 
 class DeviceDetailViewModel(
@@ -112,7 +113,7 @@ class DeviceDetailViewModel(
     fun saveCustomization() {
         viewModelScope.launch {
             val device = _uiState.value.device ?: return@launch
-            _uiState.update { it.copy(isSaving = true) }
+            _uiState.update { it.copy(isSaving = true, saveError = null) }
             try {
                 val state = _uiState.value
                 repository.updateDeviceCustomization(
@@ -135,7 +136,9 @@ class DeviceDetailViewModel(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                // Keep the current values; a failed persistence operation is not a successful save.
+                _uiState.update {
+                    it.copy(saveError = "Не удалось сохранить изменения устройства. Проверьте доступное место и повторите попытку.")
+                }
             } finally {
                 _uiState.update { it.copy(isSaving = false) }
             }
