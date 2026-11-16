@@ -78,8 +78,8 @@ internal object SsdpResponseParser {
         if (length <= 0 || length > packet.size) return false
         val lines = String(packet, 0, length, Charsets.US_ASCII)
             .lineSequence()
-            .map(String::trim)
-            .filter(String::isNotEmpty)
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
             .toList()
         val status = lines.firstOrNull().orEmpty().split(' ')
         if (
