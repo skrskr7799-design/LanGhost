@@ -408,7 +408,8 @@ Still outside the automated gate: Compose UI/integration tests are not yet prese
 Regression coverage added for:
 - post-probe ARP refresh discovering a host with no open probed TCP ports;
 - filtering refreshed ARP evidence to the active subnet;
-- network-scope cancellation before the refreshed ARP read.
+- cancellation before the refreshed ARP read and revalidation immediately after it returns;
+- deterministic concurrent probe-count assertions (the pre-existing test used an unsynchronized shared counter across IO-dispatched coroutines).
 
 **Important limitation:** this change improves use of ARP evidence generated during the existing probe pass; it does not guarantee visibility of every LAN client. Android/kernel neighbor-cache behavior, router client isolation, sleeping devices, subnet truncation and scan timing still require physical validation. NSD/mDNS and other candidate evidence sources remain under evaluation, not yet committed.
 
