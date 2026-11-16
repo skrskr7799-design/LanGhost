@@ -9,7 +9,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.langhost.data.AppSettings
+import com.langhost.data.AppSettingsData
+import com.langhost.data.PrivacyFormatter
 import com.langhost.data.PublicIpLookup
 import com.langhost.data.PublicNetworkInfo
 import com.langhost.ui.theme.*
@@ -20,6 +24,8 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PublicIpScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val appSettings by remember(context) { AppSettings(context.applicationContext).settingsFlow }.collectAsState(initial = AppSettingsData())
     var info by remember { mutableStateOf(PublicNetworkInfo()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -110,7 +116,7 @@ fun PublicIpScreen(onBack: () -> Unit) {
                 Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("Публичный IP", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                        Text(info.ip, style = TechnicalTypography.copy(fontSize = MaterialTheme.typography.headlineSmall.fontSize, lineHeight = MaterialTheme.typography.headlineSmall.lineHeight, fontWeight = FontWeight.Bold), color = Primary)
+                        Text(PrivacyFormatter.ip(info.ip, appSettings.maskNetworkIdentifiers), style = TechnicalTypography.copy(fontSize = MaterialTheme.typography.headlineSmall.fontSize, lineHeight = MaterialTheme.typography.headlineSmall.lineHeight, fontWeight = FontWeight.Bold), color = Primary)
                         HorizontalDivider(color = Divider)
                         InfoRow("Провайдер", info.isp.ifBlank { info.org.ifBlank { "—" } })
                         InfoRow("Страна", info.country.ifBlank { "—" })
