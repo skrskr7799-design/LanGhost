@@ -191,4 +191,29 @@ class DeviceEnrichmentEngineTest {
         assertEquals(DiscoveryEvidence.NSD_SERVICE_OBSERVATION, result.discoveryEvidence)
     }
 
+    @Test
+    fun reachabilityProbeIsRecordedAsIndependentPositiveEvidence() = runBlocking {
+        val engine = DeviceEnrichmentEngine(
+            loadCustomization = { _, _ -> DeviceCustomization() },
+            resolveHostname = { "" },
+            lookupVendor = { "" }
+        )
+        val result = engine.enrich(
+            ip = "192.168.1.60",
+            mac = "",
+            bssid = "",
+            networkScope = "scope",
+            legacyNetworkScope = "scope",
+            localIp = "192.168.1.2",
+            gateway = "192.168.1.1",
+            hasHostReachabilityProbe = true,
+            existing = null,
+            existingByStableId = null,
+            now = 1_000L
+        )
+
+        assertEquals(1_000L, result.lastConfirmedOnline)
+        assertEquals(DiscoveryEvidence.HOST_REACHABILITY_PROBE, result.discoveryEvidence)
+    }
+
 }
