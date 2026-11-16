@@ -52,7 +52,6 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
         ?: profiles.firstOrNull { it.id == activeId }
         ?: profiles.firstOrNull()
     val mask = appSettings.maskNetworkIdentifiers
-    val connectedProfileIds = profiles.filter { connectionMatch(it, network) != ProfileConnectionMatch.None }.map { it.id }.toSet()
 
     Scaffold(
         topBar = {
@@ -177,7 +176,8 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
                     item {
                         CurrentNetworkPanel(
                             ssid = network.ssid,
-                            bssid = PrivacyFormatter.bssid(network.bssid, mask)
+                            bssid = PrivacyFormatter.bssid(network.bssid, mask),
+                            isConnected = network.isConnected
                         )
                     }
                     item {
