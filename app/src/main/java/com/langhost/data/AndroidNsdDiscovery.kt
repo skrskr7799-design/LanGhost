@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
+import android.net.Network
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.ext.SdkExtensions
@@ -34,7 +35,7 @@ internal class AndroidNsdDiscovery(context: Context) {
     private val nsdManager = appContext.getSystemService(Context.NSD_SERVICE) as NsdManager
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
 
-    suspend fun discover(): Set<String> = withContext(Dispatchers.IO) {
+    suspend fun discover(activeNetwork: Network?): Set<String> = withContext(Dispatchers.IO) {
         val addresses = ConcurrentHashMap.newKeySet<String>()
         val seenServices = ConcurrentHashMap.newKeySet<String>()
         val activeInfoCallbacks = ConcurrentHashMap.newKeySet<NsdManager.ServiceInfoCallback>()
@@ -47,6 +48,7 @@ internal class AndroidNsdDiscovery(context: Context) {
                     async {
                         discoverServiceType(
                             serviceType = serviceType,
+                            activeNetwork = activeNetwork,
                             addresses = addresses,
                             seenServices = seenServices,
                             activeInfoCallbacks = activeInfoCallbacks,
@@ -67,8 +69,10 @@ internal class AndroidNsdDiscovery(context: Context) {
         }
     }
 
+    @SuppressLint("NewApi")
     private suspend fun discoverServiceType(
         serviceType: String,
+        activeNetwork: Network?,
         addresses: MutableSet<String>,
         seenServices: MutableSet<String>,
         activeInfoCallbacks: MutableSet<NsdManager.ServiceInfoCallback>,
@@ -115,7 +119,17 @@ internal class AndroidNsdDiscovery(context: Context) {
         }
 
         try {
-            nsdManager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && activeNetwork != null) {
+                nsdManager.discoverServices(
+                    serviceType,
+                    NsdManager.PROTOCOL_DNS_SD,
+                    activeNetwork,
+                    DIRECT_EXECUTOR,
+                    listener
+                )
+            } else {
+                nsdManager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)
+            }
             withTimeoutOrNull(START_TIMEOUT_MS + DISCOVERY_WINDOW_MS + RESOLUTION_GRACE_MS) {
                 started.await()
                 delay(DISCOVERY_WINDOW_MS)
