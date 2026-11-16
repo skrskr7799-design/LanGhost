@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +15,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -136,10 +140,11 @@ fun TopologyScreen(
         },
         containerColor = Background
     ) { padding ->
-        Box(
+        BoxWithConstraints(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentAlignment = Alignment.TopCenter
         ) {
+        val isWideLayout = maxWidth >= 840.dp
         LazyColumn(
             modifier = Modifier.widthIn(max = 1120.dp).fillMaxWidth(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 28.dp),
@@ -213,6 +218,7 @@ fun TopologyScreen(
                 }
             }
 
+            if (!isWideLayout) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     SectionHeading(title = "Представление")
@@ -235,6 +241,7 @@ fun TopologyScreen(
                 }
             }
 
+            }
             if (devices.isEmpty()) {
                 item {
                     EmptyState(
@@ -248,6 +255,57 @@ fun TopologyScreen(
                         actionLabel = if (isScanning) null else "Начать сканирование",
                         onAction = if (isScanning) null else ({ scope.launch { repository.scanDevices() } })
                     )
+                }
+            } else if (isWideLayout) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        TopologyGraph(
+                            gateway = gateway,
+                            devices = discoveredDevices.take(24),
+                            onDeviceClick = onDeviceClick,
+                            modifier = Modifier.weight(1.15f)
+                        )
+                        ContentPanel(modifier = Modifier.weight(0.85f).height(520.dp)) {
+                            Column(
+                                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                SectionHeading(
+                                    title = "Узлы сети",
+                                    actionLabel = devices.size.toString() + " всего"
+                                )
+                                if (gateway != null) {
+                                    TopologyDeviceRow(
+                                        device = gateway,
+                                        isGateway = true,
+                                        maskIdentifiers = appSettings.maskNetworkIdentifiers,
+                                        onClick = { onDeviceClick(gateway.ip) }
+                                    )
+                                }
+                                discoveredDevices.forEach { device ->
+                                    TopologyDeviceRow(
+                                        device = device,
+                                        isGateway = false,
+                                        maskIdentifiers = appSettings.maskNetworkIdentifiers,
+                                        onClick = { onDeviceClick(device.ip) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                if (discoveredDevices.size > 24) {
+                    item {
+                        Text(
+                            "На схеме показаны первые 24 устройства; список справа содержит все обнаруженные узлы.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary
+                        )
+                    }
                 }
             } else if (presentation.value == TopologyPresentation.GRAPH) {
                 item {
@@ -306,11 +364,12 @@ private fun TopologyMetric(
 private fun TopologyGraph(
     gateway: Device?,
     devices: List<Device>,
-    onDeviceClick: (String) -> Unit
+    onDeviceClick: (String) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val nodes = remember(gateway, devices) { listOfNotNull(gateway) + devices }
 
-    ContentPanel {
+    ContentPanel(modifier = modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                 Text("Логическая карта", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
