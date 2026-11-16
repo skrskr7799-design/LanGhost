@@ -18,7 +18,8 @@ data class AppSettingsData(
     val watchModeEnabled: Boolean = false,
     val notifyNewDevices: Boolean = false,
     val scanTimeoutMs: Int = 150,
-    val autoScanOnOpen: Boolean = false
+    val autoScanOnOpen: Boolean = false,
+    val maskNetworkIdentifiers: Boolean = false
 )
 
 class AppSettings(private val context: Context) {
@@ -27,13 +28,15 @@ class AppSettings(private val context: Context) {
     private val KEY_NOTIFY_NEW = booleanPreferencesKey("notify_new_devices")
     private val KEY_SCAN_TIMEOUT = intPreferencesKey("scan_timeout_ms")
     private val KEY_AUTO_SCAN = booleanPreferencesKey("auto_scan_on_open")
+    private val KEY_MASK_IDENTIFIERS = booleanPreferencesKey("mask_network_identifiers")
 
     val settingsFlow: Flow<AppSettingsData> = context.settingsDataStore.data.map { prefs ->
         AppSettingsData(
             watchModeEnabled = prefs[KEY_WATCH_MODE] ?: false,
             notifyNewDevices = prefs[KEY_NOTIFY_NEW] ?: false,
             scanTimeoutMs = (prefs[KEY_SCAN_TIMEOUT] ?: 150).coerceIn(50, 500),
-            autoScanOnOpen = prefs[KEY_AUTO_SCAN] ?: false
+            autoScanOnOpen = prefs[KEY_AUTO_SCAN] ?: false,
+            maskNetworkIdentifiers = prefs[KEY_MASK_IDENTIFIERS] ?: false
         )
     }
 
@@ -56,6 +59,10 @@ class AppSettings(private val context: Context) {
 
     suspend fun setAutoScanOnOpen(enabled: Boolean) {
         context.settingsDataStore.edit { it[KEY_AUTO_SCAN] = enabled }
+    }
+
+    suspend fun setMaskNetworkIdentifiers(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_MASK_IDENTIFIERS] = enabled }
     }
 }
 
