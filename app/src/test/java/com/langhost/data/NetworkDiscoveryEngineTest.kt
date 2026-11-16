@@ -135,4 +135,73 @@ class NetworkDiscoveryEngineTest {
             assertEquals(1, probes)
         }
     }
+
+    @Test
+    fun refreshesArpAfterProbingAndIncludesHostsWithoutOpenProbePorts() = runBlocking {
+        val probeOrder = mutableListOf<String>()
+        var arpRefreshCount = 0
+        val result = NetworkDiscoveryEngine(
+            probeHost = { ip, _ ->
+                probeOrder += ip
+                false
+            },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = emptyMap(),
+            networkScope = "scope-refresh",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2,
+            refreshArpEntries = {
+                assertTrue("ARP refresh must run after candidate probes", probeOrder.isNotEmpty())
+                arpRefreshCount++
+                mapOf(
+                    "192.168.10.4" to "AA:BB:CC:DD:EE:04",
+                    "192.168.20.4" to "AA:BB:CC:DD:EE:20"
+                )
+            }
+        )
+
+        assertEquals(1, arpRefreshCount)
+        assertTrue(result.ips.contains("192.168.10.4"))
+        assertEquals("AA:BB:CC:DD:EE:04", result.arpAddresses["192.168.10.4"])
+        assertFalse(result.ips.contains("192.168.20.4"))
+    }
+
+    @Test
+    fun networkScopeIsCheckedAroundRefreshedArpRead() = runBlocking {
+        var checks = 0
+        var refreshes = 0
+        val engine = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {
+                checks++
+                if (checks == 3) throw CancellationException("network changed before ARP refresh")
+            }
+        )
+
+        try {
+            engine.discover(
+                localIp = "192.168.10.2",
+                gateway = "192.168.10.1",
+                netmask = "255.255.255.248",
+                arpEntries = emptyMap(),
+                networkScope = "scope-refresh",
+                timeoutMs = 150,
+                maxTargets = 16,
+                maxConcurrency = 2,
+                refreshArpEntries = {
+                    refreshes++
+                    emptyMap()
+                }
+            )
+            throw AssertionError("Expected network-scope cancellation")
+        } catch (_: CancellationException) {
+            assertEquals(0, refreshes)
+        }
+    }
+
 }
