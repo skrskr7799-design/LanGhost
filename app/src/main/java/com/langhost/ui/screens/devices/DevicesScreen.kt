@@ -130,11 +130,11 @@ fun DevicesScreen(
         containerColor = Background
     ) { padding ->
         BoxWithConstraints(
-            modifier = Modifier.fillMaxWidth().widthIn(max = 1120.dp),
+            modifier = Modifier.fillMaxSize().padding(padding),
             contentAlignment = Alignment.TopCenter
         ) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier.fillMaxWidth().widthIn(max = 1120.dp),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
