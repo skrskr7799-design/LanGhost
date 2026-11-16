@@ -216,4 +216,29 @@ class DeviceEnrichmentEngineTest {
         assertEquals(DiscoveryEvidence.HOST_REACHABILITY_PROBE, result.discoveryEvidence)
     }
 
+    @Test
+    fun ssdpResponseIsRecordedAsIndependentPositiveEvidence() = runBlocking {
+        val engine = DeviceEnrichmentEngine(
+            loadCustomization = { _, _ -> DeviceCustomization() },
+            resolveHostname = { "" },
+            lookupVendor = { "" }
+        )
+        val result = engine.enrich(
+            ip = "192.168.1.61",
+            mac = "",
+            bssid = "",
+            networkScope = "scope",
+            legacyNetworkScope = "scope",
+            localIp = "192.168.1.2",
+            gateway = "192.168.1.1",
+            hasSsdpObservation = true,
+            existing = null,
+            existingByStableId = null,
+            now = 1_100L
+        )
+
+        assertEquals(1_100L, result.lastConfirmedOnline)
+        assertEquals(DiscoveryEvidence.SSDP_RESPONSE_OBSERVATION, result.discoveryEvidence)
+    }
+
 }
