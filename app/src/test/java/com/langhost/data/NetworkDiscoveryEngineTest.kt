@@ -39,6 +39,7 @@ class NetworkDiscoveryEngineTest {
             result.ips
         )
         assertEquals(mapOf("192.168.10.4" to "AA:BB:CC:DD:EE:04"), result.arpAddresses)
+        assertEquals(setOf("192.168.10.3"), result.tcpResponsiveIps)
         assertTrue(probeCount.get() > 0)
         assertEquals("192.168.10.0/29", result.coverage.subnetCidr)
         assertEquals(6, result.coverage.checkedAddresses)
@@ -167,6 +168,7 @@ class NetworkDiscoveryEngineTest {
 
         assertEquals(1, arpRefreshCount)
         assertTrue(result.ips.contains("192.168.10.4"))
+        assertTrue(result.tcpResponsiveIps.isEmpty())
         assertEquals("AA:BB:CC:DD:EE:04", result.arpAddresses["192.168.10.4"])
         assertFalse(result.ips.contains("192.168.20.4"))
     }
