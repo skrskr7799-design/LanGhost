@@ -177,3 +177,13 @@ These screens now have distinct information hierarchies instead of being simple 
 - [x] Added explicit scan feedback and stale-data messaging; empty scan results are not represented as proof of an empty radio environment.
 - [x] Kept channel recommendations grounded in the existing ChannelAnalyzer model; no regulatory support or real interference measurement is claimed.
 - [ ] Verify all updated workspaces through full CI and real-device review.
+
+### 2026-11-16 — Security Center redesign
+
+- [x] Reframed the former findings list as an evidence-first Security Center with a clear posture summary and current network context.
+- [x] Added a compact evidence-quality view for device discovery, TCP service auditing and nearby Wi-Fi observations.
+- [x] Promoted the two meaningful next actions: refresh device/service evidence and scan the nearby Wi-Fi environment.
+- [x] Made scan coverage and service-audit outcomes visible together, including filtered/time-out and unknown results.
+- [x] Prioritized findings by severity and retained the distinction between a configuration difference and proof of an attack.
+- [x] Preserved network-scope/freshness checks, privacy masking, scan permission handling and the rule that insufficient evidence withholds the score.
+- [ ] Run full CI and inspect the new composition on a phone and expanded/tablet layout.
