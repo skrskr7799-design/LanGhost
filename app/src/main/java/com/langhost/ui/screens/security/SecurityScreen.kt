@@ -118,8 +118,8 @@ fun SecurityScreen(onBack: () -> Unit) {
             TopAppBar(
                 title = {
                     Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Text("Security Center", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("NETWORK ASSURANCE", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        Text("Центр безопасности", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("АНАЛИЗ СЕТИ", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                     }
                 },
                 navigationIcon = {
@@ -150,9 +150,9 @@ fun SecurityScreen(onBack: () -> Unit) {
             ) {
                 item {
                     PageHeading(
-                        title = "Security Center",
+                        title = "Центр безопасности",
                         subtitle = "Состояние сети, качество доказательств и приоритетные действия.",
-                        eyebrow = "LAN GHOST / ASSURANCE"
+                        eyebrow = "LAN GHOST / БЕЗОПАСНОСТЬ"
                     )
                 }
 
@@ -328,7 +328,7 @@ fun SecurityScreen(onBack: () -> Unit) {
                 }
 
                 item {
-                    SectionHeading(title = "Scan coverage")
+                    SectionHeading(title = "Покрытие сканирования")
                     Spacer(Modifier.height(8.dp))
                     CoverageAndPortsPanel(
                         checked = scanCoverage.checkedAddresses,
@@ -355,7 +355,7 @@ fun SecurityScreen(onBack: () -> Unit) {
                                     Icon(Icons.Default.Wifi, contentDescription = null, tint = Warning)
                                     Text(accessPoint.ssid, fontWeight = FontWeight.SemiBold, color = TextPrimary)
                                     Spacer(Modifier.weight(1f))
-                                    StatusBadge("Review", StatusTone.Warning)
+                                    StatusBadge("Проверить", StatusTone.Warning)
                                 }
                                 Text(
                                     "${PrivacyFormatter.bssid(accessPoint.bssid, appSettings.maskNetworkIdentifiers)} · ${accessPoint.security} · ${accessPoint.signalDbm} dBm",
@@ -373,7 +373,7 @@ fun SecurityScreen(onBack: () -> Unit) {
                 }
 
                 item {
-                    SectionHeading(title = "Priority findings", actionLabel = "${report.findings.size} всего")
+                    SectionHeading(title = "Находки по приоритету", actionLabel = "${report.findings.size} всего")
                 }
                 if (report.findings.isEmpty()) {
                     item {
@@ -425,7 +425,7 @@ private fun SecurityPosturePanel(
     ContentPanel(modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("SECURITY POSTURE", style = MaterialTheme.typography.labelSmall, color = AccentCyan)
+                Text("СОСТОЯНИЕ БЕЗОПАСНОСТИ", style = MaterialTheme.typography.labelSmall, color = AccentCyan)
                 StatusBadge(
                     label = if (isConnected) "Сеть подключена" else "Нет подключения",
                     tone = if (isConnected) StatusTone.Success else StatusTone.Warning
@@ -473,7 +473,7 @@ private fun EvidenceSnapshotPanel(
 ) {
     ContentPanel(modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("EVIDENCE QUALITY", style = MaterialTheme.typography.labelSmall, color = AccentCyan)
+            Text("КАЧЕСТВО ДОКАЗАТЕЛЬСТВ", style = MaterialTheme.typography.labelSmall, color = AccentCyan)
             Text("Что действительно проверено", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.SemiBold)
             EvidenceLine(
                 title = "Обнаружение устройств",
@@ -585,7 +585,7 @@ private fun CoverageAndPortsPanel(
         Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("IPV4 DISCOVERY", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
+                    Text("ОБНАРУЖЕНИЕ IPV4", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
                     Text(
                         if (total > 0L) "$checked / $total адресов" else "Диапазон не определён",
                         style = MaterialTheme.typography.titleLarge,
@@ -619,7 +619,7 @@ private fun CoverageAndPortsPanel(
                 if (truncated) Text("Диапазон ограничен", color = Warning, style = MaterialTheme.typography.bodySmall)
             }
             HorizontalDivider(color = Divider)
-            Text("TCP SERVICE AUDIT", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
+            Text("АУДИТ TCP-СЕРВИСОВ", style = MaterialTheme.typography.labelSmall, color = TextTertiary)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MetricTile("Узлы", if (serviceComplete) auditedTargets.toString() else "—", accent = AccentCyan, modifier = Modifier.weight(1f))
                 MetricTile("Открыто", if (serviceComplete) openPorts.toString() else "—", accent = Warning, modifier = Modifier.weight(1f))
