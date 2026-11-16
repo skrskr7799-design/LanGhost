@@ -203,6 +203,7 @@ These screens now have distinct information hierarchies instead of being simple 
 - [x] Added explicit informational/warning tone handling for stale or partial evidence messaging.
 - [x] Kept the existing empty-state component and introduced focused primitives rather than a generic component with many style flags.
 - [x] Applied the shared retryable error and data-quality notices to Wi-Fi scanning, including a clear distinction between never-scanned and completed-with-no-results states.
+- [x] Added a five-minute freshness warning to the device inventory while preserving the existing never-scanned and filter-empty states.
 - [x] Added an explicit stale-snapshot notice when nearby Wi-Fi evidence is older than the five-minute freshness window.
 - [ ] Apply the shared primitives to dashboard, device inventory, Security and diagnostic workflows.
 - [ ] Audit every operation for loading, permission-denied, partial, stale, empty, recoverable-error and success states.
