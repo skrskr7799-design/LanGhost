@@ -13,6 +13,8 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.net.ConnectException
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.concurrent.TimeUnit
@@ -39,32 +41,48 @@ internal class NetworkProbeEngine(
 
         // Probe candidate services concurrently: a silently filtered first port must not
         // consume the time budget before the remaining ports are attempted.
+        val positiveEvidence = AtomicBoolean(false)
+        val activeSockets = ConcurrentHashMap.newKeySet<Socket>()
         coroutineScope {
             portsToTry.distinct().map { port ->
                 async(Dispatchers.IO) {
                     discoveryProbeSemaphore.withPermit {
                         currentCoroutineContext().ensureActive()
+                        if (positiveEvidence.get()) return@withPermit false
                         val remainingNanos = deadline - System.nanoTime()
                         if (remainingNanos <= 0L) return@withPermit false
                         val remainingMs = TimeUnit.NANOSECONDS.toMillis(remainingNanos).coerceAtLeast(1L)
                         val connectTimeout = remainingMs.coerceAtMost(MAX_DISCOVERY_CONNECT_TIMEOUT_MS).toInt()
+                        val socket = Socket()
+                        activeSockets.add(socket)
+                        var responded = false
                         try {
-                            Socket().use { socket ->
-                                socket.connect(InetSocketAddress(ip, port), connectTimeout)
-                            }
-                            true
+                            // A sibling may have produced positive evidence while this task was queued.
+                            if (positiveEvidence.get()) return@withPermit false
+                            socket.connect(InetSocketAddress(ip, port), connectTimeout)
+                            responded = true
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (_: ConnectException) {
                             // ECONNREFUSED/TCP RST is positive evidence that the endpoint responded.
-                            true
+                            responded = true
                         } catch (_: Exception) {
                             // Timeouts and routing failures remain unknown.
-                            false
+                        } finally {
+                            activeSockets.remove(socket)
+                            runCatching { socket.close() }
                         }
+
+                        if (responded && positiveEvidence.compareAndSet(false, true)) {
+                            // Stop slower sibling connects as soon as any port proves the host responded.
+                            activeSockets.toList().forEach { sibling ->
+                                runCatching { sibling.close() }
+                            }
+                        }
+                        responded
                     }
                 }
-            }.awaitAll().any { it }
+            }.awaitAll().any { it } || positiveEvidence.get()
         }
     }
 
