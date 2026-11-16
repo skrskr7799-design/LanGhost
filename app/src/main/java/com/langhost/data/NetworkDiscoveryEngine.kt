@@ -101,7 +101,7 @@ internal class NetworkDiscoveryEngine(
         }
         ensureCurrentNetworkScope(networkScope)
         val scopedNsdServiceIps = subnet?.let { currentSubnet ->
-            nsdServiceIps.asSequence().filter(currentSubnet::contains).take(MAX_NSD_HOSTS).toSet()
+            supplemental.nsdIps.asSequence().filter(currentSubnet::contains).take(MAX_NSD_HOSTS).toSet()
         }.orEmpty()
         val scopedSsdpServiceIps = subnet?.let { currentSubnet ->
             supplemental.ssdpIps.asSequence().filter(currentSubnet::contains).take(MAX_SSDP_HOSTS).toSet()
