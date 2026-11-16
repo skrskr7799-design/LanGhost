@@ -1,12 +1,15 @@
 package com.langhost.ui.theme
 
 import android.app.Activity
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
@@ -27,12 +30,19 @@ private val DarkColorScheme = darkColorScheme(
     error = Danger
 )
 
+private val LanGhostMaterialShapes = Shapes(
+    extraSmall = RoundedCornerShape(7.dp),
+    small = RoundedCornerShape(11.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(22.dp),
+    extraLarge = RoundedCornerShape(28.dp)
+)
+
 @Composable
 fun LanGhostTheme(
-    darkTheme: Boolean = true, // Always dark for tactical feel
+    darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = DarkColorScheme
     val view = LocalView.current
 
     if (!view.isInEditMode) {
@@ -46,8 +56,9 @@ fun LanGhostTheme(
     }
 
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = DarkColorScheme,
         typography = Typography,
+        shapes = LanGhostMaterialShapes,
         content = content
     )
 }
