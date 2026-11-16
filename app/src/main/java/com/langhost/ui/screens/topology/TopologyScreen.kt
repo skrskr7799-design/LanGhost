@@ -62,6 +62,8 @@ import com.langhost.data.model.DeviceType
 import com.langhost.ui.components.ContentPanel
 import com.langhost.ui.theme.GridLine
 import com.langhost.ui.components.EmptyState
+import com.langhost.ui.components.DataQualityNotice
+import com.langhost.ui.components.DataNoticeTone
 import com.langhost.ui.components.PageHeading
 import com.langhost.ui.components.SectionHeading
 import com.langhost.ui.components.StatusBadge
@@ -214,6 +216,33 @@ fun TopologyScreen(
                             }
                         }
                     }
+                }
+            }
+
+            if (lastScanTime <= 0L) {
+                item {
+                    DataQualityNotice(
+                        title = "Схема ещё не подтверждена сканированием",
+                        description = "Список устройств может содержать сохранённые сведения. Запустите обнаружение, чтобы получить актуальную картину текущей сети.",
+                        tone = DataNoticeTone.Info
+                    )
+                }
+            } else if (System.currentTimeMillis() < lastScanTime || System.currentTimeMillis() - lastScanTime > 5 * 60 * 1000L) {
+                item {
+                    DataQualityNotice(
+                        title = "Данные топологии устарели",
+                        description = "Последнее сканирование старше пяти минут. Статусы и состав узлов могут уже не отражать текущее состояние сети.",
+                        tone = DataNoticeTone.Warning
+                    )
+                }
+            }
+            if (coverage.truncated) {
+                item {
+                    DataQualityNotice(
+                        title = "Обнаружение неполное",
+                        description = "Сканирование достигло установленного лимита. На карте могут отсутствовать устройства за пределами обработанного диапазона.",
+                        tone = DataNoticeTone.Warning
+                    )
                 }
             }
 
