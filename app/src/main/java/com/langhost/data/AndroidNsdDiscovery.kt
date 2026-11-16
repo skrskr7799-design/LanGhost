@@ -73,6 +73,7 @@ internal class AndroidNsdDiscovery(context: Context) {
         serviceType: String,
         addresses: MutableSet<String>
     ) {
+        val unregistered = CompletableDeferred<Unit>()
         val callback = object : NsdManager.ServiceInfoCallback {
             override fun onServiceUpdated(serviceInfo: NsdServiceInfo) {
                 addResolvedAddresses(serviceInfo.hostAddresses, addresses)
@@ -80,7 +81,9 @@ internal class AndroidNsdDiscovery(context: Context) {
 
             override fun onServiceInfoCallbackRegistrationFailed(errorCode: Int) = Unit
 
-            override fun onServiceInfoCallbackUnregistered() = Unit
+            override fun onServiceInfoCallbackUnregistered() {
+                unregistered.complete(Unit)
+            }
 
             override fun onServiceLost() = Unit
         }
@@ -94,7 +97,10 @@ internal class AndroidNsdDiscovery(context: Context) {
         } catch (_: Exception) {
             // NSD may be disabled or the service type may be unavailable on this network.
         } finally {
-            runCatching { nsdManager.unregisterServiceInfoCallback(callback) }
+            runCatching {
+                nsdManager.unregisterServiceInfoCallback(callback)
+                withTimeoutOrNull(STOP_TIMEOUT_MS) { unregistered.await() }
+            }
         }
     }
 
@@ -105,6 +111,7 @@ internal class AndroidNsdDiscovery(context: Context) {
         pendingResolutions: AtomicInteger
     ) {
         val started = CompletableDeferred<Unit>()
+        val stopped = CompletableDeferred<Unit>()
         lateinit var listener: NsdManager.DiscoveryListener
 
         listener = object : NsdManager.DiscoveryListener {
@@ -140,7 +147,9 @@ internal class AndroidNsdDiscovery(context: Context) {
 
             override fun onServiceLost(service: NsdServiceInfo) = Unit
 
-            override fun onDiscoveryStopped(serviceType: String) = Unit
+            override fun onDiscoveryStopped(serviceType: String) {
+                stopped.complete(Unit)
+            }
 
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
                 started.completeExceptionally(IllegalStateException("NSD discovery could not start"))
@@ -148,7 +157,7 @@ internal class AndroidNsdDiscovery(context: Context) {
             }
 
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-                runCatching { nsdManager.stopServiceDiscovery(this) }
+                stopped.complete(Unit)
             }
         }
 
@@ -165,7 +174,10 @@ internal class AndroidNsdDiscovery(context: Context) {
         } catch (_: Exception) {
             // A service type may be unsupported or unavailable on this network.
         } finally {
-            runCatching { nsdManager.stopServiceDiscovery(listener) }
+            runCatching {
+                nsdManager.stopServiceDiscovery(listener)
+                withTimeoutOrNull(STOP_TIMEOUT_MS) { stopped.await() }
+            }
         }
     }
 
@@ -212,6 +224,7 @@ internal class AndroidNsdDiscovery(context: Context) {
         )
         val DIRECT_EXECUTOR = Executor { command -> command.run() }
         const val START_TIMEOUT_MS = 2_000L
+        const val STOP_TIMEOUT_MS = 500L
         const val DISCOVERY_WINDOW_MS = 1_500L
         const val RESOLUTION_GRACE_MS = 300L
         const val MAX_PENDING_RESOLUTIONS = 4
