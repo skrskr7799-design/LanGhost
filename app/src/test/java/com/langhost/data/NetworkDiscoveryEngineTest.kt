@@ -179,7 +179,7 @@ class NetworkDiscoveryEngineTest {
             probeHost = { _, _ -> false },
             ensureCurrentNetworkScope = {
                 checks++
-                if (checks == 3) throw CancellationException("network changed before ARP refresh")
+                if (checks == 4) throw CancellationException("network changed before ARP refresh")
             }
         )
 
