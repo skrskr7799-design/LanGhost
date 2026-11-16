@@ -22,6 +22,7 @@ import com.langhost.data.AppSettingsData
 import com.langhost.data.NetworkProfile
 import com.langhost.data.NetworkProfiles
 import com.langhost.data.NetworkRepository
+import com.langhost.data.model.NetworkInfo
 import com.langhost.data.PrivacyFormatter
 import com.langhost.ui.components.ContentPanel
 import com.langhost.ui.components.EmptyState
@@ -51,6 +52,7 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
         ?: profiles.firstOrNull { it.id == activeId }
         ?: profiles.firstOrNull()
     val mask = appSettings.maskNetworkIdentifiers
+    val connectedProfileIds = profiles.filter { connectionMatch(it, network) != ProfileConnectionMatch.None }.map { it.id }.toSet()
 
     Scaffold(
         topBar = {
@@ -94,7 +96,8 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
                         Spacer(Modifier.height(22.dp))
                         CurrentNetworkPanel(
                             ssid = network.ssid,
-                            bssid = PrivacyFormatter.bssid(network.bssid, mask)
+                            bssid = PrivacyFormatter.bssid(network.bssid, mask),
+                            isConnected = network.isConnected
                         )
                         Spacer(Modifier.height(18.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -117,6 +120,7 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
                                     ProfileRow(
                                         profile = profile,
                                         active = profile.id == activeId,
+                                        connectionMatch = connectionMatch(profile, network),
                                         selected = profile.id == selected?.id,
                                         mask = mask,
                                         onClick = { selectedId = profile.id },
@@ -136,6 +140,7 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
                             ProfileDetailPanel(
                                 profile = selected,
                                 active = selected.id == activeId,
+                                connectionMatch = connectionMatch(selected, network),
                                 mask = mask,
                                 onActivate = { scope.launch { store.setActive(selected.id) } },
                                 onDelete = {
@@ -197,6 +202,7 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
                         ProfileRow(
                             profile = profile,
                             active = profile.id == activeId,
+                            connectionMatch = connectionMatch(profile, network),
                             selected = false,
                             mask = mask,
                             onClick = { scope.launch { store.setActive(profile.id) } },
@@ -251,7 +257,7 @@ fun NetworkProfilesScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun CurrentNetworkPanel(ssid: String, bssid: String) {
+private fun CurrentNetworkPanel(ssid: String, bssid: String, isConnected: Boolean) {
     ContentPanel {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Surface(color = Primary.copy(alpha = 0.12f), shape = RoundedCornerShape(15.dp)) {
@@ -262,7 +268,7 @@ private fun CurrentNetworkPanel(ssid: String, bssid: String) {
                 Text(ssid.ifBlank { "Сеть не определена" }, style = MaterialTheme.typography.titleLarge, color = TextPrimary, fontWeight = FontWeight.SemiBold)
                 Text(bssid.ifBlank { "BSSID недоступен" }, style = TechnicalTypography, color = TextSecondary)
             }
-            StatusBadge(if (ssid.isNotBlank() && ssid != "—") "CONNECTED" else "UNKNOWN", if (ssid.isNotBlank() && ssid != "—") StatusTone.Success else StatusTone.Neutral)
+            StatusBadge(if (isConnected) "CONNECTED" else "OFFLINE", if (isConnected) StatusTone.Success else StatusTone.Neutral)
         }
     }
 }
@@ -271,6 +277,7 @@ private fun CurrentNetworkPanel(ssid: String, bssid: String) {
 private fun ProfileRow(
     profile: NetworkProfile,
     active: Boolean,
+    connectionMatch: ProfileConnectionMatch,
     selected: Boolean,
     mask: Boolean,
     onClick: () -> Unit,
@@ -298,7 +305,9 @@ private fun ProfileRow(
                     maxLines = 2
                 )
             }
-            if (active) StatusBadge("АКТИВЕН", StatusTone.Success)
+            if (active) StatusBadge("КОНТЕКСТ", StatusTone.Info)
+            if (connectionMatch == ProfileConnectionMatch.Exact) StatusBadge("ПОДКЛЮЧЕНО", StatusTone.Success)
+            if (connectionMatch == ProfileConnectionMatch.SsidOnly) StatusBadge("SSID СОВПАЛ", StatusTone.Neutral)
             IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Удалить", tint = Danger) }
         }
     }
@@ -308,6 +317,7 @@ private fun ProfileRow(
 private fun ProfileDetailPanel(
     profile: NetworkProfile,
     active: Boolean,
+    connectionMatch: ProfileConnectionMatch,
     mask: Boolean,
     onActivate: () -> Unit,
     onDelete: () -> Unit
@@ -320,21 +330,21 @@ private fun ProfileDetailPanel(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("PROFILE / DETAIL", style = MaterialTheme.typography.labelSmall, color = AccentCyan)
                 Spacer(Modifier.weight(1f))
-                StatusBadge(if (active) "АКТИВЕН" else "СОХРАНЁН", if (active) StatusTone.Success else StatusTone.Neutral)
+                StatusBadge(when { connectionMatch == ProfileConnectionMatch.Exact -> "ПОДКЛЮЧЕНО"; connectionMatch == ProfileConnectionMatch.SsidOnly -> "SSID СОВПАЛ"; active -> "КОНТЕКСТ"; else -> "СОХРАНЁН" }, when { connectionMatch == ProfileConnectionMatch.Exact -> StatusTone.Success; active -> StatusTone.Info; else -> StatusTone.Neutral })
             }
             Text(profile.name, style = MaterialTheme.typography.headlineMedium, color = TextPrimary, fontWeight = FontWeight.Bold)
             HorizontalDivider(color = Border.copy(alpha = 0.7f))
             ProfileValue("SSID", profile.ssid.ifBlank { "Не задан" })
             ProfileValue("BSSID", PrivacyFormatter.bssid(profile.bssid, mask).ifBlank { "Не задан" }, technical = true)
             Text(
-                "Профиль хранит идентификатор сети для распознавания контекста. Он не меняет системное подключение Wi-Fi.",
+                when (connectionMatch) { ProfileConnectionMatch.Exact -> "Профиль совпадает с текущей сетью по SSID и BSSID. Это наблюдаемое подключение, а не команда переключения Wi-Fi."; ProfileConnectionMatch.SsidOnly -> "SSID совпадает, но BSSID недоступен для точного подтверждения точки доступа."; ProfileConnectionMatch.None -> "Профиль не подтверждён текущим подключением. Выбор контекста приложения не меняет системное подключение Wi-Fi." },
                 style = MaterialTheme.typography.bodySmall,
                 color = TextSecondary
             )
             Spacer(Modifier.weight(1f, fill = false))
             if (!active) {
                 Button(onClick = onActivate, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Primary)) {
-                    Text("Сделать активным")
+                    Text("Выбрать контекст")
                 }
             }
             OutlinedButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
@@ -352,4 +362,14 @@ private fun ProfileValue(label: String, value: String, technical: Boolean = fals
         Text(label, style = MaterialTheme.typography.labelSmall, color = TextTertiary)
         Text(value, style = if (technical) TechnicalTypography else MaterialTheme.typography.bodyLarge, color = TextPrimary)
     }
+}
+
+
+private enum class ProfileConnectionMatch { None, SsidOnly, Exact }
+
+private fun connectionMatch(profile: NetworkProfile, network: NetworkInfo): ProfileConnectionMatch {
+    if (!network.isConnected || profile.ssid.isBlank() || network.ssid.isBlank() || network.ssid == "—") return ProfileConnectionMatch.None
+    if (profile.ssid != network.ssid) return ProfileConnectionMatch.None
+    if (profile.bssid.isNotBlank() && network.bssid.isNotBlank()) return if (profile.bssid.equals(network.bssid, ignoreCase = true)) ProfileConnectionMatch.Exact else ProfileConnectionMatch.None
+    return ProfileConnectionMatch.SsidOnly
 }
