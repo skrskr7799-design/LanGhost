@@ -35,6 +35,7 @@ internal class AndroidNsdDiscovery(context: Context) {
     private val nsdManager = appContext.getSystemService(Context.NSD_SERVICE) as NsdManager
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
 
+    @SuppressLint("NewApi")
     suspend fun discover(activeNetwork: Network?): Set<String> = withContext(Dispatchers.IO) {
         val addresses = ConcurrentHashMap.newKeySet<String>()
         val seenServices = ConcurrentHashMap.newKeySet<String>()
@@ -98,7 +99,7 @@ internal class AndroidNsdDiscovery(context: Context) {
                     return
                 }
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                if (supportsServiceInfoCallbacks()) {
                     registerResolvedServiceCallback(service, addresses, activeInfoCallbacks, pendingResolutions)
                 } else {
                     resolveServiceLegacy(service, addresses, pendingResolutions)
@@ -239,6 +240,10 @@ internal class AndroidNsdDiscovery(context: Context) {
             }
         }
     }
+
+    private fun supportsServiceInfoCallbacks(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
+            SdkExtensions.getExtensionVersion(Build.VERSION_CODES.UPSIDE_DOWN_CAKE) >= 7
 
     private fun acquireMulticastLockIfRequired(): WifiManager.MulticastLock? {
         val needsLock = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
