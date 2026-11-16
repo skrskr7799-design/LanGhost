@@ -124,12 +124,12 @@ Phase 5 implementation and automated validation are complete. Full CI run [#4381
 #### Work packages
 
 - [ ] **7.1 Baseline and evidence audit**
-  - Trace the complete discovery pipeline and current Android permissions / network APIs.
-  - Verify active interface selection, IPv4 address/netmask/gateway calculation and candidate coverage.
-  - Inspect `/proc/net/arp` parsing and filtering (interface, flags, MAC validity, freshness, address scope).
-  - Review positive-evidence probes, timeout behavior, concurrency, cancellation and scan duration.
-  - Determine whether the current implementation can discover silent hosts; document why TCP-only reachability misses clients with no probed service.
-  - Record the observed tablet audit as a test scenario without assuming router-specific behavior.
+  - [x] Trace the complete discovery pipeline and current Android permissions / network APIs.
+  - [x] Verify active interface selection, IPv4 address/netmask/gateway calculation and candidate coverage.
+  - [x] Inspect `/proc/net/arp` parsing and filtering (interface, flags, MAC validity, freshness, address scope).
+  - [x] Review positive-evidence probes, timeout behavior, concurrency, cancellation and scan duration.
+  - [x] Determine whether the current implementation can discover silent hosts; document why TCP-only reachability misses clients with no probed service.
+  - [x] Record the observed tablet audit as a test scenario without assuming router-specific behavior.
 
 - [ ] **7.2 Discovery strategy and evidence model**
   - Compare available stock-Android-compatible evidence sources (neighbor/ARP cache, bounded TCP probes, mDNS/NSD, SSDP and other safe LAN discovery signals).
@@ -406,6 +406,21 @@ The final CI run on the latest branch head must complete Android Lint, unit test
 
 Still outside the automated gate: Compose UI/integration tests are not yet present; real-device testing is required for Android permission and biometric lifecycle behavior, Wi-Fi scan throttling/redaction, ARP visibility, VPN/multi-network routing, router/mesh behavior, and background scheduling. IPv6 discovery, channel-width/regulatory-aware analysis and true physical topology remain explicit limitations rather than claims of completed functionality. The full visual redesign remains a separate cohesive stage after the functional gate.
 
+
+### Phase 7 implementation log — 2026-11-16
+
+**7.1 source trace: COMPLETE.** The active-interface and subnet selection path, strict ARP parser, bounded candidate generator, six-port positive TCP probe, cancellation/network-scope guards and coverage accounting have been traced. The source-level findings are recorded above.
+
+**7.2 first reliability improvement: IMPLEMENTED, CI PENDING.** After the bounded TCP candidate pass, the engine now revalidates the active network scope, re-reads the ARP table for the same active interface, revalidates scope again, and merges fresh in-subnet ARP observations with the initial ARP snapshot and positive TCP evidence. This allows a host that answers neighbor resolution but exposes none of the six TCP probe ports to be included when Android's kernel has learned its MAC address. Out-of-subnet entries remain excluded. No host is marked offline from a failed TCP probe.
+
+Regression coverage added for:
+- post-probe ARP refresh discovering a host with no open probed TCP ports;
+- filtering refreshed ARP evidence to the active subnet;
+- network-scope cancellation before the refreshed ARP read.
+
+**Important limitation:** this change improves use of ARP evidence generated during the existing probe pass; it does not guarantee visibility of every LAN client. Android/kernel neighbor-cache behavior, router client isolation, sleeping devices, subnet truncation and scan timing still require physical validation. NSD/mDNS and other candidate evidence sources remain under evaluation, not yet committed.
+
+The next implementation gate is full CI on the final Phase 7 branch head, followed by review of scan latency/coverage and an on-device retest against the known home-LAN device list.
 
 ## Phase 7 kickoff — Network Discovery Reliability (2026-11-16)
 
