@@ -306,10 +306,10 @@ fun SecurityScreen(
                         Text("Изменения с прошлого скана", style = MaterialTheme.typography.titleMedium, color = TextSecondary)
                     }
                     items(result.appeared) { device ->
-                        Text("+ ${device.displayName} (${device.ip})", color = Success, style = MaterialTheme.typography.bodyMedium)
+                        Text("+ ${device.displayName} (${PrivacyFormatter.ip(device.ip, appSettings.maskNetworkIdentifiers)})", color = Success, style = MaterialTheme.typography.bodyMedium)
                     }
                     items(result.disappeared) { device ->
-                        Text("- ${device.displayName} (${device.ip})", color = Danger, style = MaterialTheme.typography.bodyMedium)
+                        Text("- ${device.displayName} (${PrivacyFormatter.ip(device.ip, appSettings.maskNetworkIdentifiers)})", color = Danger, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
