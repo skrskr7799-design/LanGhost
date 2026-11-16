@@ -88,7 +88,13 @@ fun LanGhostNavHost(windowSizeClass: WindowSizeClass? = null) {
     val expanded = windowSizeClass?.widthSizeClass == WindowWidthSizeClass.Expanded
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    val previousRoute = navController.previousBackStackEntry?.destination?.route
     val selectedRoute = primaryDestinations.firstOrNull { it.route == currentRoute }?.route
+        ?: if (currentRoute == Routes.DEVICE_DETAIL) {
+            primaryDestinations.firstOrNull { it.route == previousRoute }?.route
+        } else {
+            null
+        }
 
     val navigateTo: (String) -> Unit = { route ->
         navController.navigate(route) {
