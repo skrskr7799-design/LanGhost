@@ -1,27 +1,60 @@
 package com.langhost.ui.screens.internet
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.langhost.data.AppSettings
 import com.langhost.data.AppSettingsData
 import com.langhost.data.PrivacyFormatter
 import com.langhost.data.PublicIpLookup
 import com.langhost.data.PublicNetworkInfo
+import com.langhost.ui.components.ContentPanel
+import com.langhost.ui.components.PageHeading
+import com.langhost.ui.components.StatusBadge
+import com.langhost.ui.components.StatusTone
 import com.langhost.ui.theme.*
-import com.langhost.ui.theme.TechnicalTypography
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun PublicIpScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -40,12 +73,12 @@ fun PublicIpScreen(onBack: () -> Unit) {
             error = null
             try {
                 val result = PublicIpLookup.fetch()
-                if (result.ip.isBlank()) error = "Не удалось получить данные. Проверьте подключение и попробуйте ещё раз."
+                if (result.ip.isBlank()) error = "Сервис не вернул публичный IP. Проверьте подключение и повторите запрос."
                 info = result
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                error = "Не удалось получить данные. Попробуйте ещё раз."
+                error = "Не удалось получить данные внешней сети. Попробуйте ещё раз."
             } finally {
                 loading = false
             }
@@ -55,10 +88,10 @@ fun PublicIpScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Внешняя сеть", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+                title = { Text("Внешняя сеть", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = TextPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = TextPrimary)
                     }
                 },
                 actions = {
@@ -73,62 +106,71 @@ fun PublicIpScreen(onBack: () -> Unit) {
         },
         containerColor = Background
     ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Border.copy(alpha = 0.72f))) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Перед запросом", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                    Text(
-                        "По нажатию кнопки запрос отправится в ipapi.co. Сервис увидит ваш публичный IP и вернёт сведения о провайдере и примерном местоположении. Если он недоступен, LanGhost обратится к api.ipify.org только за IP-адресом. Данные локальной сети не отправляются.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
-                    )
-                    Button(
-                        onClick = { refresh() },
-                        enabled = !loading,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Primary)
-                    ) {
-                        if (loading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                color = OnPrimary,
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(8.dp))
-                        }
-                        Text(if (loading) "Определяем…" else if (requested) "Повторить запрос" else "Определить внешний IP")
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(padding)) {
+            val wide = maxWidth >= 840.dp
+            Column(
+                modifier = Modifier.fillMaxSize().padding(horizontal = if (wide) 28.dp else 18.dp, vertical = 22.dp),
+                verticalArrangement = Arrangement.spacedBy(22.dp)
+            ) {
+                PageHeading(
+                    title = "Публичный адрес",
+                    subtitle = "Информация о том, как ваша сеть видна из интернета",
+                    eyebrow = "EXTERNAL NETWORK"
+                )
+                if (wide) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.fillMaxWidth()) {
+                        RequestPanel(loading, requested, ::refresh, Modifier.weight(0.9f))
+                        NetworkResultPanel(info, requested, loading, error, appSettings.maskNetworkIdentifiers, Modifier.weight(1.1f))
                     }
+                } else {
+                    RequestPanel(loading, requested, ::refresh)
+                    NetworkResultPanel(info, requested, loading, error, appSettings.maskNetworkIdentifiers)
                 }
+                Text(
+                    "Геолокация определяется по данным IP и может быть неточной. Это не GPS-позиция устройства.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextTertiary
+                )
+                Spacer(Modifier.height(4.dp))
             }
+        }
+    }
+}
 
-            if (loading) {
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Primary)
-                }
+@Composable
+private fun RequestPanel(
+    loading: Boolean,
+    requested: Boolean,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ContentPanel(modifier = modifier) {
+        Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
+            StatusBadge("EXTERNAL LOOKUP", StatusTone.Info)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(Icons.Default.Public, contentDescription = null, tint = AccentCyan)
+                Text("Определение внешней сети", style = MaterialTheme.typography.titleLarge, color = TextPrimary, fontWeight = FontWeight.SemiBold)
             }
-
-            error?.let { Text(it, color = Danger) }
-
-            if (requested && info.ip.isNotBlank()) {
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Surface), shape = RoundedCornerShape(12.dp)) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Публичный IP", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                        Text(PrivacyFormatter.ip(info.ip, appSettings.maskNetworkIdentifiers), style = TechnicalTypography.copy(fontSize = MaterialTheme.typography.headlineSmall.fontSize, lineHeight = MaterialTheme.typography.headlineSmall.lineHeight, fontWeight = FontWeight.Bold), color = Primary)
-                        HorizontalDivider(color = Divider)
-                        InfoRow("Провайдер", info.isp.ifBlank { info.org.ifBlank { "—" } })
-                        InfoRow("Страна", info.country.ifBlank { "—" })
-                        InfoRow("Регион", info.region.ifBlank { "—" })
-                        InfoRow("Город", info.city.ifBlank { "—" })
-                    }
-                }
-            }
-
             Text(
-                "Определение выполняется через внешний HTTPS API. Для проверки скорости используйте отдельный speedtest.",
-                style = MaterialTheme.typography.bodySmall,
+                "Запрос не выполняется автоматически. После подтверждения LanGhost обратится к внешнему HTTPS-сервису за публичным IP и, если доступно, сведениями о провайдере и примерном регионе.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary
+            )
+            Button(
+                onClick = onRefresh,
+                enabled = !loading,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Primary)
+            ) {
+                if (loading) {
+                    CircularProgressIndicator(modifier = Modifier.padding(end = 10.dp).height(18.dp), color = OnPrimary, strokeWidth = 2.dp)
+                }
+                Text(if (loading) "Определяем…" else if (requested) "Повторить запрос" else "Определить внешний IP")
+            }
+            Text(
+                "Основной источник: ipapi.co. Резервный api.ipify.org используется только для получения IP-адреса. Данные локальной сети не отправляются.",
+                style = MaterialTheme.typography.labelSmall,
                 color = TextTertiary
             )
         }
@@ -136,9 +178,68 @@ fun PublicIpScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun InfoRow(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+private fun NetworkResultPanel(
+    info: PublicNetworkInfo,
+    requested: Boolean,
+    loading: Boolean,
+    error: String?,
+    maskIdentifiers: Boolean,
+    modifier: Modifier = Modifier
+) {
+    ContentPanel(modifier = modifier) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("Сведения о подключении", style = MaterialTheme.typography.titleLarge, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+            when {
+                loading && info.ip.isBlank() -> {
+                    StatusBadge("WAITING FOR RESPONSE", StatusTone.Info)
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Primary)
+                    }
+                    Text("Получаем ответ внешнего сервиса…", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                }
+                !requested -> {
+                    StatusBadge("NO REQUEST YET", StatusTone.Neutral)
+                    Text("После запроса здесь появится публичный IP и доступные сведения о внешней сети.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                }
+                info.ip.isNotBlank() -> {
+                    StatusBadge(if (loading) "REFRESHING" else "DATA RECEIVED", if (loading) StatusTone.Info else StatusTone.Success)
+                    Text("Публичный IP", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                    Text(
+                        PrivacyFormatter.ip(info.ip, maskIdentifiers),
+                        style = TechnicalTypography.copy(fontSize = MaterialTheme.typography.headlineMedium.fontSize, lineHeight = MaterialTheme.typography.headlineMedium.lineHeight, fontWeight = FontWeight.Bold),
+                        color = Primary
+                    )
+                    HorizontalDivider(color = Divider)
+                    NetworkInfoRow("Провайдер", info.isp.ifBlank { info.org.ifBlank { "—" } })
+                    NetworkInfoRow("Страна", info.country.ifBlank { "—" })
+                    NetworkInfoRow("Регион", info.region.ifBlank { "—" })
+                    NetworkInfoRow("Город", info.city.ifBlank { "—" })
+                    if (error != null) Text(error, style = MaterialTheme.typography.bodySmall, color = Warning)
+                }
+                else -> {
+                    StatusBadge("LOOKUP FAILED", StatusTone.Warning)
+                    Text(error ?: "Не удалось получить сведения.", style = MaterialTheme.typography.bodyMedium, color = Warning)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NetworkInfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
+    ) {
         Text(label, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-        Text(value, style = MaterialTheme.typography.bodyMedium, color = TextPrimary, fontWeight = FontWeight.Medium)
+        Text(
+            value,
+            modifier = Modifier.weight(1f).padding(start = 18.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextPrimary,
+            fontWeight = FontWeight.Medium,
+            textAlign = androidx.compose.ui.text.style.TextAlign.End
+        )
     }
 }
