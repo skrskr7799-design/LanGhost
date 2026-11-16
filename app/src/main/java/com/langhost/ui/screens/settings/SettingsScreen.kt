@@ -166,8 +166,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                             val devices = repo.devices.value
                             val net = repo.networkInfo.value
                             val score = SecurityAudit.analyze(devices, net.ssid, net.bssid, emptyList()).score
-                            val text = ReportShare.buildTextReport(net, devices, score)
-                            val img = ReportShare.shareImageCard(context, net, devices, score)
+                            val text = ReportShare.buildTextReport(net, devices, score, settings.maskNetworkIdentifiers)
+                            val img = ReportShare.shareImageCard(context, net, devices, score, settings.maskNetworkIdentifiers)
                             if (img != null) {
                                 context.startActivity(Intent.createChooser(img, "Поделиться отчётом"))
                             } else {
