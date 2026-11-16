@@ -50,7 +50,7 @@ class DeviceDetailViewModel(
                 isFavorite = device?.isFavorite ?: false,
                 isWatched = device?.isWatched ?: false,
                 openPorts = device?.openPorts ?: emptyList(),
-                hasScannedPorts = !device?.openPorts.isNullOrEmpty()
+                hasScannedPorts = (device?.portsScannedAt ?: 0L) > 0L
             )
         }
     }
