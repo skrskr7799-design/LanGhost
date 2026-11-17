@@ -551,14 +551,7 @@ private fun CoveragePanel(
 
 @Composable
 private fun SourceStatusRow(label: String, status: DiscoverySourceStatus) {
-    val value = when (status) {
-        DiscoverySourceStatus.NOT_RUN -> "Не запускался"
-        DiscoverySourceStatus.RESPONDED -> "Есть ответы"
-        DiscoverySourceStatus.PARTIAL -> "Частично доступен"
-        DiscoverySourceStatus.NO_RESPONSES -> "Ответов нет"
-        DiscoverySourceStatus.UNAVAILABLE -> "Недоступен"
-        DiscoverySourceStatus.NOT_REPORTED -> "Нет данных"
-    }
+    val value = discoverySourceStatusLabel(status)
     val tone = when (status) {
         DiscoverySourceStatus.RESPONDED -> Success
         DiscoverySourceStatus.PARTIAL, DiscoverySourceStatus.NO_RESPONSES, DiscoverySourceStatus.UNAVAILABLE -> Warning
