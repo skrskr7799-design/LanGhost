@@ -64,9 +64,9 @@ class AndroidSsdpDiscoveryTest {
 
     private val responder = InetAddress.getByName("192.168.1.44")
     private val validPacket = (
-        "HTTP/1.1 200 OK\\r\\n" +
-            "ST: urn:schemas-upnp-org:device:MediaRenderer:1\\r\\n" +
-            "USN: uuid:living-room-speaker\\r\\n\\r\\n"
+        "HTTP/1.1 200 OK\r\n" +
+            "ST: urn:schemas-upnp-org:device:MediaRenderer:1\r\n" +
+            "USN: uuid:living-room-speaker\r\n\r\n"
         ).toByteArray(Charsets.US_ASCII)
 
     @Test
