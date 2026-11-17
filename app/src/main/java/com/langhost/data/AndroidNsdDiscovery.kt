@@ -108,7 +108,7 @@ internal class AndroidNsdDiscovery(context: Context) {
             override fun onServiceFound(service: NsdServiceInfo) {
                 val key = "${service.serviceName}|${service.serviceType}"
                 if (!seenServices.add(key)) return
-                results.serviceObserved(
+                val generation = results.serviceObserved(
                     key,
                     ProtocolEvidence(
                         source = ProtocolEvidenceSource.DNS_SD,
@@ -122,9 +122,9 @@ internal class AndroidNsdDiscovery(context: Context) {
                 }
 
                 if (supportsServiceInfoCallbacks()) {
-                    registerResolvedServiceCallback(service, key, results, seenServices, activeInfoCallbacks, pendingResolutions)
+                    registerResolvedServiceCallback(service, key, generation, results, seenServices, activeInfoCallbacks, pendingResolutions)
                 } else {
-                    resolveServiceLegacy(service, key, results, pendingResolutions)
+                    resolveServiceLegacy(service, key, generation, results, pendingResolutions)
                 }
             }
 
@@ -186,6 +186,7 @@ internal class AndroidNsdDiscovery(context: Context) {
     private fun registerResolvedServiceCallback(
         service: NsdServiceInfo,
         serviceKey: String,
+        generation: Long,
         results: NsdResolutionResults,
         seenServices: MutableSet<String>,
         activeInfoCallbacks: MutableSet<NsdManager.ServiceInfoCallback>,
@@ -203,7 +204,7 @@ internal class AndroidNsdDiscovery(context: Context) {
 
         callback = object : NsdManager.ServiceInfoCallback {
             override fun onServiceUpdated(serviceInfo: NsdServiceInfo) {
-                results.resolved(serviceKey, resolvedAddresses(serviceInfo.hostAddresses))
+                results.resolved(serviceKey, generation, resolvedAddresses(serviceInfo.hostAddresses))
                 runCatching { nsdManager.unregisterServiceInfoCallback(this) }
             }
 
@@ -218,7 +219,7 @@ internal class AndroidNsdDiscovery(context: Context) {
 
             override fun onServiceLost() {
                 seenServices.remove(serviceKey)
-                results.serviceLost(serviceKey)
+                results.serviceLost(serviceKey, generation)
                 runCatching { nsdManager.unregisterServiceInfoCallback(this) }
             }
         }
@@ -235,6 +236,7 @@ internal class AndroidNsdDiscovery(context: Context) {
     private fun resolveServiceLegacy(
         service: NsdServiceInfo,
         serviceKey: String,
+        generation: Long,
         results: NsdResolutionResults,
         pendingResolutions: AtomicInteger
     ) {
@@ -243,14 +245,14 @@ internal class AndroidNsdDiscovery(context: Context) {
             nsdManager.resolveService(service, object : NsdManager.ResolveListener {
                 override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
                     results.resolutionFailed()
-                    results.serviceLost(serviceKey)
+                    results.serviceLost(serviceKey, generation)
                     pendingResolutions.decrementAndGet()
                 }
 
                 override fun onServiceResolved(resolved: NsdServiceInfo) {
                     pendingResolutions.decrementAndGet()
                     @Suppress("DEPRECATION")
-                    results.resolved(serviceKey, resolvedAddresses(listOfNotNull(resolved.host)))
+                    results.resolved(serviceKey, generation, resolvedAddresses(listOfNotNull(resolved.host)))
                 }
             })
         } catch (_: Exception) {
