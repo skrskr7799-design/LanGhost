@@ -17,6 +17,21 @@
 
 The broad `ConnectException` catch was a real correctness defect: Android/JVM connect failures are not synonymous with ECONNREFUSED. This fix narrows the positive-evidence rule; it does not yet solve all missing-device cases or prove that the current subnet and supplementary discovery mechanisms are operating correctly.
 
+
+### Phase 7.7 — Structured discovery source diagnostics
+
+- [x] Add privacy-safe aggregate source outcomes: `NOT_RUN`, `RESPONDED`, `NO_RESPONSES`, `UNAVAILABLE`, and `NOT_REPORTED`.
+- [x] Propagate DNS-SD, SSDP, reachability, TCP and ARP outcomes into scan coverage without exposing IP addresses, MAC addresses, SSIDs or raw exception messages.
+- [x] Display per-source status in the dashboard; distinguish an idle/not-applicable source from a source that ran and found no responders.
+- [x] Preserve optional-source isolation: DNS-SD, SSDP and reachability failures do not discard valid ARP/TCP evidence; coroutine cancellation remains cancellation.
+- [x] Keep subnet filtering, bounded host/result counts, bounded concurrency and network-scope checkpoints in the discovery pipeline.
+- [x] Fix the DNS-SD startup-result function's missing return and verify both push and pull-request Android CI runs passed on `7cf0de2669e874071a36d6ee0ab71f858c20892c` (runs #44026575567 and #44026581972).
+- [ ] Review mixed/partial source failures and ensure aggregate labels never imply a complete scan when only some service types or probes were usable.
+- [ ] Add/extend regression tests for partial success, partial failure, ARP readable-empty versus unavailable, and source status propagation to UI.
+- [ ] Validate source status behavior on physical Android devices and multiple router/AP configurations.
+
+Implementation note: TCP `RESPONDED` means at least one candidate produced positive TCP host evidence; it does not mean every candidate was reachable. `NO_RESPONSES` is not proof that hosts are offline. DNS-SD currently aggregates successful service-discovery starts, and SSDP currently reports `UNAVAILABLE` if its operation encounters an exception even after collecting responses; these mixed-outcome semantics are explicit follow-up review items before calling source diagnostics fully polished.
+
 ### Phase 8 — Device Intelligence & Classification (partially implemented; protocol evidence remains queued)
 
 - [x] Replace first-match device-type heuristics with a conservative weighted classifier that records confidence and explainable signal identifiers.
