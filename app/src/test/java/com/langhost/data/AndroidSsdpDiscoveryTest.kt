@@ -1,5 +1,7 @@
 package com.langhost.data
 
+import com.langhost.data.model.DiscoverySourceStatus
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
