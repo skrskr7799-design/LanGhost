@@ -114,6 +114,7 @@ internal class AndroidNsdDiscovery(context: Context) {
                 ) ?: return
                 if (pendingResolutions.incrementAndGet() > MAX_PENDING_RESOLUTIONS) {
                     pendingResolutions.decrementAndGet()
+                    results.resolutionFailed()
                     return
                 }
 
