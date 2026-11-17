@@ -1,23 +1,31 @@
 package com.langhost.data
 
+import com.langhost.data.model.ProtocolEvidence
+
 /**
- * Keeps DNS-SD resolutions attached to the service advertisement that produced
- * them. A lost advertisement can therefore be removed without retaining stale
- * host addresses from an earlier callback.
+ * Keeps DNS-SD resolutions and metadata attached to the advertisement that
+ * produced them, so a lost service cannot leave stale endpoint evidence.
  */
 internal class NsdResolutionResults {
-    private val addressesByService = LinkedHashMap<String, Set<String>>()
+    private data class Entry(
+        val addresses: Set<String>,
+        val evidence: ProtocolEvidence
+    )
+
+    private val entriesByService = LinkedHashMap<String, Entry>()
+    private val observedServices = LinkedHashSet<String>()
     private var resolutionFailures = 0
-    private var observedServices = 0
 
     @Synchronized
-    fun serviceObserved() {
-        observedServices++
+    fun serviceObserved(serviceKey: String, evidence: ProtocolEvidence) {
+        observedServices.add(serviceKey)
+        entriesByService.putIfAbsent(serviceKey, Entry(emptySet(), evidence))
     }
 
     @Synchronized
     fun resolved(serviceKey: String, addresses: Set<String>) {
-        addressesByService[serviceKey] = addresses
+        val current = entriesByService[serviceKey] ?: return
+        entriesByService[serviceKey] = current.copy(addresses = addresses)
     }
 
     @Synchronized
@@ -27,15 +35,27 @@ internal class NsdResolutionResults {
 
     @Synchronized
     fun serviceLost(serviceKey: String) {
-        addressesByService.remove(serviceKey)
+        entriesByService.remove(serviceKey)
+        observedServices.remove(serviceKey)
     }
 
     @Synchronized
-    fun addresses(): Set<String> = addressesByService.values.flatten().toSet()
+    fun addresses(): Set<String> = entriesByService.values.flatMap { it.addresses }.toSet()
+
+    @Synchronized
+    fun protocolEvidenceByIp(): Map<String, List<ProtocolEvidence>> =
+        entriesByService.values.flatMap { entry ->
+            entry.addresses.map { address -> address to entry.evidence }
+        }.groupBy({ it.first }, { it.second })
+            .mapValues { (_, evidence) -> evidence.distinct().take(MAX_EVIDENCE_PER_IP) }
 
     @Synchronized
     fun hasResolutionFailures(): Boolean = resolutionFailures > 0
 
     @Synchronized
-    fun hasObservedServices(): Boolean = observedServices > 0
+    fun hasObservedServices(): Boolean = observedServices.isNotEmpty()
+
+    private companion object {
+        const val MAX_EVIDENCE_PER_IP = 16
+    }
 }
