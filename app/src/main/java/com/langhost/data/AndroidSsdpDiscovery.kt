@@ -12,6 +12,7 @@ import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.SocketTimeoutException
+import com.langhost.data.model.DiscoverySourceStatus
 
 /**
  * Bounded SSDP/UPnP discovery. M-SEARCH replies are unicast to this socket,
@@ -19,10 +20,11 @@ import java.net.SocketTimeoutException
  * active Android Network before sending anything.
  */
 internal class AndroidSsdpDiscovery {
-    suspend fun discover(activeNetwork: Network?): Set<String> = withContext(Dispatchers.IO) {
-        if (activeNetwork == null) return@withContext emptySet()
+    suspend fun discover(activeNetwork: Network?): DiscoverySourceResult<Set<String>> = withContext(Dispatchers.IO) {
+        if (activeNetwork == null) return@withContext DiscoverySourceResult(emptySet(), DiscoverySourceStatus.UNAVAILABLE)
 
         val addresses = LinkedHashSet<String>()
+        var available = true
         val request = M_SEARCH.toByteArray(Charsets.US_ASCII)
         val target = InetAddress.getByName(SSDP_MULTICAST_ADDRESS)
 
@@ -53,9 +55,18 @@ internal class AndroidSsdpDiscovery {
                 throw cancelled
             } catch (_: Exception) {
                 // SSDP is optional; failures must not discard TCP, ARP or DNS-SD evidence.
+                available = false
             }
         }
-        addresses
+        val result = addresses.toSet()
+        DiscoverySourceResult(
+            value = result,
+            status = when {
+                !available -> DiscoverySourceStatus.UNAVAILABLE
+                result.isNotEmpty() -> DiscoverySourceStatus.RESPONDED
+                else -> DiscoverySourceStatus.NO_RESPONSES
+            }
+        )
     }
 
     private companion object {
