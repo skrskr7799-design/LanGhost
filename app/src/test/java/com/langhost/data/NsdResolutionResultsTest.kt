@@ -17,8 +17,8 @@ class NsdResolutionResultsTest {
     @Test
     fun serviceLostRemovesOnlyItsOwnResolvedAddressesAndMetadata() {
         val results = NsdResolutionResults()
-        val printerGeneration = results.serviceObserved("printer|_ipp._tcp.", evidence("printer"))
-        val nasGeneration = results.serviceObserved("nas|_smb._tcp.", evidence("nas"))
+        val printerGeneration = results.serviceObserved("printer|_ipp._tcp.", evidence("printer"))!!
+        val nasGeneration = results.serviceObserved("nas|_smb._tcp.", evidence("nas"))!!
         results.resolved("printer|_ipp._tcp.", printerGeneration, setOf("192.168.1.20"))
         results.resolved("nas|_smb._tcp.", nasGeneration, setOf("192.168.1.30"))
 
@@ -31,8 +31,8 @@ class NsdResolutionResultsTest {
     @Test
     fun sharedAddressRemainsWhenAnotherServiceStillAdvertisesIt() {
         val results = NsdResolutionResults()
-        val httpGeneration = results.serviceObserved("host|_http._tcp.", evidence("http"))
-        val httpsGeneration = results.serviceObserved("host|_https._tcp.", evidence("https"))
+        val httpGeneration = results.serviceObserved("host|_http._tcp.", evidence("http"))!!
+        val httpsGeneration = results.serviceObserved("host|_https._tcp.", evidence("https"))!!
         results.resolved("host|_http._tcp.", httpGeneration, setOf("192.168.1.20"))
         results.resolved("host|_https._tcp.", httpsGeneration, setOf("192.168.1.20"))
 
@@ -45,9 +45,9 @@ class NsdResolutionResultsTest {
     @Test
     fun lateResolutionFromLostAdvertisementCannotOverwriteReappearedService() {
         val results = NsdResolutionResults()
-        val oldGeneration = results.serviceObserved("speaker|_http._tcp.", evidence("old"))
+        val oldGeneration = results.serviceObserved("speaker|_http._tcp.", evidence("old"))!!
         results.serviceLost("speaker|_http._tcp.", oldGeneration)
-        val newGeneration = results.serviceObserved("speaker|_http._tcp.", evidence("new"))
+        val newGeneration = results.serviceObserved("speaker|_http._tcp.", evidence("new"))!!
 
         results.resolved("speaker|_http._tcp.", oldGeneration, setOf("192.168.1.99"))
 
@@ -66,7 +66,7 @@ class NsdResolutionResultsTest {
         assertFalse(results.hasObservedServices())
         assertFalse(results.hasResolutionFailures())
 
-        results.serviceObserved("failed|_http._tcp.", evidence("failed"))
+        results.serviceObserved("failed|_http._tcp.", evidence("failed"))!!
         results.resolutionFailed()
 
         assertTrue(results.hasObservedServices())
@@ -74,4 +74,33 @@ class NsdResolutionResultsTest {
         assertEquals(emptySet<String>(), results.addresses())
         assertTrue(results.protocolEvidenceByIp().isEmpty())
     }
+
+    @Test
+    fun duplicateActiveServiceIsIgnoredWithoutAllocatingAnotherGeneration() {
+        val results = NsdResolutionResults()
+        val generation = results.serviceObserved("speaker|_http._tcp.", evidence("first"))
+
+        assertTrue(generation != null)
+        assertEquals(null, results.serviceObserved("speaker|_http._tcp.", evidence("duplicate")))
+        results.resolved("speaker|_http._tcp.", generation!!, setOf("192.168.1.40"))
+
+        assertEquals(listOf(evidence("first")), results.protocolEvidenceByIp()["192.168.1.40"])
+        assertFalse(results.hasTrackingLimitReached())
+    }
+
+    @Test
+    fun trackingLimitBoundsActiveAdvertisementsAndReportsPartialCoverage() {
+        val results = NsdResolutionResults()
+        repeat(NsdResolutionResults.MAX_TRACKED_SERVICES) { index ->
+            assertTrue(results.serviceObserved("service-$index|_http._tcp.", evidence("service-$index")) != null)
+        }
+
+        assertEquals(null, results.serviceObserved("overflow|_http._tcp.", evidence("overflow")))
+        assertTrue(results.hasTrackingLimitReached())
+        assertEquals(NsdResolutionResults.MAX_TRACKED_SERVICES, results.hasObservedServices().let {
+            // The tracker exposes only the bounded observed-state signal; addresses remain empty before resolution.
+            if (it) NsdResolutionResults.MAX_TRACKED_SERVICES else 0
+        })
+    }
+
 }
