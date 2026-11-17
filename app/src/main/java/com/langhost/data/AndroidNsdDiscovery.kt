@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import com.langhost.data.model.DiscoverySourceStatus
 
 /**
  * Bounded foreground DNS-SD discovery.
@@ -36,7 +37,7 @@ internal class AndroidNsdDiscovery(context: Context) {
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
 
     @SuppressLint("NewApi")
-    suspend fun discover(activeNetwork: Network?): Set<String> = withContext(Dispatchers.IO) {
+    suspend fun discover(activeNetwork: Network?): DiscoverySourceResult<Set<String>> = withContext(Dispatchers.IO) {
         val addresses = ConcurrentHashMap.newKeySet<String>()
         val seenServices = ConcurrentHashMap.newKeySet<String>()
         val activeInfoCallbacks = ConcurrentHashMap.newKeySet<NsdManager.ServiceInfoCallback>()
@@ -44,7 +45,7 @@ internal class AndroidNsdDiscovery(context: Context) {
         val multicastLock = acquireMulticastLockIfRequired()
 
         try {
-            coroutineScope {
+            val startedTypes = coroutineScope {
                 SERVICE_TYPES.map { serviceType ->
                     async {
                         discoverServiceType(
@@ -58,7 +59,15 @@ internal class AndroidNsdDiscovery(context: Context) {
                     }
                 }.awaitAll()
             }
-            addresses.toSet()
+            val resolved = addresses.toSet()
+            DiscoverySourceResult(
+                value = resolved,
+                status = when {
+                    startedTypes.none { it } -> DiscoverySourceStatus.UNAVAILABLE
+                    resolved.isNotEmpty() -> DiscoverySourceStatus.RESPONDED
+                    else -> DiscoverySourceStatus.NO_RESPONSES
+                }
+            )
         } finally {
             // A cancelled scan must not leave service-info listeners registered.
             activeInfoCallbacks.toList().forEach { callback ->
@@ -81,14 +90,14 @@ internal class AndroidNsdDiscovery(context: Context) {
         seenServices: MutableSet<String>,
         activeInfoCallbacks: MutableSet<NsdManager.ServiceInfoCallback>,
         pendingResolutions: AtomicInteger
-    ) {
-        val started = CompletableDeferred<Unit>()
+    ): Boolean {
+        val started = CompletableDeferred<Boolean>()
         val stopped = CompletableDeferred<Unit>()
         lateinit var listener: NsdManager.DiscoveryListener
 
         listener = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(regType: String) {
-                started.complete(Unit)
+                started.complete(true)
             }
 
             override fun onServiceFound(service: NsdServiceInfo) {
@@ -113,7 +122,7 @@ internal class AndroidNsdDiscovery(context: Context) {
             }
 
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                started.completeExceptionally(IllegalStateException("NSD discovery could not start"))
+                started.complete(false)
                 runCatching { nsdManager.stopServiceDiscovery(this) }
             }
 
@@ -135,15 +144,19 @@ internal class AndroidNsdDiscovery(context: Context) {
                 nsdManager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)
             }
             withTimeoutOrNull(START_TIMEOUT_MS + DISCOVERY_WINDOW_MS + RESOLUTION_GRACE_MS) {
-                started.await()
-                delay(DISCOVERY_WINDOW_MS)
-                // Give service-resolution callbacks a short bounded opportunity to finish.
-                delay(RESOLUTION_GRACE_MS)
-            }
+                val didStart = started.await()
+                if (didStart) {
+                    delay(DISCOVERY_WINDOW_MS)
+                    // Give service-resolution callbacks a short bounded opportunity to finish.
+                    delay(RESOLUTION_GRACE_MS)
+                }
+                didStart
+            } ?: false
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
             // A service type may be unsupported or unavailable on this network.
+            false
         } finally {
             runCatching {
                 nsdManager.stopServiceDiscovery(listener)
