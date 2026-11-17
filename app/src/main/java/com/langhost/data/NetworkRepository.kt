@@ -278,11 +278,7 @@ class NetworkRepository(context: Context) {
             val completedCoverage = discovery.coverage.copy(
                 scannedAt = now,
                 arpAvailable = arpReadable.get(),
-                arpStatus = when {
-                    !arpReadable.get() -> DiscoverySourceStatus.UNAVAILABLE
-                    discovery.arpAddresses.isNotEmpty() -> DiscoverySourceStatus.RESPONDED
-                    else -> DiscoverySourceStatus.NO_RESPONSES
-                }
+                arpStatus = arpSourceStatus(arpReadable.get(), discovery.arpAddresses)
             )
             val onlineDevices = HostDiscovery.mapBounded(
                 items = allIps.toList(),
