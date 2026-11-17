@@ -16,6 +16,14 @@ class ProtocolEvidenceTest {
     }
 
     @Test
+    fun sanitizerRemovesUnicodeControlCharactersButPreservesReadableText() {
+        val sanitized = ProtocolEvidence.sanitize("Кухня\u0085 TV\u009F")
+
+        assertEquals("Кухня TV", sanitized)
+        assertFalse(sanitized.any { Character.isISOControl(it) })
+    }
+
+    @Test
     fun evidenceDefaultsRemainSafeAndSourceIsExplicit() {
         val evidence = ProtocolEvidence(source = ProtocolEvidenceSource.DNS_SD)
 
