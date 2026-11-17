@@ -62,6 +62,7 @@ internal class AndroidSsdpDiscovery {
         DiscoverySourceResult(
             value = result,
             status = when {
+                !available && result.isNotEmpty() -> DiscoverySourceStatus.PARTIAL
                 !available -> DiscoverySourceStatus.UNAVAILABLE
                 result.isNotEmpty() -> DiscoverySourceStatus.RESPONDED
                 else -> DiscoverySourceStatus.NO_RESPONSES
