@@ -1,6 +1,7 @@
 package com.langhost.data
 
 import com.langhost.data.model.DiscoverySourceStatus
+import com.langhost.data.model.ProtocolEvidence
 
 /**
  * A privacy-safe aggregate outcome from an optional discovery source.
@@ -9,5 +10,7 @@ import com.langhost.data.model.DiscoverySourceStatus
  */
 internal data class DiscoverySourceResult<T>(
     val value: T,
-    val status: DiscoverySourceStatus
+    val status: DiscoverySourceStatus,
+    /** Sanitized metadata keyed by the IPv4 endpoint that advertised it. */
+    val protocolEvidenceByIp: Map<String, List<ProtocolEvidence>> = emptyMap()
 )
