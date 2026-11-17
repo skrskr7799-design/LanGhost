@@ -1,6 +1,4 @@
-package com.langhost.data
-
-import com.langhost.data.model.DeviceType
+package com.langhost.data.model
 
 /**
  * Conservative, explainable device fingerprinting.
