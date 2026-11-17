@@ -9,6 +9,7 @@ package com.langhost.data.model
 enum class DiscoverySourceStatus {
     NOT_RUN,
     RESPONDED,
+    PARTIAL,
     NO_RESPONSES,
     UNAVAILABLE,
     NOT_REPORTED
