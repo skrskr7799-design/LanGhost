@@ -44,6 +44,10 @@ data class Device(
     val networkBssid: String = "",
     val networkScope: String = "",
     val deviceType: DeviceType = DeviceType.UNKNOWN,
+    /** 0 means the type is unknown; otherwise a conservative heuristic confidence from 45 to 100. */
+    val typeConfidence: Int = 0,
+    /** Stable, non-sensitive signal identifiers that explain the current type estimate. */
+    val typeEvidence: List<String> = emptyList(),
     val httpFingerprint: String = "",
     val isRandomMac: Boolean = false,
     /** Timestamp of the most recent completed general TCP port scan; zero means never scanned. */
@@ -77,8 +81,15 @@ data class Device(
 
     fun withUpdatedPorts(ports: List<Int>): Device {
         val os = guessOs(ports, vendor, hostname)
-        val type = guessType(ports, vendor, hostname, isGateway)
-        return copy(openPorts = ports, osGuess = os, deviceType = type, portsScannedAt = System.currentTimeMillis())
+        val classification = DeviceTypeClassifier.classify(hostname, vendor, ports, isGateway, httpFingerprint)
+        return copy(
+            openPorts = ports,
+            osGuess = os,
+            deviceType = classification.type,
+            typeConfidence = classification.confidence,
+            typeEvidence = classification.signals,
+            portsScannedAt = System.currentTimeMillis()
+        )
     }
 
     companion object {
@@ -113,26 +124,7 @@ data class Device(
             }
         }
 
-        fun guessType(ports: List<Int>, vendor: String, hostname: String, isGateway: Boolean): DeviceType {
-            if (isGateway) return DeviceType.ROUTER
-            val p = ports.toSet()
-            val v = vendor.lowercase()
-            val h = hostname.lowercase()
-            return when {
-                h.contains("iphone") || h.contains("android") || h.contains("phone") || h.contains("pixel") -> DeviceType.PHONE
-                h.contains("ipad") || h.contains("tablet") -> DeviceType.TABLET
-                h.contains("tv") || h.contains("chromecast") || h.contains("firetv") || h.contains("roku") ||
-                    8008 in p || 8009 in p || 7000 in p -> DeviceType.TV
-                h.contains("printer") || h.contains("print") || 9100 in p || 631 in p -> DeviceType.PRINTER
-                h.contains("nas") || h.contains("synology") || h.contains("qnap") || 548 in p -> DeviceType.NAS
-                h.contains("cam") || h.contains("camera") || h.contains("nvr") -> DeviceType.CAMERA
-                v.contains("raspberry") || 22 in p && 80 in p -> DeviceType.SERVER
-                3389 in p || 445 in p || h.contains("desktop") || h.contains("pc") || h.contains("laptop") ->
-                    if (h.contains("laptop") || h.contains("macbook") || h.contains("notebook")) DeviceType.LAPTOP else DeviceType.PC
-                v.contains("tp-link") || v.contains("asus") || v.contains("cisco") || v.contains("d-link") -> DeviceType.ROUTER
-                h.contains("esp") || h.contains("tuya") || h.contains("smart") || h.contains("iot") -> DeviceType.IOT
-                else -> DeviceType.UNKNOWN
-            }
-        }
+        fun guessType(ports: List<Int>, vendor: String, hostname: String, isGateway: Boolean): DeviceType =
+            DeviceTypeClassifier.classify(hostname, vendor, ports, isGateway).type
     }
 }
