@@ -362,7 +362,11 @@ private fun DevicePreviewPanel(
                 HorizontalDivider(color = Divider)
                 DevicePreviewFact("MAC-АДРЕС", PrivacyFormatter.mac(device.mac.ifBlank { "—" }, maskIdentifiers))
                 DevicePreviewFact("ПРОИЗВОДИТЕЛЬ", device.vendor.ifBlank { "Не определён" })
-                DevicePreviewFact("ТИП", deviceTypeLabel(device.deviceType))
+                DevicePreviewFact(
+                    "ТИП",
+                    if (device.deviceType == DeviceType.UNKNOWN) "Не определён" else
+                        "${deviceTypeLabel(device.deviceType)} · ${device.typeConfidence}%"
+                )
                 DevicePreviewFact("ИМЯ ХОСТА", device.hostname.ifBlank { "—" })
                 DevicePreviewFact("ОТКРЫТЫЕ ПОРТЫ", if (device.openPorts.isEmpty()) "Не проверялись" else device.openPorts.joinToString(", "))
                 Spacer(Modifier.weight(1f))
@@ -445,7 +449,8 @@ private fun DeviceInventoryRow(device: Device, maskIdentifiers: Boolean, onClick
                     val role = when {
                         device.isGateway -> "Шлюз"
                         device.isLocalDevice -> "Это устройство"
-                        else -> deviceTypeLabel(device.deviceType)
+                        else -> if (device.deviceType == DeviceType.UNKNOWN) "Тип не определён"
+                            else "${deviceTypeLabel(device.deviceType)} · ${device.typeConfidence}%"
                     }
                     Text(role, style = MaterialTheme.typography.labelSmall, color = TextTertiary, maxLines = 1)
                 }
