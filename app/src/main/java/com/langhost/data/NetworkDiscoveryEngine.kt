@@ -28,9 +28,9 @@ internal class NetworkDiscoveryEngine(
         maxTargets: Int,
         maxConcurrency: Int,
         refreshArpEntries: suspend () -> Map<String, String> = { emptyMap() },
-        discoverNsdServiceIps: suspend () -> Set<String> = { emptySet() },
-        discoverSsdpServiceIps: suspend () -> Set<String> = { emptySet() },
-        discoverHostReachabilityIps: suspend (List<String>) -> Set<String> = { emptySet() }
+        discoverNsdServiceIps: suspend () -> DiscoverySourceResult<Set<String>> = { DiscoverySourceResult(emptySet(), DiscoverySourceStatus.NOT_RUN) },
+        discoverSsdpServiceIps: suspend () -> DiscoverySourceResult<Set<String>> = { DiscoverySourceResult(emptySet(), DiscoverySourceStatus.NOT_RUN) },
+        discoverHostReachabilityIps: suspend (List<String>) -> DiscoverySourceResult<Set<String>> = { DiscoverySourceResult(emptySet(), DiscoverySourceStatus.NOT_RUN) }
     ): NetworkDiscoverySnapshot {
         require(maxTargets >= 0) { "maxTargets must not be negative" }
         require(maxConcurrency > 0) { "maxConcurrency must be positive" }
@@ -62,22 +62,22 @@ internal class NetworkDiscoveryEngine(
             val arpRefresh = async { refreshArpEntries() }
             val nsdDiscovery = async {
                 try {
-                    if (subnet != null) discoverNsdServiceIps() else emptySet()
+                    if (subnet != null) discoverNsdServiceIps() else DiscoverySourceResult(emptySet(), DiscoverySourceStatus.NOT_RUN)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
                     // Optional DNS-SD must not discard successful ARP/TCP evidence.
-                    emptySet()
+                    DiscoverySourceResult(emptySet(), DiscoverySourceStatus.UNAVAILABLE)
                 }
             }
             val ssdpDiscovery = async {
                 try {
-                    if (subnet != null) discoverSsdpServiceIps() else emptySet()
+                    if (subnet != null) discoverSsdpServiceIps() else DiscoverySourceResult(emptySet(), DiscoverySourceStatus.NOT_RUN)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
                     // Optional SSDP must not discard successful ARP/TCP/DNS-SD evidence.
-                    emptySet()
+                    DiscoverySourceResult(emptySet(), DiscoverySourceStatus.UNAVAILABLE)
                 }
             }
             val reachabilityDiscovery = async {
@@ -85,30 +85,30 @@ internal class NetworkDiscoveryEngine(
                     val unresolved = candidates.filter { it != localIp && it !in discoveredIps }
                     if (subnet != null && unresolved.isNotEmpty()) {
                         discoverHostReachabilityIps(unresolved)
-                    } else emptySet()
+                    } else DiscoverySourceResult(emptySet(), DiscoverySourceStatus.NOT_RUN)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
                     // The platform reachability API is best-effort and may be unavailable.
-                    emptySet()
+                    DiscoverySourceResult(emptySet(), DiscoverySourceStatus.UNAVAILABLE)
                 }
             }
             SupplementalDiscoveryResults(
                 arpEntries = arpRefresh.await(),
-                nsdIps = nsdDiscovery.await(),
-                ssdpIps = ssdpDiscovery.await(),
-                reachabilityIps = reachabilityDiscovery.await()
+                nsd = nsdDiscovery.await(),
+                ssdp = ssdpDiscovery.await(),
+                reachability = reachabilityDiscovery.await()
             )
         }
         ensureCurrentNetworkScope(networkScope)
         val scopedNsdServiceIps = subnet?.let { currentSubnet ->
-            supplemental.nsdIps.asSequence().filter(currentSubnet::contains).take(MAX_NSD_HOSTS).toSet()
+            supplemental.nsd.value.asSequence().filter(currentSubnet::contains).take(MAX_NSD_HOSTS).toSet()
         }.orEmpty()
         val scopedSsdpServiceIps = subnet?.let { currentSubnet ->
-            supplemental.ssdpIps.asSequence().filter(currentSubnet::contains).take(MAX_SSDP_HOSTS).toSet()
+            supplemental.ssdp.value.asSequence().filter(currentSubnet::contains).take(MAX_SSDP_HOSTS).toSet()
         }.orEmpty()
         val scopedReachabilityIps = subnet?.let { currentSubnet ->
-            supplemental.reachabilityIps.asSequence().filter(currentSubnet::contains)
+            supplemental.reachability.value.asSequence().filter(currentSubnet::contains)
                 .take(MAX_REACHABILITY_HOSTS).toSet()
         }.orEmpty()
         val allArpEntries = (scopedArpEntries + (subnet?.let { currentSubnet ->
@@ -129,6 +129,9 @@ internal class NetworkDiscoveryEngine(
             dnsSdResolvedHosts = scopedNsdServiceIps.size,
             ssdpResponsiveHosts = scopedSsdpServiceIps.size,
             reachabilityResponsiveHosts = scopedReachabilityIps.size,
+            dnsSdStatus = supplemental.nsd.status,
+            ssdpStatus = supplemental.ssdp.status,
+            reachabilityStatus = supplemental.reachability.status,
             tcpStatus = when {
                 subnet == null || candidates.isEmpty() -> DiscoverySourceStatus.NOT_RUN
                 (discoveredIps - localIp).isNotEmpty() -> DiscoverySourceStatus.RESPONDED
@@ -155,9 +158,9 @@ private const val MAX_REACHABILITY_HOSTS = 1_024
 
 private data class SupplementalDiscoveryResults(
     val arpEntries: Map<String, String>,
-    val nsdIps: Set<String>,
-    val ssdpIps: Set<String>,
-    val reachabilityIps: Set<String>
+    val nsd: DiscoverySourceResult<Set<String>>,
+    val ssdp: DiscoverySourceResult<Set<String>>,
+    val reachability: DiscoverySourceResult<Set<String>>
 )
 
 internal data class NetworkDiscoverySnapshot(
