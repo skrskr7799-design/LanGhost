@@ -36,7 +36,17 @@ The broad `ConnectException` catch was a real correctness defect: Android/JVM co
 
 Implementation note: TCP `RESPONDED` means at least one candidate produced positive TCP host evidence; it does not mean every candidate was reachable. `NO_RESPONSES` is not proof that hosts are offline. DNS-SD and SSDP now expose `PARTIAL` when they have usable evidence alongside a failed subset of their operation. Adapter-level lifecycle tests and physical-device validation remain open.
 
-### Phase 8 — Device Intelligence & Classification (partially implemented; protocol evidence remains queued)
+#
+### Protocol evidence foundation (in progress)
+
+- Added a bounded `ProtocolEvidence` model to device snapshots, with explicit DNS-SD/SSDP provenance.
+- DNS-SD now retains sanitized service type and instance name per resolved endpoint; a lost advertisement removes only its own metadata and addresses.
+- SSDP now extracts sanitized USN identity, ST device type and SERVER header; raw LOCATION URLs are intentionally discarded.
+- Discovery results carry protocol metadata alongside status, and the network engine merges only evidence belonging to in-subnet responding endpoints.
+- Unit coverage added for protocol string sanitization, DNS-SD metadata lifecycle and SSDP metadata extraction/privacy.
+- Remaining: UI presentation of protocol evidence, persistence/serialization compatibility review, richer manufacturer/model extraction where protocol data supports it, and end-to-end device-level tests.
+
+## Phase 8 — Device Intelligence & Classification (partially implemented; protocol evidence remains queued)
 
 - [x] Replace first-match device-type heuristics with a conservative weighted classifier that records confidence and explainable signal identifiers.
 - [ ] Preserve protocol-level evidence from mDNS/DNS-SD and SSDP (service type, friendly name, manufacturer/model hints) instead of reducing all responses to an IP-only observation.
