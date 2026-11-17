@@ -301,6 +301,7 @@ class NetworkRepository(context: Context) {
                     hasNsdServiceObservation = ip in discovery.nsdServiceIps,
                     hasSsdpObservation = ip in discovery.ssdpServiceIps,
                     hasHostReachabilityProbe = ip in discovery.hostReachabilityIps,
+                    protocolEvidence = discovery.protocolEvidenceByIp[ip].orEmpty(),
                     existing = existingByIp,
                     existingByStableId = devicesCache[
                         if (mac.isNotBlank()) "${mac.uppercase()}@${networkScope}" else "ip:${networkScope}:$ip"
