@@ -97,10 +97,7 @@ class NsdResolutionResultsTest {
 
         assertEquals(null, results.serviceObserved("overflow|_http._tcp.", evidence("overflow")))
         assertTrue(results.hasTrackingLimitReached())
-        assertEquals(NsdResolutionResults.MAX_TRACKED_SERVICES, results.hasObservedServices().let {
-            // The tracker exposes only the bounded observed-state signal; addresses remain empty before resolution.
-            if (it) NsdResolutionResults.MAX_TRACKED_SERVICES else 0
-        })
+        assertEquals(NsdResolutionResults.MAX_TRACKED_SERVICES, results.trackedServiceCount())
     }
 
 }
