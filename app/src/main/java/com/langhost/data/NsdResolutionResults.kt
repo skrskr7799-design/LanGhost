@@ -45,9 +45,9 @@ internal class NsdResolutionResults {
     }
 
     @Synchronized
-    fun serviceLost(serviceKey: String, generation: Long? = null) {
+    fun serviceLost(serviceKey: String, generation: Long) {
         val current = entriesByService[serviceKey] ?: return
-        if (generation != null && current.generation != generation) return
+        if (current.generation != generation) return
         entriesByService.remove(serviceKey)
     }
 
