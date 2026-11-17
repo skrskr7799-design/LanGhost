@@ -1,5 +1,7 @@
 package com.langhost.data.model
 
+import com.langhost.data.DeviceTypeClassifier
+
 enum class DiscoveryEvidence {
     TCP_RESPONSE,
     NSD_SERVICE_OBSERVATION,
