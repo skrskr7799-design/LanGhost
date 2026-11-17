@@ -19,7 +19,12 @@ data class ScanCoverage(
     /** Hosts confirmed by the best-effort interface-bound IP reachability probe. */
     val reachabilityResponsiveHosts: Int = 0,
     /** Whether /proc/net/arp could be read during this scan; null means not checked. */
-    val arpAvailable: Boolean? = null
+    val arpAvailable: Boolean? = null,
+    val arpStatus: DiscoverySourceStatus = DiscoverySourceStatus.NOT_RUN,
+    val tcpStatus: DiscoverySourceStatus = DiscoverySourceStatus.NOT_RUN,
+    val dnsSdStatus: DiscoverySourceStatus = DiscoverySourceStatus.NOT_REPORTED,
+    val ssdpStatus: DiscoverySourceStatus = DiscoverySourceStatus.NOT_REPORTED,
+    val reachabilityStatus: DiscoverySourceStatus = DiscoverySourceStatus.NOT_REPORTED
 ) {
     val coveragePercent: Int
         get() = if (totalUsableAddresses <= 0L) 0 else
