@@ -336,6 +336,36 @@ class NetworkDiscoveryEngineTest {
     }
 
     @Test
+    fun optionalSourcesPreserveSuccessfulEmptyResponseState() = runBlocking {
+        val result = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = emptyMap(),
+            networkScope = "scope-empty-optional",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2,
+            discoverNsdServiceIps = {
+                DiscoverySourceResult(emptySet(), DiscoverySourceStatus.NO_RESPONSES)
+            },
+            discoverSsdpServiceIps = {
+                DiscoverySourceResult(emptySet(), DiscoverySourceStatus.NO_RESPONSES)
+            },
+            discoverHostReachabilityIps = {
+                DiscoverySourceResult(emptySet(), DiscoverySourceStatus.NO_RESPONSES)
+            }
+        )
+
+        assertEquals(DiscoverySourceStatus.NO_RESPONSES, result.coverage.dnsSdStatus)
+        assertEquals(DiscoverySourceStatus.NO_RESPONSES, result.coverage.ssdpStatus)
+        assertEquals(DiscoverySourceStatus.NO_RESPONSES, result.coverage.reachabilityStatus)
+    }
+
+    @Test
     fun dnsSdCancellationIsNotSwallowedAsOptionalFailure() = runBlocking {
         try {
             NetworkDiscoveryEngine(
