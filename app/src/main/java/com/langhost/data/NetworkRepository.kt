@@ -10,6 +10,7 @@ import com.langhost.data.model.NetworkInfo
 import com.langhost.data.model.SecurityPortAuditPolicy
 import com.langhost.data.model.PortAuditStatus
 import com.langhost.data.model.ScanCoverage
+import com.langhost.data.model.DiscoverySourceStatus
 import com.langhost.data.model.WifiNetwork
 import com.langhost.data.network.NetworkIdentity
 import kotlinx.coroutines.CancellationException
@@ -276,7 +277,12 @@ class NetworkRepository(context: Context) {
             val now = System.currentTimeMillis()
             val completedCoverage = discovery.coverage.copy(
                 scannedAt = now,
-                arpAvailable = arpReadable.get()
+                arpAvailable = arpReadable.get(),
+                arpStatus = when {
+                    !arpReadable.get() -> DiscoverySourceStatus.UNAVAILABLE
+                    discovery.arpAddresses.isNotEmpty() -> DiscoverySourceStatus.RESPONDED
+                    else -> DiscoverySourceStatus.NO_RESPONSES
+                }
             )
             val onlineDevices = HostDiscovery.mapBounded(
                 items = allIps.toList(),
