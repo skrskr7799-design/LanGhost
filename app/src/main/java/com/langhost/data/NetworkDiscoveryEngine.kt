@@ -149,6 +149,7 @@ internal class NetworkDiscoveryEngine(
             hostReachabilityIps = scopedReachabilityIps,
             coverage = coverage,
             protocolEvidenceByIp = (supplemental.nsd.protocolEvidenceByIp + supplemental.ssdp.protocolEvidenceByIp)
+                .filterKeys { it in scopedNsdServiceIps || it in scopedSsdpServiceIps }
                 .mapValues { (_, evidence) -> evidence.distinct().take(MAX_PROTOCOL_EVIDENCE_PER_HOST) }
         )
     }
