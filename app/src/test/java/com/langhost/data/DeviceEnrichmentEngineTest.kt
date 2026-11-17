@@ -64,6 +64,8 @@ class DeviceEnrichmentEngineTest {
         assertEquals("Server: test", result.httpFingerprint)
         assertEquals(listOf("storage"), result.tags)
         assertEquals(DeviceType.NAS, result.deviceType)
+        assertTrue(result.typeConfidence >= 45)
+        assertTrue(result.typeEvidence.contains("hostname:nas"))
         assertEquals(200L, result.lastConfirmedOnline)
         assertEquals(DiscoveryEvidence.TCP_RESPONSE, result.discoveryEvidence)
     }
