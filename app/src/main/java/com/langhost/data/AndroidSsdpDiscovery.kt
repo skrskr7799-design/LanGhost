@@ -13,6 +13,8 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.SocketTimeoutException
 import com.langhost.data.model.DiscoverySourceStatus
+import com.langhost.data.model.ProtocolEvidence
+import com.langhost.data.model.ProtocolEvidenceSource
 
 /**
  * Bounded SSDP/UPnP discovery. M-SEARCH replies are unicast to this socket,
@@ -46,9 +48,8 @@ internal class AndroidSsdpDiscovery {
                         continue
                     }
                     val host = packet.address as? Inet4Address ?: continue
-                    if (SsdpResponseParser.isValidResponse(packet.data, packet.length)) {
-                        host.hostAddress?.let(results::addResponder)
-                    }
+                    val evidence = SsdpResponseParser.parseResponse(packet.data, packet.length)
+                    if (evidence != null) host.hostAddress?.let { results.addResponder(it, evidence) }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -59,7 +60,8 @@ internal class AndroidSsdpDiscovery {
         }
         DiscoverySourceResult(
             value = results.snapshot(),
-            status = results.status()
+            status = results.status(),
+            protocolEvidenceByIp = results.protocolEvidenceByIp()
         )
     }
 
@@ -79,26 +81,39 @@ internal class AndroidSsdpDiscovery {
 }
 
 internal object SsdpResponseParser {
-    fun isValidResponse(packet: ByteArray, length: Int): Boolean {
-        if (length <= 0 || length > packet.size) return false
+    fun isValidResponse(packet: ByteArray, length: Int): Boolean =
+        parseResponse(packet, length) != null
+
+    fun parseResponse(packet: ByteArray, length: Int): ProtocolEvidence? {
+        if (length <= 0 || length > packet.size) return null
         val lines = String(packet, 0, length, Charsets.US_ASCII)
             .lineSequence()
             .map { it.trim() }
             .filter { it.isNotEmpty() }
             .toList()
-        val status = lines.firstOrNull().orEmpty().split(' ')
+        val status = lines.firstOrNull().orEmpty().split(Regex("\\s+"))
         if (
             status.size < 2 ||
             (status[0] != "HTTP/1.1" && status[0] != "HTTP/1.0") ||
             status[1] != "200"
-        ) return false
+        ) return null
 
         val headers = lines.drop(1).mapNotNull { line ->
             val separator = line.indexOf(':')
             if (separator <= 0) null else line.substring(0, separator).trim().lowercase() to
                 line.substring(separator + 1).trim()
         }.toMap()
-        return !headers["st"].isNullOrBlank() &&
-            (!headers["usn"].isNullOrBlank() || !headers["location"].isNullOrBlank())
+        val deviceType = headers["st"]?.takeIf { it.isNotBlank() } ?: return null
+        val usn = headers["usn"].orEmpty()
+        val location = headers["location"].orEmpty()
+        if (usn.isBlank() && location.isBlank()) return null
+
+        // LOCATION is intentionally never retained: URLs may contain credentials or tokens.
+        return ProtocolEvidence(
+            source = ProtocolEvidenceSource.SSDP,
+            friendlyName = ProtocolEvidence.sanitize(usn.substringBefore("::").removePrefix("uuid:"), 72),
+            server = ProtocolEvidence.sanitize(headers["server"], 96),
+            deviceType = ProtocolEvidence.sanitize(deviceType, 96)
+        )
     }
 }
