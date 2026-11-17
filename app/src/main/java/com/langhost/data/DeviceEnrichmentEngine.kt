@@ -75,6 +75,14 @@ internal class DeviceEnrichmentEngine(
         val hostname = resolveHostname(ip).ifBlank { previous?.hostname.orEmpty() }
         val vendor = if (randomMac) "Random MAC" else lookupVendor(macFinal)
         val ports = previous?.openPorts.orEmpty()
+        val httpFingerprint = previous?.httpFingerprint.orEmpty()
+        val classification = DeviceTypeClassifier.classify(
+            hostname = hostname,
+            vendor = vendor.ifBlank { previous?.vendor.orEmpty() },
+            ports = ports,
+            isGateway = ip == gateway,
+            httpFingerprint = httpFingerprint
+        )
         return Device(
             ip = ip,
             mac = macFinal,
@@ -95,8 +103,10 @@ internal class DeviceEnrichmentEngine(
             isWatched = saved.isWatched || (previous?.isWatched == true),
             networkBssid = bssid,
             networkScope = networkScope,
-            deviceType = Device.guessType(ports, vendor, hostname, ip == gateway),
-            httpFingerprint = previous?.httpFingerprint.orEmpty(),
+            deviceType = classification.type,
+            typeConfidence = classification.confidence,
+            typeEvidence = classification.signals,
+            httpFingerprint = httpFingerprint,
             isRandomMac = randomMac,
             tags = previous?.tags.orEmpty(),
             auditedPorts = previous?.auditedPorts.orEmpty(),
