@@ -131,7 +131,7 @@ internal class AndroidNsdDiscovery(context: Context) {
             }
         }
 
-        try {
+        return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && activeNetwork != null) {
                 nsdManager.discoverServices(
                     serviceType,
