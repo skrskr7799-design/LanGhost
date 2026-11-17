@@ -23,7 +23,7 @@ data class ProtocolEvidence(
         fun sanitize(value: String?, maxLength: Int = MAX_FIELD_LENGTH): String {
             if (value.isNullOrBlank() || maxLength <= 0) return ""
             return value.asSequence()
-                .filter { it == ' ' || it == '\t' || it.code >= 0x20 && it.code != 0x7f }
+                .filterNot { Character.isISOControl(it) }
                 .joinToString("")
                 .trim()
                 .take(maxLength)
