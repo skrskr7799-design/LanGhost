@@ -49,6 +49,8 @@ data class Device(
     /** Stable, non-sensitive signal identifiers that explain the current type estimate. */
     val typeEvidence: List<String> = emptyList(),
     val httpFingerprint: String = "",
+    /** Sanitized DNS-SD/SSDP metadata; never stores raw packets or full LOCATION URLs. */
+    val protocolEvidence: List<ProtocolEvidence> = emptyList(),
     val isRandomMac: Boolean = false,
     /** Timestamp of the most recent completed general TCP port scan; zero means never scanned. */
     val portsScannedAt: Long = 0L
