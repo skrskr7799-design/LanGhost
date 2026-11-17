@@ -4,10 +4,38 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Shield silhouette -->
     <path
-        android:fillColor="#3B82F6"
-        android:pathData="M54,30c-13.2,0 -24,10.8 -24,24s10.8,24 24,24 24,-10.8 24,-24 -10.8,-24 -24,-24zM54,70c-8.8,0 -16,-7.2 -16,-16s7.2,-16 16,-16 16,7.2 16,16 -7.2,16 -16,16z"/>
+        android:fillColor="#102C50"
+        android:strokeColor="#16D9F5"
+        android:strokeWidth="2.8"
+        android:strokeLineJoin="round"
+        android:pathData="M54,8 L91,23 L91,49 C91,72 76,88 54,101 C32,88 17,72 17,49 L17,23 Z" />
     <path
-        android:fillColor="#3B82F6"
-        android:pathData="M54,42c-6.6,0 -12,5.4 -12,12s5.4,12 12,12 12,-5.4 12,-12 -5.4,-12 -12,-12z"/>
+        android:fillColor="#071426"
+        android:pathData="M54,15 L84,27 L84,49 C84,68 72,82 54,93 C36,82 24,68 24,49 L24,27 Z" />
+    <!-- Hood -->
+    <path
+        android:fillColor="#0B1B31"
+        android:strokeColor="#1765A7"
+        android:strokeWidth="1.5"
+        android:pathData="M54,23 C38,23 29,36 29,51 C29,63 35,70 43,76 L43,83 L54,91 L65,83 L65,76 C73,70 79,63 79,51 C79,36 70,23 54,23 Z" />
+    <path
+        android:fillColor="#020914"
+        android:pathData="M54,29 C42,29 35,39 35,52 C35,61 41,68 48,72 L48,81 L54,85 L60,81 L60,72 C67,68 73,61 73,52 C73,39 66,29 54,29 Z" />
+    <!-- Eyes -->
+    <path android:fillColor="#4AF4FF"
+        android:pathData="M39,48 L51,54 L43,61 Z" />
+    <path android:fillColor="#4AF4FF"
+        android:pathData="M69,48 L57,54 L65,61 Z" />
+    <!-- Network links -->
+    <path android:fillColor="#00000000" android:strokeColor="#16D9F5"
+        android:strokeWidth="2.6" android:strokeLineCap="round"
+        android:pathData="M28,65 L42,73 M80,65 L66,73 M54,83 L54,94" />
+    <circle android:fillColor="#071426" android:strokeColor="#4AF4FF"
+        android:strokeWidth="2.5" android:cx="27" android:cy="64" android:radius="5.5" />
+    <circle android:fillColor="#071426" android:strokeColor="#4AF4FF"
+        android:strokeWidth="2.5" android:cx="81" android:cy="64" android:radius="5.5" />
+    <circle android:fillColor="#071426" android:strokeColor="#4AF4FF"
+        android:strokeWidth="2.5" android:cx="54" android:cy="91" android:radius="5.5" />
 </vector>
