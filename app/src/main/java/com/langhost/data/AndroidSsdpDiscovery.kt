@@ -23,8 +23,7 @@ internal class AndroidSsdpDiscovery {
     suspend fun discover(activeNetwork: Network?): DiscoverySourceResult<Set<String>> = withContext(Dispatchers.IO) {
         if (activeNetwork == null) return@withContext DiscoverySourceResult(emptySet(), DiscoverySourceStatus.UNAVAILABLE)
 
-        val addresses = LinkedHashSet<String>()
-        var available = true
+        val results = SsdpDiscoveryResults()
         val request = M_SEARCH.toByteArray(Charsets.US_ASCII)
         val target = InetAddress.getByName(SSDP_MULTICAST_ADDRESS)
 
@@ -48,25 +47,19 @@ internal class AndroidSsdpDiscovery {
                     }
                     val host = packet.address as? Inet4Address ?: continue
                     if (SsdpResponseParser.isValidResponse(packet.data, packet.length)) {
-                        host.hostAddress?.let(addresses::add)
+                        host.hostAddress?.let(results::addResponder)
                     }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
                 // SSDP is optional; failures must not discard TCP, ARP or DNS-SD evidence.
-                available = false
+                results.markOperationFailed()
             }
         }
-        val result = addresses.toSet()
         DiscoverySourceResult(
-            value = result,
-            status = when {
-                !available && result.isNotEmpty() -> DiscoverySourceStatus.PARTIAL
-                !available -> DiscoverySourceStatus.UNAVAILABLE
-                result.isNotEmpty() -> DiscoverySourceStatus.RESPONDED
-                else -> DiscoverySourceStatus.NO_RESPONSES
-            }
+            value = results.snapshot(),
+            status = results.status()
         )
     }
 
