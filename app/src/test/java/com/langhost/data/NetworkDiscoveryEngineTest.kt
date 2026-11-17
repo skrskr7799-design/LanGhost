@@ -1,6 +1,8 @@
 package com.langhost.data
 
 import com.langhost.data.model.DiscoverySourceStatus
+import com.langhost.data.model.ProtocolEvidence
+import com.langhost.data.model.ProtocolEvidenceSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -470,6 +472,51 @@ class NetworkDiscoveryEngineTest {
         assertEquals(DiscoverySourceStatus.RESPONDED, result.coverage.reachabilityStatus)
     }
 
+
+    @Test
+    fun combinesDnsSdAndSsdpEvidenceForTheSameHost() = runBlocking {
+        val dnsEvidence = ProtocolEvidence(
+            source = ProtocolEvidenceSource.DNS_SD,
+            serviceName = "Living Room Speaker"
+        )
+        val ssdpEvidence = ProtocolEvidence(
+            source = ProtocolEvidenceSource.SSDP,
+            friendlyName = "Living Room Speaker",
+            deviceType = "urn:schemas-upnp-org:device:MediaRenderer:1"
+        )
+        val result = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = emptyMap(),
+            networkScope = "scope-dual-protocol",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2,
+            discoverNsdServiceIps = {
+                DiscoverySourceResult(
+                    setOf("192.168.10.5"),
+                    DiscoverySourceStatus.RESPONDED,
+                    mapOf("192.168.10.5" to listOf(dnsEvidence))
+                )
+            },
+            discoverSsdpServiceIps = {
+                DiscoverySourceResult(
+                    setOf("192.168.10.5"),
+                    DiscoverySourceStatus.RESPONDED,
+                    mapOf("192.168.10.5" to listOf(ssdpEvidence))
+                )
+            }
+        )
+
+        val evidence = result.protocolEvidenceByIp.getValue("192.168.10.5")
+        assertTrue(evidence.contains(dnsEvidence))
+        assertTrue(evidence.contains(ssdpEvidence))
+        assertEquals(2, evidence.size)
+    }
 
     @Test
     fun includesOnlyInSubnetSsdpResponses() = runBlocking {
