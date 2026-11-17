@@ -8,23 +8,30 @@ import com.langhost.data.model.ProtocolEvidence
  */
 internal class NsdResolutionResults {
     private data class Entry(
+        val generation: Long,
         val addresses: Set<String>,
         val evidence: ProtocolEvidence
     )
 
     private val entriesByService = LinkedHashMap<String, Entry>()
+    private val generationByService = HashMap<String, Long>()
     private val observedServices = LinkedHashSet<String>()
     private var resolutionFailures = 0
 
+    /** Starts a new advertisement generation so late callbacks from an older one are ignored. */
     @Synchronized
-    fun serviceObserved(serviceKey: String, evidence: ProtocolEvidence) {
+    fun serviceObserved(serviceKey: String, evidence: ProtocolEvidence): Long {
+        val generation = (generationByService[serviceKey] ?: 0L) + 1L
+        generationByService[serviceKey] = generation
         observedServices.add(serviceKey)
-        entriesByService.putIfAbsent(serviceKey, Entry(emptySet(), evidence))
+        entriesByService[serviceKey] = Entry(generation, emptySet(), evidence)
+        return generation
     }
 
     @Synchronized
-    fun resolved(serviceKey: String, addresses: Set<String>) {
+    fun resolved(serviceKey: String, generation: Long, addresses: Set<String>) {
         val current = entriesByService[serviceKey] ?: return
+        if (current.generation != generation) return
         entriesByService[serviceKey] = current.copy(addresses = addresses)
     }
 
@@ -34,7 +41,9 @@ internal class NsdResolutionResults {
     }
 
     @Synchronized
-    fun serviceLost(serviceKey: String) {
+    fun serviceLost(serviceKey: String, generation: Long? = null) {
+        val current = entriesByService[serviceKey] ?: return
+        if (generation != null && current.generation != generation) return
         entriesByService.remove(serviceKey)
         observedServices.remove(serviceKey)
     }
