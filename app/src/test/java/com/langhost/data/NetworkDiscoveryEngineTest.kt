@@ -336,6 +336,34 @@ class NetworkDiscoveryEngineTest {
     }
 
     @Test
+    fun partialOptionalSourceStatusIsPreserved() = runBlocking {
+        val result = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = emptyMap(),
+            networkScope = "scope-partial",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2,
+            discoverNsdServiceIps = {
+                DiscoverySourceResult(setOf("192.168.10.5"), DiscoverySourceStatus.PARTIAL)
+            },
+            discoverSsdpServiceIps = {
+                DiscoverySourceResult(setOf("192.168.10.6"), DiscoverySourceStatus.PARTIAL)
+            }
+        )
+
+        assertEquals(DiscoverySourceStatus.PARTIAL, result.coverage.dnsSdStatus)
+        assertEquals(DiscoverySourceStatus.PARTIAL, result.coverage.ssdpStatus)
+        assertEquals(setOf("192.168.10.5"), result.nsdServiceIps)
+        assertEquals(setOf("192.168.10.6"), result.ssdpServiceIps)
+    }
+
+    @Test
     fun optionalSourcesPreserveSuccessfulEmptyResponseState() = runBlocking {
         val result = NetworkDiscoveryEngine(
             probeHost = { _, _ -> false },
