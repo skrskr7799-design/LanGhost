@@ -1,6 +1,7 @@
 package com.langhost.data
 
 import com.langhost.data.model.ScanCoverage
+import com.langhost.data.model.DiscoverySourceStatus
 import com.langhost.data.network.Ipv4Subnet
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -127,7 +128,12 @@ internal class NetworkDiscoveryEngine(
             tcpResponsiveHosts = (discoveredIps - localIp).size,
             dnsSdResolvedHosts = scopedNsdServiceIps.size,
             ssdpResponsiveHosts = scopedSsdpServiceIps.size,
-            reachabilityResponsiveHosts = scopedReachabilityIps.size
+            reachabilityResponsiveHosts = scopedReachabilityIps.size,
+            tcpStatus = when {
+                subnet == null || candidates.isEmpty() -> DiscoverySourceStatus.NOT_RUN
+                (discoveredIps - localIp).isNotEmpty() -> DiscoverySourceStatus.RESPONDED
+                else -> DiscoverySourceStatus.NO_RESPONSES
+            }
         )
 
         return NetworkDiscoverySnapshot(
