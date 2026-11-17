@@ -554,13 +554,14 @@ private fun SourceStatusRow(label: String, status: DiscoverySourceStatus) {
     val value = when (status) {
         DiscoverySourceStatus.NOT_RUN -> "Не запускался"
         DiscoverySourceStatus.RESPONDED -> "Есть ответы"
+        DiscoverySourceStatus.PARTIAL -> "Частично доступен"
         DiscoverySourceStatus.NO_RESPONSES -> "Ответов нет"
         DiscoverySourceStatus.UNAVAILABLE -> "Недоступен"
         DiscoverySourceStatus.NOT_REPORTED -> "Нет данных"
     }
     val tone = when (status) {
         DiscoverySourceStatus.RESPONDED -> Success
-        DiscoverySourceStatus.NO_RESPONSES, DiscoverySourceStatus.UNAVAILABLE -> Warning
+        DiscoverySourceStatus.PARTIAL, DiscoverySourceStatus.NO_RESPONSES, DiscoverySourceStatus.UNAVAILABLE -> Warning
         DiscoverySourceStatus.NOT_RUN, DiscoverySourceStatus.NOT_REPORTED -> TextTertiary
     }
     Row(
