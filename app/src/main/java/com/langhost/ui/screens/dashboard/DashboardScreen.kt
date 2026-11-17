@@ -233,7 +233,10 @@ fun DashboardScreen(
                                 subnet = state.scanCoverage.subnetCidr,
                                 truncated = state.scanCoverage.truncated,
                                 arpStatus = state.scanCoverage.arpStatus,
-                                tcpStatus = state.scanCoverage.tcpStatus
+                                tcpStatus = state.scanCoverage.tcpStatus,
+                                dnsSdStatus = state.scanCoverage.dnsSdStatus,
+                                ssdpStatus = state.scanCoverage.ssdpStatus,
+                                reachabilityStatus = state.scanCoverage.reachabilityStatus
                             )
                         }
                     }
@@ -289,7 +292,10 @@ fun DashboardScreen(
                         subnet = state.scanCoverage.subnetCidr,
                         truncated = state.scanCoverage.truncated,
                         arpStatus = state.scanCoverage.arpStatus,
-                        tcpStatus = state.scanCoverage.tcpStatus
+                        tcpStatus = state.scanCoverage.tcpStatus,
+                        dnsSdStatus = state.scanCoverage.dnsSdStatus,
+                        ssdpStatus = state.scanCoverage.ssdpStatus,
+                        reachabilityStatus = state.scanCoverage.reachabilityStatus
                     )
                 }
                 WorkspaceShortcuts(
@@ -486,7 +492,10 @@ private fun CoveragePanel(
     subnet: String,
     truncated: Boolean,
     arpStatus: DiscoverySourceStatus,
-    tcpStatus: DiscoverySourceStatus
+    tcpStatus: DiscoverySourceStatus,
+    dnsSdStatus: DiscoverySourceStatus,
+    ssdpStatus: DiscoverySourceStatus,
+    reachabilityStatus: DiscoverySourceStatus
 ) {
     ContentPanel {
         Column(verticalArrangement = Arrangement.spacedBy(LanGhostSpacing.sm)) {
@@ -533,6 +542,9 @@ private fun CoveragePanel(
             Text("ДИАГНОСТИКА ИСТОЧНИКОВ", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
             SourceStatusRow("ARP-таблица", arpStatus)
             SourceStatusRow("TCP-проверка", tcpStatus)
+            SourceStatusRow("mDNS / DNS-SD", dnsSdStatus)
+            SourceStatusRow("SSDP / UPnP", ssdpStatus)
+            SourceStatusRow("IP reachability", reachabilityStatus)
         }
     }
 }
