@@ -17,10 +17,10 @@ class NsdResolutionResultsTest {
     @Test
     fun serviceLostRemovesOnlyItsOwnResolvedAddressesAndMetadata() {
         val results = NsdResolutionResults()
-        results.serviceObserved("printer|_ipp._tcp.", evidence("printer"))
-        results.serviceObserved("nas|_smb._tcp.", evidence("nas"))
-        results.resolved("printer|_ipp._tcp.", setOf("192.168.1.20"))
-        results.resolved("nas|_smb._tcp.", setOf("192.168.1.30"))
+        val printerGeneration = results.serviceObserved("printer|_ipp._tcp.", evidence("printer"))
+        val nasGeneration = results.serviceObserved("nas|_smb._tcp.", evidence("nas"))
+        results.resolved("printer|_ipp._tcp.", printerGeneration, setOf("192.168.1.20"))
+        results.resolved("nas|_smb._tcp.", nasGeneration, setOf("192.168.1.30"))
 
         results.serviceLost("printer|_ipp._tcp.")
 
@@ -31,15 +31,32 @@ class NsdResolutionResultsTest {
     @Test
     fun sharedAddressRemainsWhenAnotherServiceStillAdvertisesIt() {
         val results = NsdResolutionResults()
-        results.serviceObserved("host|_http._tcp.", evidence("http"))
-        results.serviceObserved("host|_https._tcp.", evidence("https"))
-        results.resolved("host|_http._tcp.", setOf("192.168.1.20"))
-        results.resolved("host|_https._tcp.", setOf("192.168.1.20"))
+        val httpGeneration = results.serviceObserved("host|_http._tcp.", evidence("http"))
+        val httpsGeneration = results.serviceObserved("host|_https._tcp.", evidence("https"))
+        results.resolved("host|_http._tcp.", httpGeneration, setOf("192.168.1.20"))
+        results.resolved("host|_https._tcp.", httpsGeneration, setOf("192.168.1.20"))
 
         results.serviceLost("host|_http._tcp.")
 
         assertEquals(setOf("192.168.1.20"), results.addresses())
         assertEquals(listOf(evidence("https")), results.protocolEvidenceByIp()["192.168.1.20"])
+    }
+
+    @Test
+    fun lateResolutionFromLostAdvertisementCannotOverwriteReappearedService() {
+        val results = NsdResolutionResults()
+        val oldGeneration = results.serviceObserved("speaker|_http._tcp.", evidence("old"))
+        results.serviceLost("speaker|_http._tcp.", oldGeneration)
+        val newGeneration = results.serviceObserved("speaker|_http._tcp.", evidence("new"))
+
+        results.resolved("speaker|_http._tcp.", oldGeneration, setOf("192.168.1.99"))
+
+        assertTrue(results.addresses().isEmpty())
+        assertEquals(emptyMap<String, List<ProtocolEvidence>>(), results.protocolEvidenceByIp())
+
+        results.resolved("speaker|_http._tcp.", newGeneration, setOf("192.168.1.50"))
+        assertEquals(setOf("192.168.1.50"), results.addresses())
+        assertEquals(listOf(evidence("new")), results.protocolEvidenceByIp()["192.168.1.50"])
     }
 
     @Test
