@@ -27,6 +27,7 @@ internal class DeviceEnrichmentEngine(
         hasSsdpObservation: Boolean = false,
         hasHostReachabilityProbe: Boolean = false,
         protocolEvidence: List<ProtocolEvidence> = emptyList(),
+        replaceProtocolEvidence: Boolean = false,
         existing: Device?,
         existingByStableId: Device?,
         now: Long
@@ -110,7 +111,7 @@ internal class DeviceEnrichmentEngine(
             typeConfidence = classification.confidence,
             typeEvidence = classification.signals,
             httpFingerprint = httpFingerprint,
-            protocolEvidence = (previous?.protocolEvidence.orEmpty() + protocolEvidence)
+            protocolEvidence = (if (replaceProtocolEvidence) protocolEvidence else previous?.protocolEvidence.orEmpty() + protocolEvidence)
                 .distinct()
                 .take(MAX_PROTOCOL_EVIDENCE),
             isRandomMac = randomMac,
