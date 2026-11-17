@@ -1,5 +1,6 @@
 package com.langhost.data
 
+import com.langhost.data.model.DeviceTypeClassifier
 import com.langhost.data.model.Device
 import com.langhost.data.model.DiscoveryEvidence
 
