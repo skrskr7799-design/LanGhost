@@ -184,6 +184,13 @@ fun DeviceDetailScreen(
                     InfoRow("Имя хоста", device.hostname.ifBlank { "—" })
                     InfoRow("Производитель", device.vendor.ifBlank { "Неизвестно" })
                     InfoRow("Тип", typeLabel(device.deviceType))
+                    InfoRow(
+                        "Уверенность определения",
+                        if (device.typeConfidence > 0) "${device.typeConfidence}%" else "Недостаточно данных"
+                    )
+                    if (device.typeEvidence.isNotEmpty()) {
+                        InfoRow("Основание", device.typeEvidence.joinToString(" · ") { typeEvidenceLabel(it) })
+                    }
                     InfoRow("ОС (предположение)", device.osGuess.ifBlank { "Неизвестно" })
                     InfoRow("Статус", if (device.isOnline) "Онлайн" else "Оффлайн")
                     if (device.isRandomMac) InfoRow("MAC", "Рандомизированный")
@@ -359,4 +366,14 @@ private fun deviceTypeIcon(type: DeviceType) = when (type) {
     DeviceType.CAMERA -> Icons.Default.Videocam
     DeviceType.IOT -> Icons.Default.Memory
     DeviceType.UNKNOWN -> Icons.Default.DevicesOther
+}
+
+
+private fun typeEvidenceLabel(signal: String): String = when {
+    signal == "gateway" -> "Шлюз сети"
+    signal.startsWith("hostname:") -> "Имя устройства"
+    signal.startsWith("vendor:") -> "Производитель"
+    signal.startsWith("port:") -> "Сетевые сервисы"
+    signal.startsWith("http:") -> "HTTP-отпечаток"
+    else -> "Сетевой признак"
 }
