@@ -64,6 +64,7 @@ internal class AndroidNsdDiscovery(context: Context) {
                 value = resolved,
                 status = when {
                     startedTypes.none { it } -> DiscoverySourceStatus.UNAVAILABLE
+                    startedTypes.any { !it } -> DiscoverySourceStatus.PARTIAL
                     resolved.isNotEmpty() -> DiscoverySourceStatus.RESPONDED
                     else -> DiscoverySourceStatus.NO_RESPONSES
                 }
