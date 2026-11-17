@@ -38,7 +38,7 @@ internal class AndroidNsdDiscovery(context: Context) {
 
     @SuppressLint("NewApi")
     suspend fun discover(activeNetwork: Network?): DiscoverySourceResult<Set<String>> = withContext(Dispatchers.IO) {
-        val addresses = ConcurrentHashMap.newKeySet<String>()
+        val results = NsdResolutionResults()
         val seenServices = ConcurrentHashMap.newKeySet<String>()
         val activeInfoCallbacks = ConcurrentHashMap.newKeySet<NsdManager.ServiceInfoCallback>()
         val pendingResolutions = AtomicInteger(0)
@@ -51,7 +51,7 @@ internal class AndroidNsdDiscovery(context: Context) {
                         discoverServiceType(
                             serviceType = serviceType,
                             activeNetwork = activeNetwork,
-                            addresses = addresses,
+                            results = results,
                             seenServices = seenServices,
                             activeInfoCallbacks = activeInfoCallbacks,
                             pendingResolutions = pendingResolutions
@@ -59,13 +59,14 @@ internal class AndroidNsdDiscovery(context: Context) {
                     }
                 }.awaitAll()
             }
-            val resolved = addresses.toSet()
+            val resolved = results.addresses()
             DiscoverySourceResult(
                 value = resolved,
                 status = when {
                     startedTypes.none { it } -> DiscoverySourceStatus.UNAVAILABLE
-                    startedTypes.any { !it } -> DiscoverySourceStatus.PARTIAL
+                    startedTypes.any { !it } || results.hasResolutionFailures() -> DiscoverySourceStatus.PARTIAL
                     resolved.isNotEmpty() -> DiscoverySourceStatus.RESPONDED
+                    results.hasObservedServices() -> DiscoverySourceStatus.PARTIAL
                     else -> DiscoverySourceStatus.NO_RESPONSES
                 }
             )
@@ -87,7 +88,7 @@ internal class AndroidNsdDiscovery(context: Context) {
     private suspend fun discoverServiceType(
         serviceType: String,
         activeNetwork: Network?,
-        addresses: MutableSet<String>,
+        results: NsdResolutionResults,
         seenServices: MutableSet<String>,
         activeInfoCallbacks: MutableSet<NsdManager.ServiceInfoCallback>,
         pendingResolutions: AtomicInteger
@@ -104,19 +105,22 @@ internal class AndroidNsdDiscovery(context: Context) {
             override fun onServiceFound(service: NsdServiceInfo) {
                 val key = "${service.serviceName}|${service.serviceType}"
                 if (!seenServices.add(key)) return
+                results.serviceObserved()
                 if (pendingResolutions.incrementAndGet() > MAX_PENDING_RESOLUTIONS) {
                     pendingResolutions.decrementAndGet()
                     return
                 }
 
                 if (supportsServiceInfoCallbacks()) {
-                    registerResolvedServiceCallback(service, addresses, activeInfoCallbacks, pendingResolutions)
+                    registerResolvedServiceCallback(service, key, results, activeInfoCallbacks, pendingResolutions)
                 } else {
-                    resolveServiceLegacy(service, addresses, pendingResolutions)
+                    resolveServiceLegacy(service, key, results, pendingResolutions)
                 }
             }
 
-            override fun onServiceLost(service: NsdServiceInfo) = Unit
+            override fun onServiceLost(service: NsdServiceInfo) {
+                results.serviceLost("${service.serviceName}|${service.serviceType}")
+            }
 
             override fun onDiscoveryStopped(serviceType: String) {
                 stopped.complete(Unit)
@@ -169,7 +173,8 @@ internal class AndroidNsdDiscovery(context: Context) {
     @SuppressLint("NewApi")
     private fun registerResolvedServiceCallback(
         service: NsdServiceInfo,
-        addresses: MutableSet<String>,
+        serviceKey: String,
+        results: NsdResolutionResults,
         activeInfoCallbacks: MutableSet<NsdManager.ServiceInfoCallback>,
         pendingResolutions: AtomicInteger
     ) {
@@ -185,11 +190,12 @@ internal class AndroidNsdDiscovery(context: Context) {
 
         callback = object : NsdManager.ServiceInfoCallback {
             override fun onServiceUpdated(serviceInfo: NsdServiceInfo) {
-                addResolvedAddresses(serviceInfo.hostAddresses, addresses)
+                results.resolved(serviceKey, resolvedAddresses(serviceInfo.hostAddresses))
                 runCatching { nsdManager.unregisterServiceInfoCallback(this) }
             }
 
             override fun onServiceInfoCallbackRegistrationFailed(errorCode: Int) {
+                results.resolutionFailed()
                 release()
             }
 
@@ -198,6 +204,7 @@ internal class AndroidNsdDiscovery(context: Context) {
             }
 
             override fun onServiceLost() {
+                results.serviceLost(serviceKey)
                 runCatching { nsdManager.unregisterServiceInfoCallback(this) }
             }
         }
@@ -206,53 +213,51 @@ internal class AndroidNsdDiscovery(context: Context) {
         try {
             nsdManager.registerServiceInfoCallback(service, DIRECT_EXECUTOR, callback)
         } catch (_: Exception) {
+            results.resolutionFailed()
             release()
         }
     }
 
     private fun resolveServiceLegacy(
         service: NsdServiceInfo,
-        addresses: MutableSet<String>,
+        serviceKey: String,
+        results: NsdResolutionResults,
         pendingResolutions: AtomicInteger
     ) {
         try {
             @Suppress("DEPRECATION")
             nsdManager.resolveService(service, object : NsdManager.ResolveListener {
                 override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                    results.resolutionFailed()
+                    results.serviceLost(serviceKey)
                     pendingResolutions.decrementAndGet()
                 }
 
                 override fun onServiceResolved(resolved: NsdServiceInfo) {
                     pendingResolutions.decrementAndGet()
                     @Suppress("DEPRECATION")
-                    addResolvedAddresses(listOfNotNull(resolved.host), addresses)
+                    results.resolved(serviceKey, resolvedAddresses(listOfNotNull(resolved.host)))
                 }
             })
         } catch (_: Exception) {
+            results.resolutionFailed()
             pendingResolutions.decrementAndGet()
         }
     }
 
-    private fun addResolvedAddresses(
-        hosts: Collection<InetAddress>,
-        addresses: MutableSet<String>
-    ) {
-        hosts.filterIsInstance<Inet4Address>().forEach { host ->
+    private fun resolvedAddresses(
+        hosts: Collection<InetAddress>
+    ): Set<String> {
+        return hosts.filterIsInstance<Inet4Address>().mapNotNull { host ->
             if (
                 !host.isAnyLocalAddress &&
                 !host.isLoopbackAddress &&
                 !host.isLinkLocalAddress &&
                 !host.isMulticastAddress
             ) {
-                host.hostAddress?.let { address ->
-                    synchronized(addresses) {
-                        if (address in addresses || addresses.size < MAX_RESOLVED_HOSTS) {
-                            addresses.add(address)
-                        }
-                    }
-                }
-            }
-        }
+                host.hostAddress
+            } else null
+        }.distinct().take(MAX_RESOLVED_HOSTS).toSet()
     }
 
     private fun supportsServiceInfoCallbacks(): Boolean =
