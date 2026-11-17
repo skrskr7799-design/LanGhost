@@ -532,6 +532,24 @@ The final implementation head for this checkpoint, `b746dd58f47cc3182881c8fb82c5
 
 **Phase status remains IN PROGRESS.** The new Debug APK is ready for the next physical home-LAN acceptance pass. The tablet test has not yet been performed on this implementation, so the known-device list and source counters still need to be verified before Phase 7 can close. PR #3 remains open and unmerged.
 
+### Phase 7.6 — TCP failure classification hardening
+
+- [x] Re-audit the current TCP refusal handling against actual source: the implementation treated every `ConnectException` as positive host evidence, not only ECONNREFUSED/TCP RST.
+- [x] Restrict positive refusal evidence to explicit `ECONNREFUSED` / `Connection refused` messages. Generic `ConnectException` outcomes such as network unreachable, no route, or missing error text remain unconfirmed.
+- [x] Add regression coverage for explicit refusal versus generic connectivity failures.
+- [ ] Confirm the Android CI run for the classification change.
+- [ ] Continue with structured per-source diagnostics: distinguish TCP OPEN/REFUSED/TIMEOUT/NO_ROUTE/OTHER, ARP unavailable versus readable-empty, and NSD/SSDP/reachability unavailable versus no responders. Keep diagnostic data privacy-safe and avoid recording IP/MAC/SSID or raw exception messages.
+- [ ] Add UI presentation for source status and counters, then run full CI before another physical-device retest.
+
+The broad `ConnectException` catch was a real correctness defect: Android/JVM connect failures are not synonymous with ECONNREFUSED. This fix narrows the positive-evidence rule; it does not yet solve all missing-device cases or prove that the current subnet and supplementary discovery mechanisms are operating correctly.
+
+### Deferred engineering quality work
+- [ ] Complete Android string-resource localization for English and Russian; move user-visible Kotlin literals into resources.
+- [ ] Replace the generic Android notification small icon with a dedicated monochrome notification asset.
+- [ ] Move the OUI vendor-prefix table out of `NetworkRepository` into a versioned asset/resource with bounded loading and tests.
+- [ ] Derive HTTP User-Agent version from `BuildConfig.VERSION_NAME`.
+- [ ] Enable and validate R8/minification for Release, including keep rules and runtime smoke tests.
+
 ### Phase 7.5 — Second post-implementation physical retest (2026-11-17)
 
 The user repeated the home-LAN discovery test on the tablet after the Phase 7.4 implementation checkpoint. The inventory still contains only the same three devices (tablet, router and server); the expected computer, TV and two phones remain absent. This is a second failed physical acceptance result and confirms that the Phase 7.4 multi-signal changes did not resolve the reported coverage gap.
