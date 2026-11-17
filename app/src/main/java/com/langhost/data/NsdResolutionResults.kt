@@ -68,9 +68,12 @@ internal class NsdResolutionResults {
     fun hasObservedServices(): Boolean = entriesByService.isNotEmpty()
 
     @Synchronized
+    fun trackedServiceCount(): Int = entriesByService.size
+
+    @Synchronized
     fun hasTrackingLimitReached(): Boolean = trackingLimitReached
 
-    private companion object {
+    internal companion object {
         const val MAX_EVIDENCE_PER_IP = 16
         const val MAX_TRACKED_SERVICES = 256
     }
