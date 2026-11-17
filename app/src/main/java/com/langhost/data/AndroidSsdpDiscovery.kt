@@ -37,7 +37,7 @@ internal class AndroidSsdpDiscovery {
 
                 val deadline = System.nanoTime() + WINDOW_NANOS
                 val buffer = ByteArray(MAX_PACKET_BYTES)
-                while (System.nanoTime() < deadline && addresses.size < MAX_HOSTS) {
+                while (System.nanoTime() < deadline && results.snapshot().size < MAX_HOSTS) {
                     currentCoroutineContext().ensureActive()
                     val packet = DatagramPacket(buffer, buffer.size)
                     try {
