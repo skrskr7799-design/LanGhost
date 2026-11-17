@@ -531,3 +531,23 @@ The follow-up code audit identified three additional reliability/performance wea
 The final implementation head for this checkpoint, `b746dd58f47cc3182881c8fb82c527862eaaf521`, passed GitHub Actions run [#43865999257](https://github.com/skrskr7799-design/LanGhost/actions/runs/43865999257). Android Lint, all 145 unit tests, Debug APK build, Release APK build and APK artifact upload completed successfully. The uploaded artifact is `langhost-apks` (Debug APK plus unsigned Release APK). An earlier test attempt exposed two cancellation assertions tied to the previous batch scheduler; rather than weakening cancellation behavior, the scheduler was replaced with a bounded sliding worker implementation that propagates scope-check failures from the parent coroutine. The complete test suite is green on the recorded head.
 
 **Phase status remains IN PROGRESS.** The new Debug APK is ready for the next physical home-LAN acceptance pass. The tablet test has not yet been performed on this implementation, so the known-device list and source counters still need to be verified before Phase 7 can close. PR #3 remains open and unmerged.
+
+### Phase 7.5 — Second post-implementation physical retest (2026-11-17)
+
+The user repeated the home-LAN discovery test on the tablet after the Phase 7.4 implementation checkpoint. The inventory still contains only the same three devices (tablet, router and server); the expected computer, TV and two phones remain absent. This is a second failed physical acceptance result and confirms that the Phase 7.4 multi-signal changes did not resolve the reported coverage gap.
+
+**Do not infer a single root cause yet.** The source currently exposes aggregate positive-evidence counters (ARP, TCP, DNS-SD, SSDP and host reachability), but it does not expose enough negative/transport-level diagnostics to distinguish among:
+- candidate subnet or address-range mismatch;
+- TCP connection attempts timing out versus being refused or failing for another reason;
+- ARP table readable-but-empty versus populated entries filtered by interface/state;
+- NSD discovery start/resolve failures or no advertised services;
+- SSDP send/receive failure versus no compatible responders;
+- router client isolation, VLAN separation, endpoint firewalling, sleeping clients or Android platform restrictions.
+
+**Next diagnostic gate (before another physical retest):**
+1. Capture the current scan coverage values from the tablet, especially subnet CIDR, checked/total addresses, truncated flag, ARP availability/count, TCP, DNS-SD, SSDP and reachability counts.
+2. Add privacy-safe per-source diagnostic outcomes sufficient to distinguish "no response" from "mechanism unavailable/failed"; do not log IP addresses, MAC addresses, SSIDs or raw exception payloads.
+3. Add deterministic regression tests for each diagnostic outcome and verify the UI reports unavailable sources separately from sources that ran and found no responders.
+4. Run full CI and only then request one targeted tablet retest.
+
+**Status:** Phase 7 remains IN PROGRESS. No merge or phase closure is authorized by this retest.
