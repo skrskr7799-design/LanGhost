@@ -4,6 +4,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
+import java.io.IOException
+import java.net.InetAddress
+import java.net.SocketTimeoutException
 
 class AndroidSsdpDiscoveryTest {
     @Test
@@ -57,4 +61,76 @@ class AndroidSsdpDiscoveryTest {
         assertFalse(SsdpResponseParser.isValidResponse(invalidStatus, invalidStatus.size))
         assertFalse(SsdpResponseParser.isValidResponse(missingHeaders, missingHeaders.size))
     }
+
+    private val responder = InetAddress.getByName("192.168.1.44")
+    private val validPacket = (
+        "HTTP/1.1 200 OK\\r\\n" +
+            "ST: urn:schemas-upnp-org:device:MediaRenderer:1\\r\\n" +
+            "USN: uuid:living-room-speaker\\r\\n\\r\\n"
+        ).toByteArray(Charsets.US_ASCII)
+
+    @Test
+    fun receiveLoopKeepsResponderWhenSocketFailsAfterAValidReply() = runBlocking {
+        val results = SsdpDiscoveryResults()
+        var calls = 0
+
+        runSsdpReceiveLoop(
+            results = results,
+            deadlineNanos = 10,
+            nowNanos = { 0L },
+            receive = {
+                calls++
+                if (calls == 1) SsdpReceivedDatagram(responder, validPacket, validPacket.size)
+                else throw IOException("simulated socket failure")
+            }
+        )
+
+        assertEquals(setOf("192.168.1.44"), results.snapshot())
+        assertEquals(DiscoverySourceStatus.PARTIAL, results.status())
+        assertEquals(1, results.protocolEvidenceByIp().getValue("192.168.1.44").size)
+    }
+
+    @Test
+    fun receiveLoopReportsUnavailableWhenSocketFailsBeforeAnyReply() = runBlocking {
+        val results = SsdpDiscoveryResults()
+
+        runSsdpReceiveLoop(
+            results = results,
+            deadlineNanos = 10,
+            nowNanos = { 0L },
+            receive = { throw IOException("simulated socket failure") }
+        )
+
+        assertTrue(results.snapshot().isEmpty())
+        assertEquals(DiscoverySourceStatus.UNAVAILABLE, results.status())
+    }
+
+    @Test
+    fun receiveLoopContinuesAfterExpectedTimeoutAndIgnoresMalformedPackets() = runBlocking {
+        val results = SsdpDiscoveryResults()
+        var clockReads = 0
+        var receives = 0
+
+        runSsdpReceiveLoop(
+            results = results,
+            deadlineNanos = 10,
+            nowNanos = {
+                clockReads++
+                if (clockReads < 3) 0L else 10L
+            },
+            receive = {
+                receives++
+                when (receives) {
+                    1 -> throw SocketTimeoutException("expected receive timeout")
+                    2 -> SsdpReceivedDatagram(responder, byteArrayOf(1, 2, 3), 3)
+                    else -> SsdpReceivedDatagram(responder, validPacket, validPacket.size)
+                }
+            }
+        )
+
+        assertEquals(2, receives)
+        assertTrue(results.snapshot().isEmpty())
+        assertEquals(DiscoverySourceStatus.NO_RESPONSES, results.status())
+    }
+
 }
