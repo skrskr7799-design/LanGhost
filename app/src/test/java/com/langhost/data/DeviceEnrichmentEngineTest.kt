@@ -3,6 +3,8 @@ package com.langhost.data
 import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
 import com.langhost.data.model.DiscoveryEvidence
+import com.langhost.data.model.ProtocolEvidence
+import com.langhost.data.model.ProtocolEvidenceSource
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -241,6 +243,77 @@ class DeviceEnrichmentEngineTest {
 
         assertEquals(1_100L, result.lastConfirmedOnline)
         assertEquals(DiscoveryEvidence.SSDP_RESPONSE_OBSERVATION, result.discoveryEvidence)
+    }
+
+    @Test
+    fun refreshedProtocolEvidenceReplacesStaleDiscoveryMetadata() = runBlocking {
+        val engine = DeviceEnrichmentEngine(
+            loadCustomization = { _, _ -> DeviceCustomization() },
+            resolveHostname = { "" },
+            lookupVendor = { "" }
+        )
+        val oldEvidence = ProtocolEvidence(
+            source = ProtocolEvidenceSource.DNS_SD,
+            serviceName = "old-service"
+        )
+        val freshEvidence = ProtocolEvidence(
+            source = ProtocolEvidenceSource.SSDP,
+            friendlyName = "new-device"
+        )
+        val existing = Device(
+            ip = "192.168.1.70",
+            networkScope = "scope",
+            protocolEvidence = listOf(oldEvidence)
+        )
+
+        val result = engine.enrich(
+            ip = existing.ip,
+            mac = "",
+            bssid = "",
+            networkScope = "scope",
+            legacyNetworkScope = "scope",
+            localIp = "192.168.1.2",
+            gateway = "192.168.1.1",
+            protocolEvidence = listOf(freshEvidence),
+            replaceProtocolEvidence = true,
+            existing = existing,
+            existingByStableId = existing,
+            now = 1_200L
+        )
+
+        assertEquals(listOf(freshEvidence), result.protocolEvidence)
+    }
+
+    @Test
+    fun emptyRefreshedProtocolEvidenceClearsMetadataForServicesNoLongerAdvertised() = runBlocking {
+        val engine = DeviceEnrichmentEngine(
+            loadCustomization = { _, _ -> DeviceCustomization() },
+            resolveHostname = { "" },
+            lookupVendor = { "" }
+        )
+        val existing = Device(
+            ip = "192.168.1.71",
+            networkScope = "scope",
+            protocolEvidence = listOf(ProtocolEvidence(
+                source = ProtocolEvidenceSource.DNS_SD,
+                serviceName = "disappeared-service"
+            ))
+        )
+
+        val result = engine.enrich(
+            ip = existing.ip,
+            mac = "",
+            bssid = "",
+            networkScope = "scope",
+            legacyNetworkScope = "scope",
+            protocolEvidence = emptyList(),
+            replaceProtocolEvidence = true,
+            existing = existing,
+            existingByStableId = existing,
+            now = 1_300L
+        )
+
+        assertTrue(result.protocolEvidence.isEmpty())
     }
 
 }
