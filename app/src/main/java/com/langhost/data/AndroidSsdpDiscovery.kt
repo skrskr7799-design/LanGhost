@@ -37,20 +37,15 @@ internal class AndroidSsdpDiscovery {
                 socket.soTimeout = RECEIVE_TIMEOUT_MS
                 socket.send(DatagramPacket(request, request.size, target, SSDP_PORT))
 
-                val deadline = System.nanoTime() + WINDOW_NANOS
-                val buffer = ByteArray(MAX_PACKET_BYTES)
-                while (System.nanoTime() < deadline && results.snapshot().size < MAX_HOSTS) {
-                    currentCoroutineContext().ensureActive()
-                    val packet = DatagramPacket(buffer, buffer.size)
-                    try {
+                runSsdpReceiveLoop(
+                    results = results,
+                    deadlineNanos = System.nanoTime() + WINDOW_NANOS,
+                    receive = { buffer ->
+                        val packet = DatagramPacket(buffer, buffer.size)
                         socket.receive(packet)
-                    } catch (_: SocketTimeoutException) {
-                        continue
+                        SsdpReceivedDatagram(packet.address, packet.data, packet.length)
                     }
-                    val host = packet.address as? Inet4Address ?: continue
-                    val evidence = SsdpResponseParser.parseResponse(packet.data, packet.length)
-                    if (evidence != null) host.hostAddress?.let { results.addResponder(it, evidence) }
-                }
+                )
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -77,6 +72,45 @@ internal class AndroidSsdpDiscovery {
             "MAN: \"ssdp:discover\"\r\n" +
             "MX: 1\r\n" +
             "ST: ssdp:all\r\n\r\n"
+    }
+}
+
+
+/** A received datagram view; its byte array may be reused by the transport. */
+internal data class SsdpReceivedDatagram(
+    val address: InetAddress,
+    val data: ByteArray,
+    val length: Int
+)
+
+/**
+ * Platform-independent receive-loop boundary. The injected clock and receiver
+ * make timeout, malformed-packet and mid-window failure behavior deterministic in tests.
+ */
+internal suspend fun runSsdpReceiveLoop(
+    results: SsdpDiscoveryResults,
+    deadlineNanos: Long,
+    maxHosts: Int = 256,
+    nowNanos: () -> Long = System::nanoTime,
+    receive: (ByteArray) -> SsdpReceivedDatagram
+) {
+    val buffer = ByteArray(4_096)
+    while (nowNanos() < deadlineNanos && results.snapshot().size < maxHosts) {
+        currentCoroutineContext().ensureActive()
+        try {
+            val packet = receive(buffer)
+            val host = packet.address as? Inet4Address ?: continue
+            val evidence = SsdpResponseParser.parseResponse(packet.data, packet.length)
+            if (evidence != null) host.hostAddress?.let { results.addResponder(it, evidence) }
+        } catch (_: SocketTimeoutException) {
+            // A receive timeout is expected while waiting for unicast M-SEARCH replies.
+            continue
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            results.markOperationFailed()
+            return
+        }
     }
 }
 
