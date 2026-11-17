@@ -297,7 +297,7 @@ class NetworkDiscoveryEngineTest {
             maxTargets = 16,
             maxConcurrency = 2,
             discoverNsdServiceIps = {
-                setOf("192.168.10.5", "192.168.20.5", "127.0.0.1")
+                DiscoverySourceResult(setOf("192.168.10.5", "192.168.20.5", "127.0.0.1"), DiscoverySourceStatus.RESPONDED)
             }
         )
 
@@ -375,7 +375,7 @@ class NetworkDiscoveryEngineTest {
             timeoutMs = 150,
             maxTargets = 0,
             maxConcurrency = 1,
-            discoverNsdServiceIps = { dnsSdIps }
+            discoverNsdServiceIps = { DiscoverySourceResult(dnsSdIps, DiscoverySourceStatus.RESPONDED) }
         )
 
         assertEquals(256, result.nsdServiceIps.size)
@@ -398,7 +398,7 @@ class NetworkDiscoveryEngineTest {
             maxConcurrency = 2,
             discoverHostReachabilityIps = { candidates ->
                 assertTrue(candidates.isNotEmpty())
-                setOf("192.168.10.5", "192.168.20.5", "127.0.0.1")
+                DiscoverySourceResult(setOf("192.168.10.5", "192.168.20.5", "127.0.0.1"), DiscoverySourceStatus.RESPONDED)
             }
         )
 
@@ -425,7 +425,7 @@ class NetworkDiscoveryEngineTest {
             maxTargets = 16,
             maxConcurrency = 2,
             discoverSsdpServiceIps = {
-                setOf("192.168.10.6", "192.168.20.6", "127.0.0.1")
+                DiscoverySourceResult(setOf("192.168.10.6", "192.168.20.6", "127.0.0.1"), DiscoverySourceStatus.RESPONDED)
             }
         )
 
