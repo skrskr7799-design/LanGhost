@@ -44,7 +44,9 @@ Implementation note: TCP `RESPONDED` means at least one candidate produced posit
 - SSDP now extracts sanitized USN identity, ST device type and SERVER header; raw LOCATION URLs are intentionally discarded.
 - Discovery results carry protocol metadata alongside status, and the network engine merges only evidence belonging to in-subnet responding endpoints.
 - Unit coverage added for protocol string sanitization, DNS-SD metadata lifecycle and SSDP metadata extraction/privacy.
-- Remaining: UI presentation of protocol evidence, persistence/serialization compatibility review, richer manufacturer/model extraction where protocol data supports it, and end-to-end device-level tests.
+- Device detail now presents DNS-SD/SSDP protocol evidence separately from heuristic type confidence. Each scan replaces the current protocol-evidence snapshot so vanished advertisements do not remain indefinitely.
+- Added device-enrichment tests for replacing stale evidence and clearing metadata when services are no longer advertised.
+- Remaining: persistence/serialization compatibility review, richer manufacturer/model extraction where protocol data supports it, and end-to-end/device-level tests.
 
 ## Phase 8 — Device Intelligence & Classification (partially implemented; protocol evidence remains queued)
 
