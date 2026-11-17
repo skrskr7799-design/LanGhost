@@ -309,6 +309,7 @@ class NetworkDiscoveryEngineTest {
         assertEquals(1, result.ips.count { it == "192.168.10.5" })
         assertEquals(1, result.coverage.tcpResponsiveHosts)
         assertEquals(1, result.coverage.dnsSdResolvedHosts)
+        assertEquals(DiscoverySourceStatus.RESPONDED, result.coverage.dnsSdStatus)
     }
 
     @Test
@@ -331,6 +332,7 @@ class NetworkDiscoveryEngineTest {
         assertTrue(result.ips.contains("192.168.10.3"))
         assertTrue(result.ips.contains("192.168.10.4"))
         assertTrue(result.nsdServiceIps.isEmpty())
+        assertEquals(DiscoverySourceStatus.UNAVAILABLE, result.coverage.dnsSdStatus)
     }
 
     @Test
@@ -407,6 +409,7 @@ class NetworkDiscoveryEngineTest {
         assertFalse(result.ips.contains("192.168.20.5"))
         assertFalse(result.ips.contains("127.0.0.1"))
         assertEquals(1, result.coverage.reachabilityResponsiveHosts)
+        assertEquals(DiscoverySourceStatus.RESPONDED, result.coverage.reachabilityStatus)
     }
 
 
@@ -434,6 +437,7 @@ class NetworkDiscoveryEngineTest {
         assertFalse(result.ips.contains("192.168.20.6"))
         assertFalse(result.ips.contains("127.0.0.1"))
         assertEquals(1, result.coverage.ssdpResponsiveHosts)
+        assertEquals(DiscoverySourceStatus.RESPONDED, result.coverage.ssdpStatus)
     }
 
 
