@@ -63,9 +63,10 @@ internal class NetworkProbeEngine(
                             responded = true
                         } catch (cancelled: CancellationException) {
                             throw cancelled
-                        } catch (_: ConnectException) {
-                            // ECONNREFUSED/TCP RST is positive evidence that the endpoint responded.
-                            responded = true
+                        } catch (error: ConnectException) {
+                            // Only an explicit refusal proves the remote TCP stack responded.
+                            // ConnectException can also represent routing/connectivity failures.
+                            responded = isConnectionRefused(error)
                         } catch (_: Exception) {
                             // Timeouts and routing failures remain unknown.
                         } finally {
@@ -163,4 +164,11 @@ internal class NetworkProbeEngine(
         const val DISCOVERY_PORT_CONCURRENCY = 192
         const val MAX_DISCOVERY_CONNECT_TIMEOUT_MS = 400L
     }
+}
+
+
+/** A refusal (ECONNREFUSED/TCP RST) is positive evidence; generic connect failures are not. */
+internal fun isConnectionRefused(error: ConnectException): Boolean {
+    val message = error.message?.lowercase().orEmpty()
+    return "econnrefused" in message || "connection refused" in message
 }
