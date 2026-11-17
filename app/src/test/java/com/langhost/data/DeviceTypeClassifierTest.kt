@@ -42,7 +42,7 @@ class DeviceTypeClassifierTest {
 
     @Test
     fun contradictoryHostnameSignalsRemainUnknown() {
-        val result = DeviceTypeClassifier.classify("iphone-tv", "", emptyList(), false)
+        val result = DeviceTypeClassifier.classify("iphone-smart-tv", "", emptyList(), false)
 
         assertEquals(DeviceType.UNKNOWN, result.type)
         assertEquals(0, result.confidence)
