@@ -30,6 +30,7 @@ The broad `ConnectException` catch was a real correctness defect: Android/JVM co
 - [x] Display partial availability distinctly in the dashboard and preserve it through the platform-independent discovery engine.
 - [x] Add regression coverage for propagation of partial DNS-SD/SSDP outcomes and retention of their valid in-subnet results.
 - [ ] Add adapter-level tests for DNS-SD mixed service-type startup and SSDP response-then-failure behavior; current engine tests verify propagation, not Android callback/socket orchestration.
+- [x] Extend pure SSDP parser regression tests for case-insensitive headers, LOCATION as an alternative identity header, invalid packet lengths, and missing identity headers.
 - [ ] Add/extend regression tests for ARP readable-empty versus unavailable and source status propagation to UI.
 - [ ] Validate source status behavior on physical Android devices and multiple router/AP configurations.
 
@@ -665,6 +666,12 @@ The following user-proposed capabilities are accepted as product requirements. T
 - KEV inclusion means a vulnerability is known to be exploited in the wild; it does not establish that the detected device is vulnerable or exploitable.
 - Persist network history locally by default, provide retention/deletion controls, and avoid collecting payloads, credentials or unrelated browsing data.
 
+
+## Phase 7.7 adapter review notes
+
+- SSDP response parsing is isolated and now has coverage for status-line validation, required identity headers, header-name case folding, and packet-length bounds. Runtime socket partial-failure behavior still needs an injectable socket seam or instrumentation test; parser tests do not claim to cover it.
+- DNS-SD uses bounded per-type startup/discovery windows and bounded resolution concurrency. Android callback orchestration still needs an instrumentation/fake-adapter test, especially registration failure, service loss, cancellation cleanup, and mixed start outcomes.
+- ARP availability is based on successful reading of `/proc/net/arp`, not on whether entries exist; a readable empty table is correctly `NO_RESPONSES`, while unreadable/blank interface is `UNAVAILABLE`.
 
 ## Final release and merge gate — required before merging into `main`
 
