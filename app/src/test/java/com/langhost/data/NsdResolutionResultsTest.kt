@@ -22,7 +22,7 @@ class NsdResolutionResultsTest {
         results.resolved("printer|_ipp._tcp.", printerGeneration, setOf("192.168.1.20"))
         results.resolved("nas|_smb._tcp.", nasGeneration, setOf("192.168.1.30"))
 
-        results.serviceLost("printer|_ipp._tcp.")
+        results.serviceLost("printer|_ipp._tcp.", printerGeneration)
 
         assertEquals(setOf("192.168.1.30"), results.addresses())
         assertEquals(listOf(evidence("nas")), results.protocolEvidenceByIp()["192.168.1.30"])
@@ -36,7 +36,7 @@ class NsdResolutionResultsTest {
         results.resolved("host|_http._tcp.", httpGeneration, setOf("192.168.1.20"))
         results.resolved("host|_https._tcp.", httpsGeneration, setOf("192.168.1.20"))
 
-        results.serviceLost("host|_http._tcp.")
+        results.serviceLost("host|_http._tcp.", httpGeneration)
 
         assertEquals(setOf("192.168.1.20"), results.addresses())
         assertEquals(listOf(evidence("https")), results.protocolEvidenceByIp()["192.168.1.20"])
