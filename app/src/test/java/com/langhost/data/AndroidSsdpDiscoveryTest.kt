@@ -116,7 +116,7 @@ class AndroidSsdpDiscoveryTest {
             deadlineNanos = 10,
             nowNanos = {
                 clockReads++
-                if (clockReads < 3) 0L else 10L
+                if (clockReads < 4) 0L else 10L
             },
             receive = {
                 receives++
@@ -128,9 +128,9 @@ class AndroidSsdpDiscoveryTest {
             }
         )
 
-        assertEquals(2, receives)
-        assertTrue(results.snapshot().isEmpty())
-        assertEquals(DiscoverySourceStatus.NO_RESPONSES, results.status())
+        assertEquals(3, receives)
+        assertEquals(setOf("192.168.1.44"), results.snapshot())
+        assertEquals(DiscoverySourceStatus.RESPONDED, results.status())
     }
 
 }
