@@ -26,11 +26,14 @@ The broad `ConnectException` catch was a real correctness defect: Android/JVM co
 - [x] Preserve optional-source isolation: DNS-SD, SSDP and reachability failures do not discard valid ARP/TCP evidence; coroutine cancellation remains cancellation.
 - [x] Keep subnet filtering, bounded host/result counts, bounded concurrency and network-scope checkpoints in the discovery pipeline.
 - [x] Fix the DNS-SD startup-result function's missing return and verify both push and pull-request Android CI runs passed on `7cf0de2669e874071a36d6ee0ab71f858c20892c` (runs #44026575567 and #44026581972).
-- [ ] Review mixed/partial source failures and ensure aggregate labels never imply a complete scan when only some service types or probes were usable.
-- [ ] Add/extend regression tests for partial success, partial failure, ARP readable-empty versus unavailable, and source status propagation to UI.
+- [x] Add an explicit PARTIAL aggregate state; DNS-SD reports it when only some service types start, and SSDP reports it when responses were collected before a later socket/operation failure.
+- [x] Display partial availability distinctly in the dashboard and preserve it through the platform-independent discovery engine.
+- [x] Add regression coverage for propagation of partial DNS-SD/SSDP outcomes and retention of their valid in-subnet results.
+- [ ] Add adapter-level tests for DNS-SD mixed service-type startup and SSDP response-then-failure behavior; current engine tests verify propagation, not Android callback/socket orchestration.
+- [ ] Add/extend regression tests for ARP readable-empty versus unavailable and source status propagation to UI.
 - [ ] Validate source status behavior on physical Android devices and multiple router/AP configurations.
 
-Implementation note: TCP `RESPONDED` means at least one candidate produced positive TCP host evidence; it does not mean every candidate was reachable. `NO_RESPONSES` is not proof that hosts are offline. DNS-SD currently aggregates successful service-discovery starts, and SSDP currently reports `UNAVAILABLE` if its operation encounters an exception even after collecting responses; these mixed-outcome semantics are explicit follow-up review items before calling source diagnostics fully polished.
+Implementation note: TCP `RESPONDED` means at least one candidate produced positive TCP host evidence; it does not mean every candidate was reachable. `NO_RESPONSES` is not proof that hosts are offline. DNS-SD and SSDP now expose `PARTIAL` when they have usable evidence alongside a failed subset of their operation. Adapter-level lifecycle tests and physical-device validation remain open.
 
 ### Phase 8 — Device Intelligence & Classification (partially implemented; protocol evidence remains queued)
 
