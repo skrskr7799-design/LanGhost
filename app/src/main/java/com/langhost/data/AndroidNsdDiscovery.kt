@@ -126,8 +126,12 @@ internal class AndroidNsdDiscovery(context: Context) {
             }
 
             override fun onServiceLost(service: NsdServiceInfo) {
-                val key = "${service.serviceName}|${service.serviceType}"
-                results.serviceLost(key)
+                // DiscoveryListener exposes no advertisement generation/token. A delayed
+                // loss event can therefore be indistinguishable from a loss for a newer
+                // reappearance with the same service key. Do not delete current evidence
+                // from this ambiguous callback; API 34+ ServiceInfoCallback has a captured
+                // generation and performs safe, versioned removal. Legacy observations are
+                // scan-scoped and naturally discarded when this bounded scan completes.
             }
 
             override fun onDiscoveryStopped(serviceType: String) {
