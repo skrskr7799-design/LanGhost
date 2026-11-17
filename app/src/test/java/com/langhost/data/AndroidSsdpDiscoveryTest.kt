@@ -20,9 +20,9 @@ class AndroidSsdpDiscoveryTest {
     @Test
     fun acceptsValidResponseWithLocationInsteadOfUsnAndCaseInsensitiveHeaders() {
         val response = (
-            "HTTP/1.1 200 OK\\r\\n" +
-                "sT: upnp:rootdevice\\r\\n" +
-                "lOcAtIoN: http://192.168.1.1:1900/device.xml\\r\\n\\r\\n"
+            "HTTP/1.1 200 OK\r\n" +
+                "sT: upnp:rootdevice\r\n" +
+                "lOcAtIoN: http://192.168.1.1:1900/device.xml\r\n\r\n"
             ).toByteArray(Charsets.US_ASCII)
 
         assertTrue(SsdpResponseParser.isValidResponse(response, response.size))
@@ -30,11 +30,11 @@ class AndroidSsdpDiscoveryTest {
 
     @Test
     fun rejectsInvalidLengthAndResponsesMissingIdentityHeaders() {
-        val validStatusOnly = "HTTP/1.1 200 OK\\r\\nCACHE-CONTROL: max-age=10\\r\\n\\r\\n"
+        val validStatusOnly = "HTTP/1.1 200 OK\r\nCACHE-CONTROL: max-age=10\r\n\r\n"
             .toByteArray(Charsets.US_ASCII)
-        val validStatusAndStOnly = "HTTP/1.1 200 OK\\r\\nST: ssdp:all\\r\\n\\r\\n"
+        val validStatusAndStOnly = "HTTP/1.1 200 OK\r\nST: ssdp:all\r\n\r\n"
             .toByteArray(Charsets.US_ASCII)
-        val response = "HTTP/1.1 200 OK\\r\\nST: ssdp:all\\r\\nUSN: uuid:x\\r\\n\\r\\n"
+        val response = "HTTP/1.1 200 OK\r\nST: ssdp:all\r\nUSN: uuid:x\r\n\r\n"
             .toByteArray(Charsets.US_ASCII)
 
         assertFalse(SsdpResponseParser.isValidResponse(response, 0))
