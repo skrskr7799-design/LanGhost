@@ -1,24 +1,30 @@
 
 
+
+### Phase 7.5 — Physical-device discovery validation update
+- [x] User retested the latest build and confirmed that all six known LAN devices were discovered.
+- [x] Corrected the earlier three-device observation: it came from an older APK, not the current discovery implementation.
+- [ ] Continue testing source-level reliability across additional routers, Android versions, mesh roaming, client isolation and MAC randomization.
+
 ### Phase 7.6 — TCP failure classification hardening
 
 - [x] Re-audit the current TCP refusal handling against actual source: the implementation treated every `ConnectException` as positive host evidence, not only ECONNREFUSED/TCP RST.
 - [x] Restrict positive refusal evidence to explicit `ECONNREFUSED` / `Connection refused` messages. Generic `ConnectException` outcomes such as network unreachable, no route, or missing error text remain unconfirmed.
 - [x] Add regression coverage for explicit refusal versus generic connectivity failures.
-- [ ] Confirm the Android CI run for the classification change.
+- [x] Confirm the Android CI run for the classification change: run #44023075780 passed on `9bdba266783bde8f06dd0956c26c02a55e9345ab`; subsequent documentation CI runs #44023733482 and #44023727367 also passed.
 - [ ] Continue with structured per-source diagnostics: distinguish TCP OPEN/REFUSED/TIMEOUT/NO_ROUTE/OTHER, ARP unavailable versus readable-empty, and NSD/SSDP/reachability unavailable versus no responders. Keep diagnostic data privacy-safe and avoid recording IP/MAC/SSID or raw exception messages.
 - [ ] Add UI presentation for source status and counters, then run full CI before another physical-device retest.
 
 The broad `ConnectException` catch was a real correctness defect: Android/JVM connect failures are not synonymous with ECONNREFUSED. This fix narrows the positive-evidence rule; it does not yet solve all missing-device cases or prove that the current subnet and supplementary discovery mechanisms are operating correctly.
 
-### Phase 8 — Device Intelligence & Classification (queued after discovery validation)
+### Phase 8 — Device Intelligence & Classification (partially implemented; protocol evidence remains queued)
 
-- [ ] Replace first-match device-type heuristics with a conservative weighted classifier that records confidence and explainable signal identifiers.
+- [x] Replace first-match device-type heuristics with a conservative weighted classifier that records confidence and explainable signal identifiers.
 - [ ] Preserve protocol-level evidence from mDNS/DNS-SD and SSDP (service type, friendly name, manufacturer/model hints) instead of reducing all responses to an IP-only observation.
 - [ ] Add bounded, low-impact service fingerprinting for already discovered hosts; keep service discovery distinct from the security audit and never treat a closed/filtered port as a device-type signal.
 - [ ] Improve hostname normalization and vendor/OUI interpretation; locally administered/random MACs must not be assigned a manufacturer.
-- [ ] Surface type confidence and evidence in device inventory/detail UI, with UNKNOWN retained whenever evidence is weak or conflicting.
-- [ ] Add deterministic tests for common phones, tablets, TVs, PCs/laptops, routers, printers, NAS, cameras and IoT devices, including ambiguous and contradictory signals.
+- [x] Surface heuristic type confidence and evidence in device inventory/detail UI, with UNKNOWN retained whenever evidence is weak or conflicting. Confidence is an evidence-strength estimate, not a calibrated probability.
+- [x] Add deterministic classifier tests for representative phones, TVs, NAS, printers, cameras, weak/ambiguous signals and contradictory evidence; continue expanding coverage as protocol metadata is added.
 
 ### Phase 8 — Visual identity
 
@@ -33,7 +39,7 @@ The broad `ConnectException` catch was a real correctness defect: Android/JVM co
 - [ ] Enable and validate R8/minification for Release, including keep rules and runtime smoke tests.
 # LanGhost — Engineering Roadmap & Audit Register
 
-> Status: Phases 1–5 implementation and automated CI complete; Phase 6 physical-device validation remains open; Phase 7 Network Discovery Reliability IN PROGRESS
+> Status: Phases 1–5 implementation and automated CI complete; Phase 6 physical-device validation partially verified; Phase 7 Network Discovery Reliability IN PROGRESS; Product Expansion Roadmap recorded
 > Baseline branch: main
 > Baseline commit: 6c36723497925e69d97081f944f82ff6bd4dc9e4 (PR #2 merged)
 > Working branch: audit/phase-7-discovery-reliability
