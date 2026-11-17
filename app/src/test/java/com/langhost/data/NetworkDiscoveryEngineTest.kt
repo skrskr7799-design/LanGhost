@@ -1,5 +1,6 @@
 package com.langhost.data
 
+import com.langhost.data.model.DiscoverySourceStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -48,7 +49,46 @@ class NetworkDiscoveryEngineTest {
         assertEquals("scope-a", result.coverage.networkScope)
         assertEquals(1, result.coverage.arpObservedHosts)
         assertEquals(1, result.coverage.tcpResponsiveHosts)
+        assertEquals(DiscoverySourceStatus.RESPONDED, result.coverage.tcpStatus)
         assertEquals(0, result.coverage.dnsSdResolvedHosts)
+    }
+
+    @Test
+    fun tcpSourceReportsNoResponsesWhenSubnetWasCheckedWithoutPositiveReplies() = runBlocking {
+        val result = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = emptyMap(),
+            networkScope = "scope-no-tcp",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2
+        )
+
+        assertEquals(DiscoverySourceStatus.NO_RESPONSES, result.coverage.tcpStatus)
+    }
+
+    @Test
+    fun tcpSourceIsNotRunWhenSubnetCannotBeEnumerated() = runBlocking {
+        val result = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.0.255.0",
+            arpEntries = emptyMap(),
+            networkScope = "scope-no-subnet",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2
+        )
+
+        assertEquals(DiscoverySourceStatus.NOT_RUN, result.coverage.tcpStatus)
     }
 
     @Test
