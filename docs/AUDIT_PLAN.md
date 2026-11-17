@@ -584,3 +584,59 @@ The user repeated the home-LAN discovery test on the tablet after the Phase 7.4 
 4. Run full CI and only then request one targeted tablet retest.
 
 **Status:** Phase 7 remains IN PROGRESS. No merge or phase closure is authorized by this retest.
+
+## Product Expansion Roadmap — LanGhost Intelligence Platform
+
+The following user-proposed capabilities are accepted as product requirements. They are grouped by shared foundations and implementation dependencies rather than treated as isolated screens. All active discovery, probing, monitoring and remediation remain restricted to networks/devices the user owns or is explicitly authorized to assess.
+
+### Foundation A — Evidence, identity and network timeline
+- [ ] Persist normalized observations with timestamps and source provenance: discovery source, mDNS/DNS-SD service data, SSDP/UPnP identity/model data, hostname, OUI confidence, open services, HTTP fingerprints and scan context.
+- [ ] Build a durable local event/history model for device first/last seen, presence transitions, gateway identity, DNS configuration, router service/port changes, WAN address changes and scan/diagnostic events.
+- [ ] Add device ownership labels (Mine / Guest / Suspicious), notification actions, and a unified evidence view on device details.
+- [ ] Implement conservative randomized-MAC identity correlation ("Ghosts") using multiple independent signals and time windows. Never merge identities on hostname or timing alone; expose match confidence and allow manual split/merge.
+- [ ] Build a timeline query layer that can power presence charts, router/ISP incident logs, ghost sightings and historical topology ("time machine").
+
+### Foundation B — Network diagnostics and trust
+- [ ] One-tap "Why is the internet slow?" diagnostic pipeline: Wi-Fi link/RSSI/link speed where Android exposes them, gateway latency, DNS latency, external latency, loss/jitter and channel metadata where available. Produce a reasoned verdict with per-layer measurements and explicit unavailable/unsupported states.
+- [ ] DNS consistency check comparing configured resolver answers with independent DNS-over-HTTPS answers for a small controlled domain set; report differences, not automatic proof of spoofing.
+- [ ] Public/captive-network trust assessment: captive portal detection, DNS comparison, certificate-chain inspection for app-controlled probes, HTTP content-integrity checks against known references, and BSSID/network identity change warnings. Clearly distinguish a suspicious signal from confirmed interception.
+- [ ] Gateway drift monitoring: gateway MAC, configured DNS servers, router service/port baseline and relevant network identity changes, with deduplication and user-configurable alerts.
+- [ ] Router/WAN incident correlation: simultaneous LAN disappearance, gateway reachability loss and public-IP change, with timestamped exportable evidence for ISP support.
+
+### Foundation C — Router security and vulnerability intelligence
+- [ ] Read UPnP IGD port mappings from the local gateway and present external port, protocol, internal target, description and lease data where supplied.
+- [ ] Offer deletion of a selected mapping only after explicit per-mapping confirmation; show the consequence and preserve an audit event. Do not modify mappings automatically.
+- [ ] Add KEV matching using locally bundled/versioned CISA Known Exploited Vulnerabilities data. Match vendor/product/version conservatively; label fuzzy or incomplete matches as "possible", include catalog timestamp and never imply exploitability from a banner alone.
+- [ ] Keep router discovery, inventory fingerprinting and vulnerability assessment as distinct stages with clear evidence provenance.
+
+### Foundation D — Presence, discovery UX and network surfaces
+- [ ] Presence ("Room"): opt-in device arrival/departure notifications, hourly presence charts and privacy/retention controls.
+- [ ] Notification actions for newly observed devices: Mine / Guest / Suspicious; persist classification and expose all collected evidence in the device profile.
+- [ ] LAN home page: locally discovered service tiles (router, NAS, Home Assistant, printer, Pi-hole, etc.) using verified service endpoints and one-tap web UI launch. Never guess an endpoint from a device type alone.
+- [ ] Wi-Fi floor-plan heatmap: user-imported floor plan, manually recorded measurement points, RSSI and throughput samples, coverage visualization and dead-zone estimates. Account for device orientation, band and measurement uncertainty.
+- [ ] Hot/cold access-point radar: RSSI-based proximity guidance as the baseline; Wi-Fi RTT/802.11mc only on supported Android devices/APs with capability checks. Audio/haptics are optional feedback; AR direction is a later enhancement.
+
+### Foundation E — Advanced network intelligence
+- [ ] Ghosts screen for conservative device-identity correlation and unusual temporal patterns (brief appearances, night-only presence, repeated identity changes), with explainable evidence and false-positive controls.
+- [ ] Historical topology playback with a time slider and event reconstruction from the local timeline. Natural-language questions are optional and must query only locally stored history unless the user explicitly enables an external service.
+
+### Delivery order and dependency gates
+1. Finish Phase 7 discovery reliability and source diagnostics; retain the successful physical result that the latest build discovered all six known devices.
+2. Audit and finish current Device Intelligence work: protocol evidence preservation (mDNS/SSDP), classifier validation, icon assets and honest confidence semantics.
+3. Deliver the shared local evidence/event store and device ownership model. This unlocks Ghosts, Room, drift alerts, notification actions and the time machine.
+4. Deliver the one-tap performance diagnostic and gateway drift/DNS comparison; these are high-value, mostly read-only capabilities and reuse existing network primitives.
+5. Deliver UPnP mapping inventory first, then carefully gated per-mapping deletion; add KEV matching after reliable model/version extraction exists.
+6. Deliver LAN home page and incident-history export.
+7. Deliver public-Wi-Fi trust assessment with platform limitations documented and tests for captive portals, DNS variance and certificate results.
+8. Deliver Wi-Fi heatmap and hot/cold radar after validating Android hardware/API support and measurement reliability.
+9. Deliver advanced Ghosts correlation and historical topology playback after sufficient real observation history exists.
+
+### Platform and safety constraints
+- Android does not expose every Wi-Fi metric on every OS/device; channel utilization, scan results, BSSID and RTT may be permission-, hardware-, location- or platform-restricted. UI must report unsupported/unavailable rather than fabricate values.
+- A DNS answer difference from DoH can result from CDN geography, split-horizon DNS, filtering or resolver policy; it is an anomaly to investigate, not proof of DNS hijacking.
+- Certificate inspection is limited to connections LanGhost itself makes; the app cannot inspect arbitrary TLS sessions from other applications without invasive interception, which is out of scope.
+- HTTP integrity checks require stable, known reference content and must account for legitimate content variation.
+- Randomized MAC correlation is probabilistic. Do not silently merge devices or label a device malicious based only on unusual presence.
+- UPnP mapping removal is a consequential router configuration change and always requires explicit user confirmation.
+- KEV inclusion means a vulnerability is known to be exploited in the wild; it does not establish that the detected device is vulnerable or exploitable.
+- Persist network history locally by default, provide retention/deletion controls, and avoid collecting payloads, credentials or unrelated browsing data.
