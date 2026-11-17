@@ -14,16 +14,20 @@ internal class NsdResolutionResults {
     )
 
     private val entriesByService = LinkedHashMap<String, Entry>()
-    private val generationByService = HashMap<String, Long>()
-    private val observedServices = LinkedHashSet<String>()
+    private var nextGeneration = 0L
     private var resolutionFailures = 0
+    private var trackingLimitReached = false
 
     /** Starts a new advertisement generation so late callbacks from an older one are ignored. */
     @Synchronized
-    fun serviceObserved(serviceKey: String, evidence: ProtocolEvidence): Long {
-        val generation = (generationByService[serviceKey] ?: 0L) + 1L
-        generationByService[serviceKey] = generation
-        observedServices.add(serviceKey)
+    fun serviceObserved(serviceKey: String, evidence: ProtocolEvidence): Long? {
+        if (entriesByService.containsKey(serviceKey)) return null
+        if (entriesByService.size >= MAX_TRACKED_SERVICES) {
+            trackingLimitReached = true
+            return null
+        }
+        nextGeneration += 1L
+        val generation = nextGeneration
         entriesByService[serviceKey] = Entry(generation, emptySet(), evidence)
         return generation
     }
@@ -45,7 +49,6 @@ internal class NsdResolutionResults {
         val current = entriesByService[serviceKey] ?: return
         if (generation != null && current.generation != generation) return
         entriesByService.remove(serviceKey)
-        observedServices.remove(serviceKey)
     }
 
     @Synchronized
@@ -62,9 +65,13 @@ internal class NsdResolutionResults {
     fun hasResolutionFailures(): Boolean = resolutionFailures > 0
 
     @Synchronized
-    fun hasObservedServices(): Boolean = observedServices.isNotEmpty()
+    fun hasObservedServices(): Boolean = entriesByService.isNotEmpty()
+
+    @Synchronized
+    fun hasTrackingLimitReached(): Boolean = trackingLimitReached
 
     private companion object {
         const val MAX_EVIDENCE_PER_IP = 16
+        const val MAX_TRACKED_SERVICES = 256
     }
 }
