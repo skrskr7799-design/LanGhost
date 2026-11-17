@@ -118,7 +118,7 @@ internal class AndroidNsdDiscovery(context: Context) {
                 }
 
                 if (supportsServiceInfoCallbacks()) {
-                    registerResolvedServiceCallback(service, key, generation, results, seenServices, activeInfoCallbacks, pendingResolutions)
+                    registerResolvedServiceCallback(service, key, generation, results, activeInfoCallbacks, pendingResolutions)
                 } else {
                     resolveServiceLegacy(service, key, generation, results, pendingResolutions)
                 }
@@ -126,7 +126,6 @@ internal class AndroidNsdDiscovery(context: Context) {
 
             override fun onServiceLost(service: NsdServiceInfo) {
                 val key = "${service.serviceName}|${service.serviceType}"
-                seenServices.remove(key)
                 results.serviceLost(key)
             }
 
