@@ -24,6 +24,8 @@ import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import com.langhost.data.model.DiscoverySourceStatus
+import com.langhost.data.model.ProtocolEvidence
+import com.langhost.data.model.ProtocolEvidenceSource
 
 /**
  * Bounded foreground DNS-SD discovery.
@@ -68,7 +70,8 @@ internal class AndroidNsdDiscovery(context: Context) {
                     resolved.isNotEmpty() -> DiscoverySourceStatus.RESPONDED
                     results.hasObservedServices() -> DiscoverySourceStatus.PARTIAL
                     else -> DiscoverySourceStatus.NO_RESPONSES
-                }
+                },
+                protocolEvidenceByIp = results.protocolEvidenceByIp()
             )
         } finally {
             // A cancelled scan must not leave service-info listeners registered.
@@ -105,7 +108,14 @@ internal class AndroidNsdDiscovery(context: Context) {
             override fun onServiceFound(service: NsdServiceInfo) {
                 val key = "${service.serviceName}|${service.serviceType}"
                 if (!seenServices.add(key)) return
-                results.serviceObserved()
+                results.serviceObserved(
+                    key,
+                    ProtocolEvidence(
+                        source = ProtocolEvidenceSource.DNS_SD,
+                        serviceType = ProtocolEvidence.sanitize(service.serviceType),
+                        serviceName = ProtocolEvidence.sanitize(service.serviceName)
+                    )
+                )
                 if (pendingResolutions.incrementAndGet() > MAX_PENDING_RESOLUTIONS) {
                     pendingResolutions.decrementAndGet()
                     return
