@@ -41,7 +41,6 @@ internal class AndroidNsdDiscovery(context: Context) {
     @SuppressLint("NewApi")
     suspend fun discover(activeNetwork: Network?): DiscoverySourceResult<Set<String>> = withContext(Dispatchers.IO) {
         val results = NsdResolutionResults()
-        val seenServices = ConcurrentHashMap.newKeySet<String>()
         val activeInfoCallbacks = ConcurrentHashMap.newKeySet<NsdManager.ServiceInfoCallback>()
         val pendingResolutions = AtomicInteger(0)
         val multicastLock = acquireMulticastLockIfRequired()
@@ -54,7 +53,6 @@ internal class AndroidNsdDiscovery(context: Context) {
                             serviceType = serviceType,
                             activeNetwork = activeNetwork,
                             results = results,
-                            seenServices = seenServices,
                             activeInfoCallbacks = activeInfoCallbacks,
                             pendingResolutions = pendingResolutions
                         )
@@ -66,7 +64,7 @@ internal class AndroidNsdDiscovery(context: Context) {
                 value = resolved,
                 status = when {
                     startedTypes.none { it } -> DiscoverySourceStatus.UNAVAILABLE
-                    startedTypes.any { !it } || results.hasResolutionFailures() -> DiscoverySourceStatus.PARTIAL
+                    startedTypes.any { !it } || results.hasResolutionFailures() || results.hasTrackingLimitReached() -> DiscoverySourceStatus.PARTIAL
                     resolved.isNotEmpty() -> DiscoverySourceStatus.RESPONDED
                     results.hasObservedServices() -> DiscoverySourceStatus.PARTIAL
                     else -> DiscoverySourceStatus.NO_RESPONSES
@@ -92,7 +90,6 @@ internal class AndroidNsdDiscovery(context: Context) {
         serviceType: String,
         activeNetwork: Network?,
         results: NsdResolutionResults,
-        seenServices: MutableSet<String>,
         activeInfoCallbacks: MutableSet<NsdManager.ServiceInfoCallback>,
         pendingResolutions: AtomicInteger
     ): Boolean {
@@ -107,7 +104,6 @@ internal class AndroidNsdDiscovery(context: Context) {
 
             override fun onServiceFound(service: NsdServiceInfo) {
                 val key = "${service.serviceName}|${service.serviceType}"
-                if (!seenServices.add(key)) return
                 val generation = results.serviceObserved(
                     key,
                     ProtocolEvidence(
@@ -115,7 +111,7 @@ internal class AndroidNsdDiscovery(context: Context) {
                         serviceType = ProtocolEvidence.sanitize(service.serviceType),
                         serviceName = ProtocolEvidence.sanitize(service.serviceName)
                     )
-                )
+                ) ?: return
                 if (pendingResolutions.incrementAndGet() > MAX_PENDING_RESOLUTIONS) {
                     pendingResolutions.decrementAndGet()
                     return
@@ -188,7 +184,6 @@ internal class AndroidNsdDiscovery(context: Context) {
         serviceKey: String,
         generation: Long,
         results: NsdResolutionResults,
-        seenServices: MutableSet<String>,
         activeInfoCallbacks: MutableSet<NsdManager.ServiceInfoCallback>,
         pendingResolutions: AtomicInteger
     ) {
@@ -218,7 +213,6 @@ internal class AndroidNsdDiscovery(context: Context) {
             }
 
             override fun onServiceLost() {
-                seenServices.remove(serviceKey)
                 results.serviceLost(serviceKey, generation)
                 runCatching { nsdManager.unregisterServiceInfoCallback(this) }
             }
