@@ -11,6 +11,20 @@
 
 The broad `ConnectException` catch was a real correctness defect: Android/JVM connect failures are not synonymous with ECONNREFUSED. This fix narrows the positive-evidence rule; it does not yet solve all missing-device cases or prove that the current subnet and supplementary discovery mechanisms are operating correctly.
 
+### Phase 8 — Device Intelligence & Classification (queued after discovery validation)
+
+- [ ] Replace first-match device-type heuristics with a conservative weighted classifier that records confidence and explainable signal identifiers.
+- [ ] Preserve protocol-level evidence from mDNS/DNS-SD and SSDP (service type, friendly name, manufacturer/model hints) instead of reducing all responses to an IP-only observation.
+- [ ] Add bounded, low-impact service fingerprinting for already discovered hosts; keep service discovery distinct from the security audit and never treat a closed/filtered port as a device-type signal.
+- [ ] Improve hostname normalization and vendor/OUI interpretation; locally administered/random MACs must not be assigned a manufacturer.
+- [ ] Surface type confidence and evidence in device inventory/detail UI, with UNKNOWN retained whenever evidence is weak or conflicting.
+- [ ] Add deterministic tests for common phones, tablets, TVs, PCs/laptops, routers, printers, NAS, cameras and IoT devices, including ambiguous and contradictory signals.
+
+### Phase 8 — Visual identity
+
+- [ ] Replace the placeholder launcher mark with the LanGhost shield/hood/network-node identity; verify adaptive and round launcher icons on Android 8+.
+- [ ] Add a dedicated monochrome notification icon and validate its appearance in system notification surfaces.
+
 ### Deferred engineering quality work
 - [ ] Complete Android string-resource localization for English and Russian; move user-visible Kotlin literals into resources.
 - [ ] Replace the generic Android notification small icon with a dedicated monochrome notification asset.
