@@ -147,6 +147,8 @@ internal class NetworkDiscoveryEngine(
             nsdServiceIps = scopedNsdServiceIps,
             ssdpServiceIps = scopedSsdpServiceIps,
             hostReachabilityIps = scopedReachabilityIps,
+            protocolEvidenceByIp = (supplemental.nsd.protocolEvidenceByIp + supplemental.ssdp.protocolEvidenceByIp)
+                .mapValues { (_, evidence) -> evidence.distinct().take(MAX_PROTOCOL_EVIDENCE_PER_HOST) },
             coverage = coverage
         )
     }
@@ -155,6 +157,7 @@ internal class NetworkDiscoveryEngine(
 private const val MAX_NSD_HOSTS = 256
 private const val MAX_SSDP_HOSTS = 256
 private const val MAX_REACHABILITY_HOSTS = 1_024
+private const val MAX_PROTOCOL_EVIDENCE_PER_HOST = 24
 
 private data class SupplementalDiscoveryResults(
     val arpEntries: Map<String, String>,
@@ -174,5 +177,7 @@ internal data class NetworkDiscoverySnapshot(
     val ssdpServiceIps: Set<String>,
     /** Hosts confirmed by the interface-bound best-effort reachability probe. */
     val hostReachabilityIps: Set<String>,
+    /** Sanitized DNS-SD/SSDP metadata keyed by an in-subnet IPv4 endpoint. */
+    val protocolEvidenceByIp: Map<String, List<com.langhost.data.model.ProtocolEvidence>> = emptyMap(),
     val coverage: ScanCoverage
 )
