@@ -9,7 +9,7 @@ import org.junit.Test
 class ProtocolEvidenceTest {
     @Test
     fun sanitizerRemovesControlCharactersAndTrimsLength() {
-        val sanitized = ProtocolEvidence.sanitize("  Living\u0000 Room\nSpeaker  ", 12)
+        val sanitized = ProtocolEvidence.sanitize("  Living\u0000 Room\nSpeaker  ", 11)
 
         assertEquals("Living Room", sanitized)
         assertFalse(sanitized.any { it.code < 0x20 || it.code == 0x7f })
