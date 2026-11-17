@@ -3,6 +3,7 @@ package com.langhost.data
 import com.langhost.data.model.DeviceTypeClassifier
 import com.langhost.data.model.Device
 import com.langhost.data.model.DiscoveryEvidence
+import com.langhost.data.model.ProtocolEvidence
 
 /**
  * Builds a complete network-scoped device snapshot from discovery evidence and cached state.
@@ -25,6 +26,7 @@ internal class DeviceEnrichmentEngine(
         hasNsdServiceObservation: Boolean = false,
         hasSsdpObservation: Boolean = false,
         hasHostReachabilityProbe: Boolean = false,
+        protocolEvidence: List<ProtocolEvidence> = emptyList(),
         existing: Device?,
         existingByStableId: Device?,
         now: Long
@@ -108,12 +110,17 @@ internal class DeviceEnrichmentEngine(
             typeConfidence = classification.confidence,
             typeEvidence = classification.signals,
             httpFingerprint = httpFingerprint,
+            protocolEvidence = (previous?.protocolEvidence.orEmpty() + protocolEvidence)
+                .distinct()
+                .take(MAX_PROTOCOL_EVIDENCE),
             isRandomMac = randomMac,
             tags = previous?.tags.orEmpty(),
             auditedPorts = previous?.auditedPorts.orEmpty(),
             auditedPortResults = previous?.auditedPortResults.orEmpty()
         )
     }
+
+    private companion object { const val MAX_PROTOCOL_EVIDENCE = 32 }
 
     private fun previousHasConfirmation(primary: Device?, fallback: Device?): Boolean =
         (primary?.lastConfirmedOnline ?: 0L) > 0L || (fallback?.lastConfirmedOnline ?: 0L) > 0L
