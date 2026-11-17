@@ -100,4 +100,30 @@ class NsdResolutionResultsTest {
         assertEquals(NsdResolutionResults.MAX_TRACKED_SERVICES, results.trackedServiceCount())
     }
 
+
+    @Test
+    fun staleServiceLostCallbackCannotRemoveReappearedAdvertisement() {
+        val results = NsdResolutionResults()
+        val oldGeneration = results.serviceObserved("speaker|_http._tcp.", evidence("old"))!!
+        results.serviceLost("speaker|_http._tcp.", oldGeneration)
+        val currentGeneration = results.serviceObserved("speaker|_http._tcp.", evidence("current"))!!
+
+        results.serviceLost("speaker|_http._tcp.", oldGeneration)
+
+        assertEquals(1, results.trackedServiceCount())
+        results.resolved("speaker|_http._tcp.", currentGeneration, setOf("192.168.1.51"))
+        assertEquals(setOf("192.168.1.51"), results.addresses())
+        assertEquals(listOf(evidence("current")), results.protocolEvidenceByIp()["192.168.1.51"])
+    }
+
+    @Test
+    fun serviceGenerationRemainsMonotonicAfterAdvertisementIsLost() {
+        val results = NsdResolutionResults()
+        val first = results.serviceObserved("speaker|_http._tcp.", evidence("first"))!!
+        results.serviceLost("speaker|_http._tcp.", first)
+        val second = results.serviceObserved("speaker|_http._tcp.", evidence("second"))!!
+
+        assertTrue(second > first)
+    }
+
 }
