@@ -671,7 +671,7 @@ The following user-proposed capabilities are accepted as product requirements. T
 
 - SSDP response parsing is isolated and now has coverage for status-line validation, required identity headers, header-name case folding, and packet-length bounds. Runtime socket partial-failure behavior still needs an injectable socket seam or instrumentation test; parser tests do not claim to cover it.
 - DNS-SD uses bounded per-type startup/discovery windows and bounded resolution concurrency. Android callback orchestration still needs an instrumentation/fake-adapter test, especially registration failure, service loss, cancellation cleanup, and mixed start outcomes.
-- ARP availability is based on successful reading of `/proc/net/arp`, not on whether entries exist; a readable empty table is correctly `NO_RESPONSES`, while unreadable/blank interface is `UNAVAILABLE`.
+- ARP availability is based on successful reading of `/proc/net/arp`, not on whether entries exist; `arpSourceStatus` now has unit coverage for readable-empty (`NO_RESPONSES`), unreadable (`UNAVAILABLE`) and populated (`RESPONDED`) outcomes. UI propagation and physical-device behavior remain to be verified.
 
 ## Final release and merge gate — required before merging into `main`
 
