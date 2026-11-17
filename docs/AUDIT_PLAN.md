@@ -700,3 +700,5 @@ The following user-proposed capabilities are accepted as product requirements. T
 - [ ] Explicit user go-ahead received before merging PR #3 into `main`.
 
 Until every required gate is satisfied, all implementation remains on `audit/phase-7-discovery-reliability`; `main` is not modified.
+
+- DNS-SD service tracking is capped at 256 concurrently observed advertisements per scan. Duplicate active service keys are ignored, generations use a scan-local monotonic counter (no unbounded per-key generation map), and reaching the cap marks the source `PARTIAL` rather than silently growing memory or claiming complete coverage.
