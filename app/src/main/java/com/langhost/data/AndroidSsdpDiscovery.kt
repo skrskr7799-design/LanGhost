@@ -40,6 +40,8 @@ internal class AndroidSsdpDiscovery {
                 runSsdpReceiveLoop(
                     results = results,
                     deadlineNanos = System.nanoTime() + WINDOW_NANOS,
+                    maxHosts = MAX_HOSTS,
+                    maxPacketBytes = MAX_PACKET_BYTES,
                     receive = { buffer ->
                         val packet = DatagramPacket(buffer, buffer.size)
                         socket.receive(packet)
@@ -91,10 +93,11 @@ internal suspend fun runSsdpReceiveLoop(
     results: SsdpDiscoveryResults,
     deadlineNanos: Long,
     maxHosts: Int = 256,
+    maxPacketBytes: Int = 4_096,
     nowNanos: () -> Long = System::nanoTime,
     receive: (ByteArray) -> SsdpReceivedDatagram
 ) {
-    val buffer = ByteArray(4_096)
+    val buffer = ByteArray(maxPacketBytes)
     while (nowNanos() < deadlineNanos && results.snapshot().size < maxHosts) {
         currentCoroutineContext().ensureActive()
         try {
