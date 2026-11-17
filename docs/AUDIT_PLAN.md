@@ -664,3 +664,20 @@ The following user-proposed capabilities are accepted as product requirements. T
 - UPnP mapping removal is a consequential router configuration change and always requires explicit user confirmation.
 - KEV inclusion means a vulnerability is known to be exploited in the wild; it does not establish that the detected device is vulnerable or exploitable.
 - Persist network history locally by default, provide retention/deletion controls, and avoid collecting payloads, credentials or unrelated browsing data.
+
+
+## Final release and merge gate — required before merging into `main`
+
+- [ ] All planned roadmap phases are either implemented or explicitly moved to a documented post-release backlog with rationale and user approval.
+- [ ] Latest branch head has successful GitHub Actions for Android Lint, unit tests, Debug APK and Release APK; no unresolved required checks.
+- [ ] Full source audit completed: discovery correctness, cancellation, network-scope isolation, concurrency/time bounds, privacy, permissions, persistence and failure handling.
+- [ ] Device Intelligence evidence and confidence semantics reviewed; no heuristic is presented as certainty.
+- [ ] Database/DataStore schema and migration paths reviewed and tested against existing user data.
+- [ ] English/Russian localization and accessibility pass reviewed; no accidental user-facing hardcoded strings remain in completed screens.
+- [ ] Launcher/adaptive/round/monochrome assets and critical UI flows verified on supported Android versions.
+- [ ] Release APK installed and smoke-tested on a physical Android device; discovery rechecked on the user's LAN.
+- [ ] Documentation, changelog, version metadata, known limitations and release notes match the shipped implementation.
+- [ ] Final diff against `main` reviewed; PR #3 checks and merge base are current; no unrelated or generated secrets/artifacts included.
+- [ ] Explicit user go-ahead received before merging PR #3 into `main`.
+
+Until every required gate is satisfied, all implementation remains on `audit/phase-7-discovery-reliability`; `main` is not modified.
