@@ -6,6 +6,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.InetAddress
 import java.net.NetworkInterface
+import java.util.concurrent.atomic.AtomicInteger
+import com.langhost.data.model.DiscoverySourceStatus
 
 /**
  * Best-effort IP reachability fallback for hosts that did not answer TCP.
@@ -21,18 +23,22 @@ internal class AndroidIcmpDiscovery {
         maxConcurrency: Int,
         timeoutMs: Int,
         beforeWindow: suspend () -> Unit
-    ): Set<String> = withContext(Dispatchers.IO) {
-        if (activeNetwork == null || interfaceName.isBlank() || candidateIps.isEmpty()) {
-            return@withContext emptySet()
+    ): DiscoverySourceResult<Set<String>> = withContext(Dispatchers.IO) {
+        if (candidateIps.isEmpty()) {
+            return@withContext DiscoverySourceResult(emptySet(), DiscoverySourceStatus.NOT_RUN)
+        }
+        if (activeNetwork == null || interfaceName.isBlank()) {
+            return@withContext DiscoverySourceResult(emptySet(), DiscoverySourceStatus.UNAVAILABLE)
         }
         val networkInterface = try {
             NetworkInterface.getByName(interfaceName)
         } catch (_: Exception) {
             null
-        } ?: return@withContext emptySet()
+        } ?: return@withContext DiscoverySourceResult(emptySet(), DiscoverySourceStatus.UNAVAILABLE)
 
+        val failedProbes = AtomicInteger(0)
         try {
-            HostDiscovery.mapBounded(
+            val reachable = HostDiscovery.mapBounded(
                 items = candidateIps.distinct(),
                 maxConcurrency = maxConcurrency,
                 beforeBatch = beforeWindow
@@ -46,13 +52,22 @@ internal class AndroidIcmpDiscovery {
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
+                    failedProbes.incrementAndGet()
                     null
                 }
             }.filterNotNull().toSet()
+            DiscoverySourceResult(
+                value = reachable,
+                status = when {
+                    reachable.isNotEmpty() -> DiscoverySourceStatus.RESPONDED
+                    failedProbes.get() > 0 -> DiscoverySourceStatus.UNAVAILABLE
+                    else -> DiscoverySourceStatus.NO_RESPONSES
+                }
+            )
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            emptySet()
+            DiscoverySourceResult(emptySet(), DiscoverySourceStatus.UNAVAILABLE)
         }
     }
 
