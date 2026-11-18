@@ -705,3 +705,10 @@ The following user-proposed capabilities are accepted as product requirements. T
 Until every required gate is satisfied, all implementation remains on `audit/phase-7-discovery-reliability`; `main` is not modified.
 
 - DNS-SD service tracking is capped at 256 concurrently observed advertisements per scan. Duplicate active service keys are ignored, generations use a scan-local monotonic counter (no unbounded per-key generation map), and reaching the cap marks the source `PARTIAL` rather than silently growing memory or claiming complete coverage.
+
+
+### Phase 7.8 — SSDP transport lifecycle boundary
+
+- The production SSDP adapter now delegates socket-session ordering to a small transport lifecycle function: prepare/bind, send M-SEARCH, receive within the bounded window, and close in finally.
+- Unit tests verify preparation precedes send, send is skipped after preparation failure, the transport is always closed after setup failure and cancellation, and cancellation propagates rather than being converted into an ordinary unavailable-source result.
+- The injected seam deliberately does not claim to test Android's actual Network.bindSocket(DatagramSocket), multicast routing, device-specific socket behavior, or kernel-level close semantics. Those still require Android instrumentation or physical-device verification.
