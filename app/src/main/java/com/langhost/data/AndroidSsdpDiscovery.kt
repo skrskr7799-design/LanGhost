@@ -29,32 +29,28 @@ internal class AndroidSsdpDiscovery {
         val request = M_SEARCH.toByteArray(Charsets.US_ASCII)
         val target = InetAddress.getByName(SSDP_MULTICAST_ADDRESS)
 
-        DatagramSocket(null).use { socket ->
-            try {
+        val socket = DatagramSocket(null)
+        runSsdpTransportSession(
+            results = results,
+            deadlineNanos = System.nanoTime() + WINDOW_NANOS,
+            maxHosts = MAX_HOSTS,
+            maxPacketBytes = MAX_PACKET_BYTES,
+            prepare = {
                 socket.reuseAddress = false
                 socket.bind(InetSocketAddress(0))
                 activeNetwork.bindSocket(socket)
                 socket.soTimeout = RECEIVE_TIMEOUT_MS
+            },
+            sendSearch = {
                 socket.send(DatagramPacket(request, request.size, target, SSDP_PORT))
-
-                runSsdpReceiveLoop(
-                    results = results,
-                    deadlineNanos = System.nanoTime() + WINDOW_NANOS,
-                    maxHosts = MAX_HOSTS,
-                    maxPacketBytes = MAX_PACKET_BYTES,
-                    receive = { buffer ->
-                        val packet = DatagramPacket(buffer, buffer.size)
-                        socket.receive(packet)
-                        SsdpReceivedDatagram(packet.address, packet.data, packet.length)
-                    }
-                )
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                // SSDP is optional; failures must not discard TCP, ARP or DNS-SD evidence.
-                results.markOperationFailed()
-            }
-        }
+            },
+            receive = { buffer ->
+                val packet = DatagramPacket(buffer, buffer.size)
+                socket.receive(packet)
+                SsdpReceivedDatagram(packet.address, packet.data, packet.length)
+            },
+            close = socket::close
+        )
         DiscoverySourceResult(
             value = results.snapshot(),
             status = results.status(),
@@ -116,6 +112,41 @@ internal suspend fun runSsdpReceiveLoop(
         }
     }
 }
+
+/**
+ * Owns the complete transport lifecycle. Keeping preparation, send, receive
+ * and close explicit lets unit tests verify ordering and cancellation cleanup
+ * without pretending to exercise Android's Network.bindSocket implementation.
+ */
+internal suspend fun runSsdpTransportSession(
+    results: SsdpDiscoveryResults,
+    deadlineNanos: Long,
+    maxHosts: Int = 256,
+    maxPacketBytes: Int = 4_096,
+    prepare: () -> Unit,
+    sendSearch: () -> Unit,
+    receive: (ByteArray) -> SsdpReceivedDatagram,
+    close: () -> Unit
+) {
+    try {
+        prepare()
+        sendSearch()
+        runSsdpReceiveLoop(
+            results = results,
+            deadlineNanos = deadlineNanos,
+            maxHosts = maxHosts,
+            maxPacketBytes = maxPacketBytes,
+            receive = receive
+        )
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        results.markOperationFailed()
+    } finally {
+        runCatching(close)
+    }
+}
+
 
 internal object SsdpResponseParser {
     fun isValidResponse(packet: ByteArray, length: Int): Boolean =
