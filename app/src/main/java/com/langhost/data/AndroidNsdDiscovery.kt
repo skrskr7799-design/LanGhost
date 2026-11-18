@@ -77,7 +77,7 @@ internal class AndroidNsdDiscovery(context: Context) {
                 runCatching { nsdManager.unregisterServiceInfoCallback(callback) }
             }
             withTimeoutOrNull(STOP_TIMEOUT_MS) {
-                while (activeInfoCallbacks.isNotEmpty()) delay(10)
+                while (!activeInfoCallbacks.isEmpty()) delay(10)
             }
             multicastLock?.let { lock ->
                 if (lock.isHeld) runCatching { lock.release() }
@@ -90,7 +90,7 @@ internal class AndroidNsdDiscovery(context: Context) {
         serviceType: String,
         activeNetwork: Network?,
         results: NsdResolutionResults,
-        activeInfoCallbacks: MutableSet<NsdManager.ServiceInfoCallback>,
+        activeInfoCallbacks: NsdCallbackRegistry<NsdManager.ServiceInfoCallback>,
         pendingResolutions: AtomicInteger
     ): Boolean {
         val started = CompletableDeferred<Boolean>()
@@ -188,7 +188,7 @@ internal class AndroidNsdDiscovery(context: Context) {
         serviceKey: String,
         generation: Long,
         results: NsdResolutionResults,
-        activeInfoCallbacks: MutableSet<NsdManager.ServiceInfoCallback>,
+        activeInfoCallbacks: NsdCallbackRegistry<NsdManager.ServiceInfoCallback>,
         pendingResolutions: AtomicInteger
     ) {
         val released = AtomicBoolean(false)
