@@ -137,6 +137,38 @@ class AndroidSsdpDiscoveryTest {
 
 
     @Test
+    fun transportFactoryFailureIsReportedAsUnavailable() = runBlocking {
+        val results = SsdpDiscoveryResults()
+        var sessionStarted = false
+
+        runSsdpTransportFactorySession(
+            results = results,
+            createTransport = { throw IOException("socket creation failed") }
+        ) {
+            sessionStarted = true
+        }
+
+        assertFalse(sessionStarted)
+        assertEquals(DiscoverySourceStatus.UNAVAILABLE, results.status())
+    }
+
+    @Test
+    fun transportFactoryRunsSessionForCreatedTransport() = runBlocking {
+        val results = SsdpDiscoveryResults()
+        var receivedTransport = ""
+
+        runSsdpTransportFactorySession(
+            results = results,
+            createTransport = { "socket" }
+        ) { transport ->
+            receivedTransport = transport
+        }
+
+        assertEquals("socket", receivedTransport)
+        assertEquals(DiscoverySourceStatus.NO_RESPONSES, results.status())
+    }
+
+    @Test
     fun transportSessionPreparesBeforeSendingAndAlwaysCloses() = runBlocking {
         val results = SsdpDiscoveryResults()
         val events = mutableListOf<String>()
