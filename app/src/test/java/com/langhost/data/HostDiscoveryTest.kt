@@ -13,19 +13,19 @@ import java.util.concurrent.atomic.AtomicInteger
 class HostDiscoveryTest {
     @Test
     fun includesLocalAddressWithoutCallingProbe() = runBlocking {
-        var probeCalls = 0
+        val probeCalls = java.util.concurrent.atomic.AtomicInteger(0)
         val result = HostDiscovery.discover(
             candidates = listOf("192.168.1.2", "192.168.1.3"),
             localIp = "192.168.1.2",
             maxConcurrency = 2,
             timeoutMs = 150
         ) { _, _ ->
-            probeCalls++
+            probeCalls.incrementAndGet()
             true
         }
 
         assertEquals(setOf("192.168.1.2", "192.168.1.3"), result)
-        assertEquals(1, probeCalls)
+        assertEquals(1, probeCalls.get())
     }
 
     @Test
@@ -143,13 +143,13 @@ class HostDiscoveryTest {
     @Test
     fun discoveryChecksNetworkScopeBeforeEachBatchAndStopsWhenItChanges() = runBlocking {
         var batchChecks = 0
-        var probeCalls = 0
+        val probeCalls = AtomicInteger(0)
 
         try {
             HostDiscovery.discover(
                 candidates = (1..5).map { "192.168.1.$it" },
                 localIp = "192.168.1.254",
-                maxConcurrency = 2,
+                maxConcurrency = 1,
                 timeoutMs = 150,
                 beforeBatch = {
                     batchChecks++
@@ -158,18 +158,18 @@ class HostDiscoveryTest {
                     }
                 }
             ) { _, _ ->
-                probeCalls++
+                probeCalls.incrementAndGet()
                 true
             }
             throw AssertionError("Expected the network-scope checkpoint to cancel discovery")
         } catch (_: kotlinx.coroutines.CancellationException) {
             assertEquals(2, batchChecks)
-            assertEquals(2, probeCalls)
+            assertTrue("Cancellation must stop the remaining candidates", probeCalls.get() in 1 until 5)
         }
     }
 
     @Test
-    fun mapBoundedRunsNetworkScopeCheckpointOncePerBatch() = runBlocking {
+    fun mapBoundedChecksNetworkScopePerSlidingWindow() = runBlocking {
         var batchChecks = 0
         val result = HostDiscovery.mapBounded(
             items = (1..5).toList(),
@@ -179,6 +179,25 @@ class HostDiscoveryTest {
 
         assertEquals((1..5).map { it * 2 }, result)
         assertEquals(3, batchChecks)
+    }
+ 
+    @Test
+    fun discoveryRetriesOnlyHostsWithoutPositiveEvidence() = runBlocking {
+        val attempts = java.util.concurrent.ConcurrentHashMap<String, AtomicInteger>()
+        val result = HostDiscovery.discover(
+            candidates = listOf("192.168.1.2", "192.168.1.3"),
+            localIp = "192.168.1.1",
+            maxConcurrency = 2,
+            timeoutMs = 350
+        ) { ip, budget ->
+            assertTrue("Retry budget should remain bounded", budget <= 700)
+            val count = attempts.computeIfAbsent(ip) { AtomicInteger() }.incrementAndGet()
+            ip.endsWith(".2") || count >= 2
+        }
+
+        assertEquals(setOf("192.168.1.2", "192.168.1.3"), result)
+        assertEquals(1, attempts["192.168.1.2"]?.get())
+        assertEquals(2, attempts["192.168.1.3"]?.get())
     }
 
 }

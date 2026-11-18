@@ -1,8 +1,7 @@
 # LanGhost — UI/UX Redesign Plan
 
-> Status: Phase 5 implementation and automated CI complete; physical-device sign-off tracked in Phase 6
-> Branch: `work/phase-5-final-polish`
-> Baseline: `e581fd0523aa90fd57a9338ac8eaae4e5a17408f` (merged PR #1)
+> Status: Phase 5 visual redesign and final-polish implementation complete; physical-device sign-off remains open in Phase 6. Functional discovery work is tracked separately in Phase 7 of `docs/AUDIT_PLAN.md`.
+> Current baseline: `6c36723497925e69d97081f944f82ff6bd4dc9e4` (PR #2 merged)
 
 ## Product experience
 
@@ -263,3 +262,8 @@ These screens now have distinct information hierarchies instead of being simple 
 - [x] Reconciled the implementation plan with the actual merged main baseline and moved physical-device sign-off to the device-validation phase.
 
 Full CI run [#43815487552](https://github.com/skrskr7799-design/LanGhost/actions/runs/43815487552) passed on commit `f37ee9022ff97642764cc7bbc2d29bf3a2baa12e` (Android Lint, unit tests, Debug APK, Release APK and artifact upload). Source-level accessibility improvements do not replace TalkBack, font-scaling, contrast or touch-target checks on real hardware; device-only acceptance remains tracked in Phase 6.
+
+
+## Post-redesign functional audit handoff — 2026-11-16
+
+The first tablet audit found that the UI redesign is not a substitute for complete, reliable network discovery. The reported missing LAN clients are tracked as **Phase 7 — Network Discovery Reliability** in `docs/AUDIT_PLAN.md`. Device vendor/OS intelligence, nearby Wi-Fi analysis actions, Wake-on-LAN integration, diagnostic layout stability and navigation fixes are tracked in subsequent functional phases there. Keep this document focused on visual and interaction design; use the engineering audit register as the source of truth for implementation status and phase closure.

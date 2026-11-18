@@ -2,6 +2,9 @@ package com.langhost.data
 
 import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
+import com.langhost.data.model.DiscoveryEvidence
+import com.langhost.data.model.ProtocolEvidence
+import com.langhost.data.model.ProtocolEvidenceSource
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -46,6 +49,7 @@ class DeviceEnrichmentEngineTest {
             legacyNetworkScope = "scope-old",
             localIp = "192.168.1.2",
             gateway = "192.168.1.1",
+            hasTcpResponse = true,
             existing = null,
             existingByStableId = existing,
             now = 200L
@@ -62,6 +66,10 @@ class DeviceEnrichmentEngineTest {
         assertEquals("Server: test", result.httpFingerprint)
         assertEquals(listOf("storage"), result.tags)
         assertEquals(DeviceType.NAS, result.deviceType)
+        assertTrue(result.typeConfidence >= 45)
+        assertTrue(result.typeEvidence.contains("hostname:nas"))
+        assertEquals(200L, result.lastConfirmedOnline)
+        assertEquals(DiscoveryEvidence.TCP_RESPONSE, result.discoveryEvidence)
     }
 
     @Test
@@ -100,6 +108,34 @@ class DeviceEnrichmentEngineTest {
         assertFalse(result.isGateway)
         assertEquals(50L, result.firstSeen)
         assertEquals(0L, result.portsScannedAt)
+        assertEquals(100L, result.lastConfirmedOnline)
+        assertEquals(DiscoveryEvidence.LOCAL_INTERFACE, result.discoveryEvidence)
+    }
+
+    @Test
+    fun arpObservationDoesNotBecomeFreshReachabilityConfirmation() = runBlocking {
+        val engine = DeviceEnrichmentEngine(
+            loadCustomization = { _, _ -> DeviceCustomization() },
+            resolveHostname = { "" },
+            lookupVendor = { "Vendor" }
+        )
+        val result = engine.enrich(
+            ip = "192.168.1.40",
+            mac = "AA:BB:CC:DD:EE:40",
+            bssid = "",
+            networkScope = "scope",
+            legacyNetworkScope = "scope",
+            localIp = "192.168.1.2",
+            gateway = "192.168.1.1",
+            hasTcpResponse = false,
+            existing = null,
+            existingByStableId = null,
+            now = 500L
+        )
+
+        assertEquals(500L, result.lastSeen)
+        assertEquals(0L, result.lastConfirmedOnline)
+        assertEquals(DiscoveryEvidence.ARP_OBSERVATION, result.discoveryEvidence)
     }
 
     @Test
@@ -133,4 +169,153 @@ class DeviceEnrichmentEngineTest {
         assertEquals(listOf("ip:old-scope:10.0.0.8"), requestedLegacyIds)
         assertEquals("legacy scoped name", result.nickname)
     }
+    @Test
+    fun resolvedDnsSdServiceIsRecordedAsSeparatePositiveEvidence() = runBlocking {
+        val engine = DeviceEnrichmentEngine(
+            loadCustomization = { _, _ -> DeviceCustomization() },
+            resolveHostname = { "" },
+            lookupVendor = { "" }
+        )
+        val result = engine.enrich(
+            ip = "192.168.1.50",
+            mac = "",
+            bssid = "",
+            networkScope = "scope",
+            legacyNetworkScope = "scope",
+            localIp = "192.168.1.2",
+            gateway = "192.168.1.1",
+            hasTcpResponse = false,
+            hasNsdServiceObservation = true,
+            existing = null,
+            existingByStableId = null,
+            now = 900L
+        )
+
+        assertEquals(900L, result.lastConfirmedOnline)
+        assertEquals(DiscoveryEvidence.NSD_SERVICE_OBSERVATION, result.discoveryEvidence)
+    }
+
+    @Test
+    fun reachabilityProbeIsRecordedAsIndependentPositiveEvidence() = runBlocking {
+        val engine = DeviceEnrichmentEngine(
+            loadCustomization = { _, _ -> DeviceCustomization() },
+            resolveHostname = { "" },
+            lookupVendor = { "" }
+        )
+        val result = engine.enrich(
+            ip = "192.168.1.60",
+            mac = "",
+            bssid = "",
+            networkScope = "scope",
+            legacyNetworkScope = "scope",
+            localIp = "192.168.1.2",
+            gateway = "192.168.1.1",
+            hasHostReachabilityProbe = true,
+            existing = null,
+            existingByStableId = null,
+            now = 1_000L
+        )
+
+        assertEquals(1_000L, result.lastConfirmedOnline)
+        assertEquals(DiscoveryEvidence.HOST_REACHABILITY_PROBE, result.discoveryEvidence)
+    }
+
+    @Test
+    fun ssdpResponseIsRecordedAsIndependentPositiveEvidence() = runBlocking {
+        val engine = DeviceEnrichmentEngine(
+            loadCustomization = { _, _ -> DeviceCustomization() },
+            resolveHostname = { "" },
+            lookupVendor = { "" }
+        )
+        val result = engine.enrich(
+            ip = "192.168.1.61",
+            mac = "",
+            bssid = "",
+            networkScope = "scope",
+            legacyNetworkScope = "scope",
+            localIp = "192.168.1.2",
+            gateway = "192.168.1.1",
+            hasSsdpObservation = true,
+            existing = null,
+            existingByStableId = null,
+            now = 1_100L
+        )
+
+        assertEquals(1_100L, result.lastConfirmedOnline)
+        assertEquals(DiscoveryEvidence.SSDP_RESPONSE_OBSERVATION, result.discoveryEvidence)
+    }
+
+    @Test
+    fun refreshedProtocolEvidenceReplacesStaleDiscoveryMetadata() = runBlocking {
+        val engine = DeviceEnrichmentEngine(
+            loadCustomization = { _, _ -> DeviceCustomization() },
+            resolveHostname = { "" },
+            lookupVendor = { "" }
+        )
+        val oldEvidence = ProtocolEvidence(
+            source = ProtocolEvidenceSource.DNS_SD,
+            serviceName = "old-service"
+        )
+        val freshEvidence = ProtocolEvidence(
+            source = ProtocolEvidenceSource.SSDP,
+            friendlyName = "new-device"
+        )
+        val existing = Device(
+            ip = "192.168.1.70",
+            networkScope = "scope",
+            protocolEvidence = listOf(oldEvidence)
+        )
+
+        val result = engine.enrich(
+            ip = existing.ip,
+            mac = "",
+            bssid = "",
+            networkScope = "scope",
+            legacyNetworkScope = "scope",
+            localIp = "192.168.1.2",
+            gateway = "192.168.1.1",
+            protocolEvidence = listOf(freshEvidence),
+            replaceProtocolEvidence = true,
+            existing = existing,
+            existingByStableId = existing,
+            now = 1_200L
+        )
+
+        assertEquals(listOf(freshEvidence), result.protocolEvidence)
+    }
+
+    @Test
+    fun emptyRefreshedProtocolEvidenceClearsMetadataForServicesNoLongerAdvertised() = runBlocking {
+        val engine = DeviceEnrichmentEngine(
+            loadCustomization = { _, _ -> DeviceCustomization() },
+            resolveHostname = { "" },
+            lookupVendor = { "" }
+        )
+        val existing = Device(
+            ip = "192.168.1.71",
+            networkScope = "scope",
+            protocolEvidence = listOf(ProtocolEvidence(
+                source = ProtocolEvidenceSource.DNS_SD,
+                serviceName = "disappeared-service"
+            ))
+        )
+
+        val result = engine.enrich(
+            ip = existing.ip,
+            mac = "",
+            bssid = "",
+            networkScope = "scope",
+            legacyNetworkScope = "scope",
+            localIp = "192.168.1.2",
+            gateway = "192.168.1.1",
+            protocolEvidence = emptyList(),
+            replaceProtocolEvidence = true,
+            existing = existing,
+            existingByStableId = existing,
+            now = 1_300L
+        )
+
+        assertTrue(result.protocolEvidence.isEmpty())
+    }
+
 }

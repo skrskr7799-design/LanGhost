@@ -6,11 +6,37 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.net.ConnectException
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.util.concurrent.atomic.AtomicInteger
 
 class NetworkProbeEngineTest {
+    @Test
+    fun discoveryTreatsTcpConnectionRefusedAsPositiveHostEvidence() = runBlocking {
+        val closedPort = ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use {
+            it.localPort
+        }
+        val engine = NetworkProbeEngine(
+            scanTimeoutMs = { 500 },
+            ensureCurrentNetworkScope = {}
+        )
+
+        assertTrue(
+            "A TCP refusal is a response from the target, not an absent host",
+            engine.probeHost("127.0.0.1", 500, intArrayOf(closedPort))
+        )
+    }
+
+    @Test
+    fun onlyExplicitConnectionRefusedIsPositiveEvidence() {
+        assertTrue(isConnectionRefused(ConnectException("failed: ECONNREFUSED (Connection refused)")))
+        assertTrue(isConnectionRefused(ConnectException("Connection refused")))
+        assertTrue(!isConnectionRefused(ConnectException("Network is unreachable")))
+        assertTrue(!isConnectionRefused(ConnectException("No route to host")))
+        assertTrue(!isConnectionRefused(ConnectException()))
+    }
+
     @Test
     fun securityProbeRecordsOpenPortAndChecksNetworkScope() = runBlocking {
         ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { server ->

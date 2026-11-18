@@ -62,6 +62,7 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.langhost.data.AppSettings
 import com.langhost.data.AppSettingsData
 import com.langhost.data.PrivacyFormatter
+import com.langhost.data.model.DiscoverySourceStatus
 import com.langhost.ui.components.ContentPanel
 import com.langhost.ui.components.DataNoticeTone
 import com.langhost.ui.components.DataQualityNotice
@@ -230,7 +231,12 @@ fun DashboardScreen(
                                 total = state.scanCoverage.totalUsableAddresses,
                                 percent = state.scanCoverage.coveragePercent,
                                 subnet = state.scanCoverage.subnetCidr,
-                                truncated = state.scanCoverage.truncated
+                                truncated = state.scanCoverage.truncated,
+                                arpStatus = state.scanCoverage.arpStatus,
+                                tcpStatus = state.scanCoverage.tcpStatus,
+                                dnsSdStatus = state.scanCoverage.dnsSdStatus,
+                                ssdpStatus = state.scanCoverage.ssdpStatus,
+                                reachabilityStatus = state.scanCoverage.reachabilityStatus
                             )
                         }
                     }
@@ -284,7 +290,12 @@ fun DashboardScreen(
                         total = state.scanCoverage.totalUsableAddresses,
                         percent = state.scanCoverage.coveragePercent,
                         subnet = state.scanCoverage.subnetCidr,
-                        truncated = state.scanCoverage.truncated
+                        truncated = state.scanCoverage.truncated,
+                        arpStatus = state.scanCoverage.arpStatus,
+                        tcpStatus = state.scanCoverage.tcpStatus,
+                        dnsSdStatus = state.scanCoverage.dnsSdStatus,
+                        ssdpStatus = state.scanCoverage.ssdpStatus,
+                        reachabilityStatus = state.scanCoverage.reachabilityStatus
                     )
                 }
                 WorkspaceShortcuts(
@@ -479,7 +490,12 @@ private fun CoveragePanel(
     total: Long,
     percent: Int,
     subnet: String,
-    truncated: Boolean
+    truncated: Boolean,
+    arpStatus: DiscoverySourceStatus,
+    tcpStatus: DiscoverySourceStatus,
+    dnsSdStatus: DiscoverySourceStatus,
+    ssdpStatus: DiscoverySourceStatus,
+    reachabilityStatus: DiscoverySourceStatus
 ) {
     ContentPanel {
         Column(verticalArrangement = Arrangement.spacedBy(LanGhostSpacing.sm)) {
@@ -522,7 +538,32 @@ private fun CoveragePanel(
                     Text("Лимит диапазона", style = MaterialTheme.typography.bodySmall, color = Warning)
                 }
             }
+            HorizontalDivider(color = Border.copy(alpha = 0.55f))
+            Text("ДИАГНОСТИКА ИСТОЧНИКОВ", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+            SourceStatusRow("ARP-таблица", arpStatus)
+            SourceStatusRow("TCP-проверка", tcpStatus)
+            SourceStatusRow("mDNS / DNS-SD", dnsSdStatus)
+            SourceStatusRow("SSDP / UPnP", ssdpStatus)
+            SourceStatusRow("IP reachability", reachabilityStatus)
         }
+    }
+}
+
+@Composable
+private fun SourceStatusRow(label: String, status: DiscoverySourceStatus) {
+    val value = discoverySourceStatusLabel(status)
+    val tone = when (status) {
+        DiscoverySourceStatus.RESPONDED -> Success
+        DiscoverySourceStatus.PARTIAL, DiscoverySourceStatus.NO_RESPONSES, DiscoverySourceStatus.UNAVAILABLE -> Warning
+        DiscoverySourceStatus.NOT_RUN, DiscoverySourceStatus.NOT_REPORTED -> TextTertiary
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+        Text(value, style = MaterialTheme.typography.bodySmall, color = tone, fontWeight = FontWeight.Medium)
     }
 }
 

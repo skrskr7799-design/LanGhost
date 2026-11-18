@@ -27,6 +27,8 @@ import com.langhost.data.PrivacyFormatter
 import com.langhost.data.WolProfile
 import com.langhost.data.WolProfiles
 import com.langhost.data.model.DeviceType
+import com.langhost.data.model.ProtocolEvidence
+import com.langhost.data.model.ProtocolEvidenceSource
 import com.langhost.ui.theme.*
 import com.langhost.ui.components.ContentPanel
 import com.langhost.ui.components.ErrorState
@@ -184,10 +186,24 @@ fun DeviceDetailScreen(
                     InfoRow("Имя хоста", device.hostname.ifBlank { "—" })
                     InfoRow("Производитель", device.vendor.ifBlank { "Неизвестно" })
                     InfoRow("Тип", typeLabel(device.deviceType))
+                    InfoRow(
+                        "Уверенность определения",
+                        if (device.typeConfidence > 0) "${device.typeConfidence}%" else "Недостаточно данных"
+                    )
+                    if (device.typeEvidence.isNotEmpty()) {
+                        InfoRow("Основание", device.typeEvidence.joinToString(" · ") { typeEvidenceLabel(it) })
+                    }
                     InfoRow("ОС (предположение)", device.osGuess.ifBlank { "Неизвестно" })
                     InfoRow("Статус", if (device.isOnline) "Онлайн" else "Оффлайн")
                     if (device.isRandomMac) InfoRow("MAC", "Рандомизированный")
                     if (device.httpFingerprint.isNotBlank()) InfoRow("HTTP", device.httpFingerprint)
+                    if (device.protocolEvidence.isNotEmpty()) {
+                        HorizontalDivider(color = Divider)
+                        Text("Протокольные признаки", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+                        device.protocolEvidence.forEach { evidence ->
+                            ProtocolEvidenceInfo(evidence)
+                        }
+                    }
                     when {
                         device.isGateway -> InfoRow("Роль", "Шлюз / Роутер")
                         device.isLocalDevice -> InfoRow("Роль", "Это устройство")
@@ -311,6 +327,35 @@ fun DeviceDetailScreen(
     }
 }
 
+@Composable
+private fun ProtocolEvidenceInfo(evidence: ProtocolEvidence) {
+    val source = when (evidence.source) {
+        ProtocolEvidenceSource.DNS_SD -> "DNS-SD / mDNS"
+        ProtocolEvidenceSource.SSDP -> "SSDP / UPnP"
+    }
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Text(source, style = MaterialTheme.typography.labelMedium, color = Primary)
+        val primary = evidence.friendlyName.ifBlank { evidence.serviceName }
+            .ifBlank { evidence.deviceType }
+        if (primary.isNotBlank()) {
+            Text(primary, style = MaterialTheme.typography.bodyMedium, color = TextPrimary, fontWeight = FontWeight.Medium)
+        }
+        val details = listOf(
+            evidence.serviceType.takeIf { it.isNotBlank() }?.let { "Сервис: $it" },
+            evidence.deviceType.takeIf { it.isNotBlank() && it != primary }?.let { "Тип: $it" },
+            evidence.manufacturer.takeIf { it.isNotBlank() }?.let { "Производитель: $it" },
+            evidence.model.takeIf { it.isNotBlank() }?.let { "Модель: $it" },
+            evidence.server.takeIf { it.isNotBlank() }?.let { "Сервер: $it" }
+        ).filterNotNull()
+        details.forEach { detail ->
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+        }
+    }
+}
+
 private fun typeLabel(type: DeviceType) = when (type) {
     DeviceType.PHONE -> "Телефон"
     DeviceType.TABLET -> "Планшет"
@@ -359,4 +404,14 @@ private fun deviceTypeIcon(type: DeviceType) = when (type) {
     DeviceType.CAMERA -> Icons.Default.Videocam
     DeviceType.IOT -> Icons.Default.Memory
     DeviceType.UNKNOWN -> Icons.Default.DevicesOther
+}
+
+
+private fun typeEvidenceLabel(signal: String): String = when {
+    signal == "gateway" -> "Шлюз сети"
+    signal.startsWith("hostname:") -> "Имя устройства"
+    signal.startsWith("vendor:") -> "Производитель"
+    signal.startsWith("port:") -> "Сетевые сервисы"
+    signal.startsWith("http:") -> "HTTP-отпечаток"
+    else -> "Сетевой признак"
 }

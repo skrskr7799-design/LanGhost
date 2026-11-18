@@ -10,6 +10,7 @@ import com.langhost.data.model.NetworkInfo
 import com.langhost.data.model.SecurityPortAuditPolicy
 import com.langhost.data.model.PortAuditStatus
 import com.langhost.data.model.ScanCoverage
+import com.langhost.data.model.DiscoverySourceStatus
 import com.langhost.data.model.WifiNetwork
 import com.langhost.data.network.NetworkIdentity
 import kotlinx.coroutines.CancellationException
@@ -24,12 +25,22 @@ import kotlinx.coroutines.sync.Mutex
 import java.io.BufferedReader
 import java.io.FileReader
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+
+
+private data class ArpTableReadResult(
+    val entries: Map<String, String>,
+    val available: Boolean
+)
 
 class NetworkRepository(context: Context) {
 
     private val appContext = context.applicationContext
     private val connectivityManager = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+    private val nsdDiscovery = AndroidNsdDiscovery(appContext)
+    private val ssdpDiscovery = AndroidSsdpDiscovery()
+    private val icmpDiscovery = AndroidIcmpDiscovery()
     private val wifiScanCoordinator = WifiScanCoordinator(
         AndroidWifiScanPlatform(appContext, wifiManager) {
             _networkInfo.value.bssid.takeIf { it.isNotBlank() && it != "—" }
@@ -215,6 +226,7 @@ class NetworkRepository(context: Context) {
             val localIp = networkInfo.ipAddress
             val gateway = networkInfo.gateway
             val bssid = networkInfo.bssid
+            val activeNetwork = publishedActiveNetwork
             val networkScope = NetworkIdentity.scopeId(
                 ssid = networkInfo.ssid,
                 gateway = gateway,
@@ -229,20 +241,45 @@ class NetworkRepository(context: Context) {
             )
             // Keep ARP parsing and interface selection in the Android repository;
             // discovery orchestration itself is platform-independent and independently tested.
+            val arpReadable = AtomicBoolean(false)
+            val initialArp = readArpTable(networkInfo.interfaceName).also { snapshot ->
+                if (snapshot.available) arpReadable.set(true)
+            }
             val discovery = discoveryEngine.discover(
                 localIp = localIp,
                 gateway = gateway,
                 netmask = networkInfo.netmask,
-                arpEntries = readArpTable(networkInfo.interfaceName),
+                arpEntries = initialArp.entries,
                 networkScope = networkScope,
                 timeoutMs = timeoutMs,
                 maxTargets = MAX_DISCOVERY_TARGETS,
-                maxConcurrency = MAX_CONCURRENT_HOST_PROBES
+                maxConcurrency = MAX_CONCURRENT_HOST_PROBES,
+                refreshArpEntries = {
+                    readArpTable(networkInfo.interfaceName).also { snapshot ->
+                        if (snapshot.available) arpReadable.set(true)
+                    }.entries
+                },
+                discoverNsdServiceIps = { nsdDiscovery.discover(activeNetwork) },
+                discoverSsdpServiceIps = { ssdpDiscovery.discover(activeNetwork) },
+                discoverHostReachabilityIps = { candidates ->
+                    icmpDiscovery.discover(
+                        candidateIps = candidates,
+                        interfaceName = networkInfo.interfaceName,
+                        activeNetwork = activeNetwork,
+                        maxConcurrency = MAX_CONCURRENT_HOST_PROBES,
+                        timeoutMs = 250,
+                        beforeWindow = { ensureCurrentNetworkScope(networkScope) }
+                    )
+                }
             )
             val arpDevices = discovery.arpAddresses
             val allIps = discovery.ips
             val now = System.currentTimeMillis()
-            val completedCoverage = discovery.coverage.copy(scannedAt = now)
+            val completedCoverage = discovery.coverage.copy(
+                scannedAt = now,
+                arpAvailable = arpReadable.get(),
+                arpStatus = arpSourceStatus(arpReadable.get(), discovery.arpAddresses)
+            )
             val onlineDevices = HostDiscovery.mapBounded(
                 items = allIps.toList(),
                 maxConcurrency = DEVICE_ENRICHMENT_CONCURRENCY,
@@ -260,6 +297,12 @@ class NetworkRepository(context: Context) {
                     legacyNetworkScope = legacyNetworkScope,
                     localIp = localIp,
                     gateway = gateway,
+                    hasTcpResponse = ip in discovery.tcpResponsiveIps,
+                    hasNsdServiceObservation = ip in discovery.nsdServiceIps,
+                    hasSsdpObservation = ip in discovery.ssdpServiceIps,
+                    hasHostReachabilityProbe = ip in discovery.hostReachabilityIps,
+                    protocolEvidence = discovery.protocolEvidenceByIp[ip].orEmpty(),
+                    replaceProtocolEvidence = true,
                     existing = existingByIp,
                     existingByStableId = devicesCache[
                         if (mac.isNotBlank()) "${mac.uppercase()}@${networkScope}" else "ip:${networkScope}:$ip"
@@ -308,14 +351,19 @@ class NetworkRepository(context: Context) {
         }
     }
 
-    private fun readArpTable(interfaceName: String): Map<String, String> {
-        if (interfaceName.isBlank()) return emptyMap()
+    private fun readArpTable(interfaceName: String): ArpTableReadResult {
+        if (interfaceName.isBlank()) {
+            AppLog.warning(AppLog.Component.NETWORK_DISCOVERY, AppLog.Event.ARP_TABLE_READ_FAILED)
+            return ArpTableReadResult(entries = emptyMap(), available = false)
+        }
         return try {
-            BufferedReader(FileReader("/proc/net/arp")).use { reader ->
+            val entries = BufferedReader(FileReader("/proc/net/arp")).use { reader ->
                 parseArpTable(reader.readText(), interfaceName)
             }
+            ArpTableReadResult(entries = entries, available = true)
         } catch (_: Exception) {
-            emptyMap()
+            AppLog.warning(AppLog.Component.NETWORK_DISCOVERY, AppLog.Event.ARP_TABLE_READ_FAILED)
+            ArpTableReadResult(entries = emptyMap(), available = false)
         }
     }
 

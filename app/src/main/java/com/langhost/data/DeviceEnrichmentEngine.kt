@@ -1,6 +1,9 @@
 package com.langhost.data
 
+import com.langhost.data.model.DeviceTypeClassifier
 import com.langhost.data.model.Device
+import com.langhost.data.model.DiscoveryEvidence
+import com.langhost.data.model.ProtocolEvidence
 
 /**
  * Builds a complete network-scoped device snapshot from discovery evidence and cached state.
@@ -19,6 +22,12 @@ internal class DeviceEnrichmentEngine(
         legacyNetworkScope: String,
         localIp: String,
         gateway: String,
+        hasTcpResponse: Boolean = false,
+        hasNsdServiceObservation: Boolean = false,
+        hasSsdpObservation: Boolean = false,
+        hasHostReachabilityProbe: Boolean = false,
+        protocolEvidence: List<ProtocolEvidence> = emptyList(),
+        replaceProtocolEvidence: Boolean = false,
         existing: Device?,
         existingByStableId: Device?,
         now: Long
@@ -42,6 +51,24 @@ internal class DeviceEnrichmentEngine(
         }
         val saved = loadCustomization(stableId, legacyIds)
         val previous = existingByStableId ?: existing
+        val evidence = when {
+            ip == localIp -> DiscoveryEvidence.LOCAL_INTERFACE
+            hasTcpResponse -> DiscoveryEvidence.TCP_RESPONSE
+            hasNsdServiceObservation -> DiscoveryEvidence.NSD_SERVICE_OBSERVATION
+            hasSsdpObservation -> DiscoveryEvidence.SSDP_RESPONSE_OBSERVATION
+            hasHostReachabilityProbe -> DiscoveryEvidence.HOST_REACHABILITY_PROBE
+            ip == gateway -> DiscoveryEvidence.GATEWAY_CONFIGURATION
+            macFinal.isNotBlank() -> DiscoveryEvidence.ARP_OBSERVATION
+            else -> DiscoveryEvidence.UNKNOWN
+        }
+        val lastConfirmedOnline = when {
+            ip == localIp || hasTcpResponse || hasNsdServiceObservation || hasSsdpObservation || hasHostReachabilityProbe -> now
+            previousHasConfirmation(existingByStableId, existing) -> maxOf(
+                existingByStableId?.lastConfirmedOnline ?: 0L,
+                existing?.lastConfirmedOnline ?: 0L
+            )
+            else -> 0L
+        }
         val firstSeen = when {
             saved.firstSeen > 0 -> saved.firstSeen
             previous != null && previous.firstSeen > 0 -> previous.firstSeen
@@ -52,6 +79,14 @@ internal class DeviceEnrichmentEngine(
         val hostname = resolveHostname(ip).ifBlank { previous?.hostname.orEmpty() }
         val vendor = if (randomMac) "Random MAC" else lookupVendor(macFinal)
         val ports = previous?.openPorts.orEmpty()
+        val httpFingerprint = previous?.httpFingerprint.orEmpty()
+        val classification = DeviceTypeClassifier.classify(
+            hostname = hostname,
+            vendor = vendor.ifBlank { previous?.vendor.orEmpty() },
+            ports = ports,
+            isGateway = ip == gateway,
+            httpFingerprint = httpFingerprint
+        )
         return Device(
             ip = ip,
             mac = macFinal,
@@ -61,6 +96,8 @@ internal class DeviceEnrichmentEngine(
             isGateway = ip == gateway,
             firstSeen = firstSeen,
             lastSeen = now,
+            lastConfirmedOnline = lastConfirmedOnline,
+            discoveryEvidence = evidence,
             openPorts = ports,
             portsScannedAt = previous?.portsScannedAt ?: 0L,
             osGuess = previous?.osGuess ?: Device.guessOs(ports, vendor, hostname),
@@ -70,12 +107,22 @@ internal class DeviceEnrichmentEngine(
             isWatched = saved.isWatched || (previous?.isWatched == true),
             networkBssid = bssid,
             networkScope = networkScope,
-            deviceType = Device.guessType(ports, vendor, hostname, ip == gateway),
-            httpFingerprint = previous?.httpFingerprint.orEmpty(),
+            deviceType = classification.type,
+            typeConfidence = classification.confidence,
+            typeEvidence = classification.signals,
+            httpFingerprint = httpFingerprint,
+            protocolEvidence = (if (replaceProtocolEvidence) protocolEvidence else previous?.protocolEvidence.orEmpty() + protocolEvidence)
+                .distinct()
+                .take(MAX_PROTOCOL_EVIDENCE),
             isRandomMac = randomMac,
             tags = previous?.tags.orEmpty(),
             auditedPorts = previous?.auditedPorts.orEmpty(),
             auditedPortResults = previous?.auditedPortResults.orEmpty()
         )
     }
+
+    private companion object { const val MAX_PROTOCOL_EVIDENCE = 32 }
+
+    private fun previousHasConfirmation(primary: Device?, fallback: Device?): Boolean =
+        (primary?.lastConfirmedOnline ?: 0L) > 0L || (fallback?.lastConfirmedOnline ?: 0L) > 0L
 }

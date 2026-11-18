@@ -27,6 +27,7 @@ import com.langhost.data.AppSettingsData
 import com.langhost.data.PrivacyFormatter
 import com.langhost.data.model.Device
 import com.langhost.data.model.DeviceType
+import com.langhost.data.model.DiscoveryEvidence
 import com.langhost.ui.components.ContentPanel
 import com.langhost.ui.components.DataNoticeTone
 import com.langhost.ui.components.DataQualityNotice
@@ -40,7 +41,7 @@ import com.langhost.ui.theme.*
 import com.langhost.ui.theme.TechnicalTypography
 
 private enum class DeviceFilter(val label: String) {
-    ALL("Все"), ONLINE("Онлайн"), OFFLINE("Оффлайн"), FAVORITES("Избранное"), WATCHED("Наблюдение")
+    ALL("Все"), ONLINE("Онлайн"), OFFLINE("Не подтверждено"), FAVORITES("Избранное"), WATCHED("Наблюдение")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -166,7 +167,7 @@ fun DevicesScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     DeviceMetric(value = devices.size.toString(), label = "Всего", modifier = Modifier.weight(1f))
                     DeviceMetric(value = onlineCount.toString(), label = "Онлайн", accent = Success, modifier = Modifier.weight(1f))
-                    DeviceMetric(value = (devices.size - onlineCount).toString(), label = "Оффлайн", accent = TextSecondary, modifier = Modifier.weight(1f))
+                    DeviceMetric(value = (devices.size - onlineCount).toString(), label = "Не подтверждено", accent = TextSecondary, modifier = Modifier.weight(1f))
                 }
             }
             item {
@@ -192,6 +193,19 @@ fun DevicesScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary
                             )
+                            Text(
+                                "Источники: ARP ${state.scanCoverage.arpObservedHosts} · TCP ${state.scanCoverage.tcpResponsiveHosts} · mDNS ${state.scanCoverage.dnsSdResolvedHosts} · SSDP ${state.scanCoverage.ssdpResponsiveHosts} · ping ${state.scanCoverage.reachabilityResponsiveHosts}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextTertiary
+                            )
+                            if (state.scanCoverage.arpAvailable == false) {
+                                StatusBadge("ARP недоступен", StatusTone.Warning)
+                                Text(
+                                    "Android не предоставил доступ к таблице соседей. Сканирование продолжает использовать TCP и mDNS.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary
+                                )
+                            }
                         } else {
                             Text("Запустите сканирование, чтобы получить данные о покрытии сети.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         }
@@ -335,7 +349,7 @@ private fun DevicePreviewPanel(
                 ) {
                     Icon(deviceIcon(device.deviceType), contentDescription = null, tint = if (device.isOnline) AccentCyan else TextSecondary, modifier = Modifier.size(30.dp))
                     StatusBadge(
-                        if (device.isOnline) "Онлайн" else "Оффлайн",
+                        deviceStatusLabel(device),
                         if (device.isOnline) StatusTone.Success else StatusTone.Neutral
                     )
                 }
@@ -348,7 +362,11 @@ private fun DevicePreviewPanel(
                 HorizontalDivider(color = Divider)
                 DevicePreviewFact("MAC-АДРЕС", PrivacyFormatter.mac(device.mac.ifBlank { "—" }, maskIdentifiers))
                 DevicePreviewFact("ПРОИЗВОДИТЕЛЬ", device.vendor.ifBlank { "Не определён" })
-                DevicePreviewFact("ТИП", deviceTypeLabel(device.deviceType))
+                DevicePreviewFact(
+                    "ТИП",
+                    if (device.deviceType == DeviceType.UNKNOWN) "Не определён" else
+                        "${deviceTypeLabel(device.deviceType)} · ${device.typeConfidence}%"
+                )
                 DevicePreviewFact("ИМЯ ХОСТА", device.hostname.ifBlank { "—" })
                 DevicePreviewFact("ОТКРЫТЫЕ ПОРТЫ", if (device.openPorts.isEmpty()) "Не проверялись" else device.openPorts.joinToString(", "))
                 Spacer(Modifier.weight(1f))
@@ -427,11 +445,12 @@ private fun DeviceInventoryRow(device: Device, maskIdentifiers: Boolean, onClick
                     overflow = TextOverflow.Ellipsis
                 )
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    StatusBadge(if (device.isOnline) "Онлайн" else "Оффлайн", if (device.isOnline) StatusTone.Success else StatusTone.Neutral)
+                    StatusBadge(deviceStatusLabel(device), if (device.isOnline) StatusTone.Success else StatusTone.Neutral)
                     val role = when {
                         device.isGateway -> "Шлюз"
                         device.isLocalDevice -> "Это устройство"
-                        else -> deviceTypeLabel(device.deviceType)
+                        else -> if (device.deviceType == DeviceType.UNKNOWN) "Тип не определён"
+                            else "${deviceTypeLabel(device.deviceType)} · ${device.typeConfidence}%"
                     }
                     Text(role, style = MaterialTheme.typography.labelSmall, color = TextTertiary, maxLines = 1)
                 }
@@ -442,6 +461,17 @@ private fun DeviceInventoryRow(device: Device, maskIdentifiers: Boolean, onClick
             Icon(Icons.Default.ChevronRight, contentDescription = "Открыть устройство", tint = TextTertiary)
         }
     }
+}
+
+private fun deviceStatusLabel(device: Device): String = when {
+    device.isOnline && device.discoveryEvidence == DiscoveryEvidence.NSD_SERVICE_OBSERVATION -> "Онлайн · mDNS"
+    device.isOnline && device.discoveryEvidence == DiscoveryEvidence.SSDP_RESPONSE_OBSERVATION -> "Онлайн · SSDP"
+    device.isOnline && device.discoveryEvidence == DiscoveryEvidence.HOST_REACHABILITY_PROBE -> "Онлайн · ping"
+    device.isOnline -> "Онлайн"
+    device.discoveryEvidence == DiscoveryEvidence.ARP_OBSERVATION -> "ARP-наблюдение"
+    device.discoveryEvidence == DiscoveryEvidence.GATEWAY_CONFIGURATION -> "Шлюз · не проверен"
+    device.discoveryEvidence == DiscoveryEvidence.UNKNOWN -> "Не подтверждено"
+    else -> "Оффлайн"
 }
 
 private fun deviceTypeLabel(type: DeviceType): String = when (type) {

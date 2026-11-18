@@ -17,7 +17,7 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
 data class AppSettingsData(
     val watchModeEnabled: Boolean = false,
     val notifyNewDevices: Boolean = false,
-    val scanTimeoutMs: Int = 150,
+    val scanTimeoutMs: Int = 350,
     val autoScanOnOpen: Boolean = false,
     val maskNetworkIdentifiers: Boolean = false
 )
@@ -34,7 +34,7 @@ class AppSettings(private val context: Context) {
         AppSettingsData(
             watchModeEnabled = prefs[KEY_WATCH_MODE] ?: false,
             notifyNewDevices = prefs[KEY_NOTIFY_NEW] ?: false,
-            scanTimeoutMs = (prefs[KEY_SCAN_TIMEOUT] ?: 150).coerceIn(50, 500),
+            scanTimeoutMs = (prefs[KEY_SCAN_TIMEOUT] ?: 350).coerceIn(100, 500),
             autoScanOnOpen = prefs[KEY_AUTO_SCAN] ?: false,
             maskNetworkIdentifiers = prefs[KEY_MASK_IDENTIFIERS] ?: false
         )
@@ -54,7 +54,7 @@ class AppSettings(private val context: Context) {
     }
 
     suspend fun setScanTimeout(ms: Int) {
-        context.settingsDataStore.edit { it[KEY_SCAN_TIMEOUT] = ms.coerceIn(50, 500) }
+        context.settingsDataStore.edit { it[KEY_SCAN_TIMEOUT] = ms.coerceIn(100, 500) }
     }
 
     suspend fun setAutoScanOnOpen(enabled: Boolean) {

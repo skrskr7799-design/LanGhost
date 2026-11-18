@@ -1,5 +1,6 @@
 package com.langhost.data
 
+import com.langhost.data.model.DiscoverySourceStatus
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -28,5 +29,32 @@ class ArpTableParserTest {
 """
 
         assertEquals(emptyMap<String, String>(), parseArpTable(arp, ""))
+    }
+
+    @Test
+    fun readableEmptyArpTableMeansNoResponses() {
+        assertEquals(
+            DiscoverySourceStatus.NO_RESPONSES,
+            arpSourceStatus(available = true, entries = emptyMap())
+        )
+    }
+
+    @Test
+    fun unreadableArpTableMeansUnavailableEvenWhenEntriesAreEmpty() {
+        assertEquals(
+            DiscoverySourceStatus.UNAVAILABLE,
+            arpSourceStatus(available = false, entries = emptyMap())
+        )
+    }
+
+    @Test
+    fun readableArpTableWithEntriesMeansResponded() {
+        assertEquals(
+            DiscoverySourceStatus.RESPONDED,
+            arpSourceStatus(
+                available = true,
+                entries = mapOf("192.168.1.10" to "AA:BB:CC:DD:EE:01")
+            )
+        )
     }
 }

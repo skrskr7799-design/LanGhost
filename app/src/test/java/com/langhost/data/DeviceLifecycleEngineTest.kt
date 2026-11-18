@@ -35,6 +35,7 @@ class DeviceLifecycleEngineTest {
         val fresh = old.copy(
             ip = "192.168.1.21",
             lastSeen = now,
+            lastConfirmedOnline = now,
             openPorts = listOf(22, 443),
             isFavorite = true
         )
@@ -50,6 +51,50 @@ class DeviceLifecycleEngineTest {
         assertEquals(fresh, result.single())
         assertEquals(listOf(22, 443), result.single().openPorts)
         assertTrue(result.single().isFavorite)
+    }
+
+    @Test
+    fun arpOnlyObservationIsNotRankedAsOnline() {
+        val arpOnly = device(
+            ip = "192.168.1.25",
+            mac = "AA:00:00:00:00:25",
+            lastSeen = now,
+        ).copy(lastConfirmedOnline = 0L)
+
+        val tcpConfirmed = device(
+            ip = "192.168.1.26",
+            mac = "AA:00:00:00:00:26",
+            lastSeen = now,
+        ).copy(lastConfirmedOnline = now)
+
+        val result = engine.reconcile(
+            discoveredOnline = listOf(arpOnly, tcpConfirmed),
+            cachedDevices = emptyList(),
+            networkScope = SCOPE,
+            now = now
+        )
+
+        assertEquals(tcpConfirmed, result.first())
+        assertEquals(arpOnly, result.last())
+    }
+
+    @Test
+    fun oldTcpConfirmationDoesNotBecomeFreshFromNewArpObservation() {
+        val observedAgain = device(
+            ip = "192.168.1.25",
+            mac = "AA:00:00:00:00:25",
+            lastSeen = now
+        ).copy(lastConfirmedOnline = now - 15 * 60_000L)
+
+        val result = engine.reconcile(
+            discoveredOnline = listOf(observedAgain),
+            cachedDevices = emptyList(),
+            networkScope = SCOPE,
+            now = now
+        )
+
+        assertEquals(observedAgain, result.single())
+        assertTrue(now - result.single().lastConfirmedOnline >= DeviceLifecycleEngine.DEFAULT_ONLINE_WINDOW_MS)
     }
 
     @Test

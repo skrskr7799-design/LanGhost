@@ -3,12 +3,18 @@ package com.langhost.data
 import com.langhost.data.model.PortAuditResult
 import com.langhost.data.model.PortAuditStatus
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import java.net.ConnectException
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.concurrent.TimeUnit
@@ -23,29 +29,62 @@ internal class NetworkProbeEngine(
     private val ensureCurrentNetworkScope: suspend (String) -> Unit
 ) {
     private val portProbeSemaphore = Semaphore(PORT_SCAN_CONCURRENCY)
+    private val discoveryProbeSemaphore = Semaphore(DISCOVERY_PORT_CONCURRENCY)
 
-    suspend fun probeHost(ip: String, budgetMs: Int): Boolean = withContext(Dispatchers.IO) {
-        val portsToTry = intArrayOf(80, 443, 22, 445, 8080, 53)
-        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(budgetMs.coerceIn(100, 1_000).toLong())
+    suspend fun probeHost(
+        ip: String,
+        budgetMs: Int,
+        portsToTry: IntArray = DISCOVERY_PORTS
+    ): Boolean = withContext(Dispatchers.IO) {
+        val boundedBudgetMs = budgetMs.coerceIn(100, 1_000)
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(boundedBudgetMs.toLong())
 
-        for (port in portsToTry) {
-            currentCoroutineContext().ensureActive()
-            val remainingNanos = deadline - System.nanoTime()
-            if (remainingNanos <= 0L) break
-            val remainingMs = TimeUnit.NANOSECONDS.toMillis(remainingNanos).coerceAtLeast(1L)
-            val connectTimeout = remainingMs.coerceAtMost(200L).toInt()
-            try {
-                Socket().use { socket ->
-                    socket.connect(InetSocketAddress(ip, port), connectTimeout)
-                    return@withContext true
+        // Probe candidate services concurrently: a silently filtered first port must not
+        // consume the time budget before the remaining ports are attempted.
+        val positiveEvidence = AtomicBoolean(false)
+        val activeSockets = ConcurrentHashMap.newKeySet<Socket>()
+        coroutineScope {
+            portsToTry.distinct().map { port ->
+                async(Dispatchers.IO) {
+                    discoveryProbeSemaphore.withPermit {
+                        currentCoroutineContext().ensureActive()
+                        if (positiveEvidence.get()) return@withPermit false
+                        val remainingNanos = deadline - System.nanoTime()
+                        if (remainingNanos <= 0L) return@withPermit false
+                        val remainingMs = TimeUnit.NANOSECONDS.toMillis(remainingNanos).coerceAtLeast(1L)
+                        val connectTimeout = remainingMs.coerceAtMost(MAX_DISCOVERY_CONNECT_TIMEOUT_MS).toInt()
+                        val socket = Socket()
+                        activeSockets.add(socket)
+                        var responded = false
+                        try {
+                            // A sibling may have produced positive evidence while this task was queued.
+                            if (positiveEvidence.get()) return@withPermit false
+                            socket.connect(InetSocketAddress(ip, port), connectTimeout)
+                            responded = true
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (error: ConnectException) {
+                            // Only an explicit refusal proves the remote TCP stack responded.
+                            // ConnectException can also represent routing/connectivity failures.
+                            responded = isConnectionRefused(error)
+                        } catch (_: Exception) {
+                            // Timeouts and routing failures remain unknown.
+                        } finally {
+                            activeSockets.remove(socket)
+                            runCatching { socket.close() }
+                        }
+
+                        if (responded && positiveEvidence.compareAndSet(false, true)) {
+                            // Stop slower sibling connects as soon as any port proves the host responded.
+                            activeSockets.toList().forEach { sibling ->
+                                runCatching { sibling.close() }
+                            }
+                        }
+                        responded
+                    }
                 }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                // A closed or filtered port is not evidence that the host is offline.
-            }
+            }.awaitAll().any { it } || positiveEvidence.get()
         }
-        false
     }
 
     suspend fun scanPorts(
@@ -120,6 +159,16 @@ internal class NetworkProbeEngine(
     }
 
     private companion object {
+        val DISCOVERY_PORTS = intArrayOf(80, 443, 22, 445, 8080, 53)
         const val PORT_SCAN_CONCURRENCY = 16
+        const val DISCOVERY_PORT_CONCURRENCY = 192
+        const val MAX_DISCOVERY_CONNECT_TIMEOUT_MS = 400L
     }
+}
+
+
+/** A refusal (ECONNREFUSED/TCP RST) is positive evidence; generic connect failures are not. */
+internal fun isConnectionRefused(error: ConnectException): Boolean {
+    val message = error.message?.lowercase().orEmpty()
+    return "econnrefused" in message || "connection refused" in message
 }

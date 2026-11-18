@@ -1,5 +1,8 @@
 package com.langhost.data
 
+import com.langhost.data.model.DiscoverySourceStatus
+import com.langhost.data.model.ProtocolEvidence
+import com.langhost.data.model.ProtocolEvidenceSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -39,12 +42,55 @@ class NetworkDiscoveryEngineTest {
             result.ips
         )
         assertEquals(mapOf("192.168.10.4" to "AA:BB:CC:DD:EE:04"), result.arpAddresses)
+        assertEquals(setOf("192.168.10.3"), result.tcpResponsiveIps)
         assertTrue(probeCount.get() > 0)
         assertEquals("192.168.10.0/29", result.coverage.subnetCidr)
         assertEquals(6, result.coverage.checkedAddresses)
         assertEquals(6L, result.coverage.totalUsableAddresses)
         assertFalse(result.coverage.truncated)
         assertEquals("scope-a", result.coverage.networkScope)
+        assertEquals(1, result.coverage.arpObservedHosts)
+        assertEquals(1, result.coverage.tcpResponsiveHosts)
+        assertEquals(DiscoverySourceStatus.RESPONDED, result.coverage.tcpStatus)
+        assertEquals(0, result.coverage.dnsSdResolvedHosts)
+    }
+
+    @Test
+    fun tcpSourceReportsNoResponsesWhenSubnetWasCheckedWithoutPositiveReplies() = runBlocking {
+        val result = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = emptyMap(),
+            networkScope = "scope-no-tcp",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2
+        )
+
+        assertEquals(DiscoverySourceStatus.NO_RESPONSES, result.coverage.tcpStatus)
+    }
+
+    @Test
+    fun tcpSourceIsNotRunWhenSubnetCannotBeEnumerated() = runBlocking {
+        val result = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.0.255.0",
+            arpEntries = emptyMap(),
+            networkScope = "scope-no-subnet",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2
+        )
+
+        assertEquals(DiscoverySourceStatus.NOT_RUN, result.coverage.tcpStatus)
     }
 
     @Test
@@ -67,7 +113,7 @@ class NetworkDiscoveryEngineTest {
             maxConcurrency = 3
         )
 
-        assertEquals(11, probeCount.get())
+        assertEquals(22, probeCount.get())
         assertEquals(12, result.coverage.checkedAddresses)
         assertEquals(65_534L, result.coverage.totalUsableAddresses)
         assertTrue(result.coverage.truncated)
@@ -132,7 +178,372 @@ class NetworkDiscoveryEngineTest {
             throw AssertionError("Expected network-scope cancellation")
         } catch (_: CancellationException) {
             assertEquals(2, checks)
-            assertEquals(1, probes)
+            assertTrue("Scope cancellation must stop after the current window", probes <= 2)
         }
     }
+
+    @Test
+    fun refreshesArpAfterProbingAndIncludesHostsWithoutOpenProbePorts() = runBlocking {
+        val probeCount = AtomicInteger(0)
+        var arpRefreshCount = 0
+        val result = NetworkDiscoveryEngine(
+            probeHost = { ip, _ ->
+                probeCount.incrementAndGet()
+                false
+            },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = emptyMap(),
+            networkScope = "scope-refresh",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2,
+            refreshArpEntries = {
+                assertTrue("ARP refresh must run after candidate probes", probeCount.get() > 0)
+                arpRefreshCount++
+                mapOf(
+                    "192.168.10.4" to "AA:BB:CC:DD:EE:04",
+                    "192.168.20.4" to "AA:BB:CC:DD:EE:20"
+                )
+            }
+        )
+
+        assertEquals(1, arpRefreshCount)
+        assertTrue(result.ips.contains("192.168.10.4"))
+        assertTrue(result.tcpResponsiveIps.isEmpty())
+        assertEquals("AA:BB:CC:DD:EE:04", result.arpAddresses["192.168.10.4"])
+        assertFalse(result.ips.contains("192.168.20.4"))
+    }
+
+    @Test
+    fun networkScopeIsCheckedBeforeRefreshedArpRead() = runBlocking {
+        var checks = 0
+        var refreshes = 0
+        val engine = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> true },
+            ensureCurrentNetworkScope = {
+                checks++
+                if (checks == 4) throw CancellationException("network changed before ARP refresh")
+            }
+        )
+
+        try {
+            engine.discover(
+                localIp = "192.168.10.2",
+                gateway = "192.168.10.1",
+                netmask = "255.255.255.248",
+                arpEntries = emptyMap(),
+                networkScope = "scope-refresh",
+                timeoutMs = 150,
+                maxTargets = 16,
+                maxConcurrency = 2,
+                refreshArpEntries = {
+                    refreshes++
+                    emptyMap()
+                }
+            )
+            throw AssertionError("Expected network-scope cancellation")
+        } catch (_: CancellationException) {
+            assertEquals(0, refreshes)
+        }
+    }
+
+    @Test
+    fun networkScopeIsRecheckedAfterRefreshedArpRead() = runBlocking {
+        var checks = 0
+        var refreshes = 0
+        val engine = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> true },
+            ensureCurrentNetworkScope = {
+                checks++
+                if (checks == 5) throw CancellationException("network changed during ARP refresh")
+            }
+        )
+
+        try {
+            engine.discover(
+                localIp = "192.168.10.2",
+                gateway = "192.168.10.1",
+                netmask = "255.255.255.248",
+                arpEntries = emptyMap(),
+                networkScope = "scope-refresh",
+                timeoutMs = 150,
+                maxTargets = 16,
+                maxConcurrency = 2,
+                refreshArpEntries = {
+                    refreshes++
+                    emptyMap()
+                }
+            )
+            throw AssertionError("Expected network-scope cancellation")
+        } catch (_: CancellationException) {
+            assertEquals(1, refreshes)
+        }
+    }
+
+    @Test
+    fun includesOnlyInSubnetDnsSdServiceObservations() = runBlocking {
+        val result = NetworkDiscoveryEngine(
+            probeHost = { ip, _ -> ip == "192.168.10.5" },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = emptyMap(),
+            networkScope = "scope-nsd",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2,
+            discoverNsdServiceIps = {
+                DiscoverySourceResult(setOf("192.168.10.5", "192.168.20.5", "127.0.0.1"), DiscoverySourceStatus.RESPONDED)
+            }
+        )
+
+        assertEquals(setOf("192.168.10.5"), result.nsdServiceIps)
+        assertTrue(result.ips.contains("192.168.10.5"))
+        assertFalse(result.ips.contains("192.168.20.5"))
+        assertFalse(result.ips.contains("127.0.0.1"))
+        assertEquals(setOf("192.168.10.5"), result.tcpResponsiveIps)
+        assertEquals(1, result.ips.count { it == "192.168.10.5" })
+        assertEquals(1, result.coverage.tcpResponsiveHosts)
+        assertEquals(1, result.coverage.dnsSdResolvedHosts)
+        assertEquals(DiscoverySourceStatus.RESPONDED, result.coverage.dnsSdStatus)
+    }
+
+    @Test
+    fun optionalDnsSdFailureDoesNotDiscardOtherDiscoveryEvidence() = runBlocking {
+        val result = NetworkDiscoveryEngine(
+            probeHost = { ip, _ -> ip == "192.168.10.3" },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = mapOf("192.168.10.4" to "AA:BB:CC:DD:EE:04"),
+            networkScope = "scope-nsd-failure",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2,
+            discoverNsdServiceIps = { throw IllegalStateException("NSD unavailable") }
+        )
+
+        assertTrue(result.ips.contains("192.168.10.3"))
+        assertTrue(result.ips.contains("192.168.10.4"))
+        assertTrue(result.nsdServiceIps.isEmpty())
+        assertEquals(DiscoverySourceStatus.UNAVAILABLE, result.coverage.dnsSdStatus)
+    }
+
+    @Test
+    fun partialOptionalSourceStatusIsPreserved() = runBlocking {
+        val result = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = emptyMap(),
+            networkScope = "scope-partial",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2,
+            discoverNsdServiceIps = {
+                DiscoverySourceResult(setOf("192.168.10.5"), DiscoverySourceStatus.PARTIAL)
+            },
+            discoverSsdpServiceIps = {
+                DiscoverySourceResult(setOf("192.168.10.6"), DiscoverySourceStatus.PARTIAL)
+            }
+        )
+
+        assertEquals(DiscoverySourceStatus.PARTIAL, result.coverage.dnsSdStatus)
+        assertEquals(DiscoverySourceStatus.PARTIAL, result.coverage.ssdpStatus)
+        assertEquals(setOf("192.168.10.5"), result.nsdServiceIps)
+        assertEquals(setOf("192.168.10.6"), result.ssdpServiceIps)
+    }
+
+    @Test
+    fun optionalSourcesPreserveSuccessfulEmptyResponseState() = runBlocking {
+        val result = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = emptyMap(),
+            networkScope = "scope-empty-optional",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2,
+            discoverNsdServiceIps = {
+                DiscoverySourceResult(emptySet(), DiscoverySourceStatus.NO_RESPONSES)
+            },
+            discoverSsdpServiceIps = {
+                DiscoverySourceResult(emptySet(), DiscoverySourceStatus.NO_RESPONSES)
+            },
+            discoverHostReachabilityIps = {
+                DiscoverySourceResult(emptySet(), DiscoverySourceStatus.NO_RESPONSES)
+            }
+        )
+
+        assertEquals(DiscoverySourceStatus.NO_RESPONSES, result.coverage.dnsSdStatus)
+        assertEquals(DiscoverySourceStatus.NO_RESPONSES, result.coverage.ssdpStatus)
+        assertEquals(DiscoverySourceStatus.NO_RESPONSES, result.coverage.reachabilityStatus)
+    }
+
+    @Test
+    fun dnsSdCancellationIsNotSwallowedAsOptionalFailure() = runBlocking {
+        try {
+            NetworkDiscoveryEngine(
+                probeHost = { _, _ -> false },
+                ensureCurrentNetworkScope = {}
+            ).discover(
+                localIp = "192.168.10.2",
+                gateway = "192.168.10.1",
+                netmask = "255.255.255.248",
+                arpEntries = emptyMap(),
+                networkScope = "scope-nsd-cancel",
+                timeoutMs = 150,
+                maxTargets = 0,
+                maxConcurrency = 1,
+                discoverNsdServiceIps = {
+                    throw CancellationException("scan cancelled")
+                }
+            )
+            throw AssertionError("Expected DNS-SD cancellation to propagate")
+        } catch (cancelled: CancellationException) {
+            assertEquals("scan cancelled", cancelled.message)
+        }
+    }
+
+    @Test
+    fun dnsSdResultsHaveIndependentHardHostLimit() = runBlocking {
+        val dnsSdIps = (1..300).map { offset ->
+            "10.0.${offset / 256}.${offset % 256}"
+        }.toSet()
+        val result = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "10.0.0.2",
+            gateway = "10.0.0.1",
+            netmask = "255.255.254.0",
+            arpEntries = emptyMap(),
+            networkScope = "scope-nsd-cap",
+            timeoutMs = 150,
+            maxTargets = 0,
+            maxConcurrency = 1,
+            discoverNsdServiceIps = { DiscoverySourceResult(dnsSdIps, DiscoverySourceStatus.RESPONDED) }
+        )
+
+        assertEquals(256, result.nsdServiceIps.size)
+        assertTrue(result.nsdServiceIps.all { it.startsWith("10.0.") })
+    }
+
+    @Test
+    fun includesOnlyInSubnetHostReachabilityResponses() = runBlocking {
+        val result = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = emptyMap(),
+            networkScope = "scope-ping",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2,
+            discoverHostReachabilityIps = { candidates ->
+                assertTrue(candidates.isNotEmpty())
+                DiscoverySourceResult(setOf("192.168.10.5", "192.168.20.5", "127.0.0.1"), DiscoverySourceStatus.RESPONDED)
+            }
+        )
+
+        assertEquals(setOf("192.168.10.5"), result.hostReachabilityIps)
+        assertTrue(result.ips.contains("192.168.10.5"))
+        assertFalse(result.ips.contains("192.168.20.5"))
+        assertFalse(result.ips.contains("127.0.0.1"))
+        assertEquals(1, result.coverage.reachabilityResponsiveHosts)
+        assertEquals(DiscoverySourceStatus.RESPONDED, result.coverage.reachabilityStatus)
+    }
+
+
+    @Test
+    fun combinesDnsSdAndSsdpEvidenceForTheSameHost() = runBlocking {
+        val dnsEvidence = ProtocolEvidence(
+            source = ProtocolEvidenceSource.DNS_SD,
+            serviceName = "Living Room Speaker"
+        )
+        val ssdpEvidence = ProtocolEvidence(
+            source = ProtocolEvidenceSource.SSDP,
+            friendlyName = "Living Room Speaker",
+            deviceType = "urn:schemas-upnp-org:device:MediaRenderer:1"
+        )
+        val result = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = emptyMap(),
+            networkScope = "scope-dual-protocol",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2,
+            discoverNsdServiceIps = {
+                DiscoverySourceResult(
+                    setOf("192.168.10.5"),
+                    DiscoverySourceStatus.RESPONDED,
+                    mapOf("192.168.10.5" to listOf(dnsEvidence))
+                )
+            },
+            discoverSsdpServiceIps = {
+                DiscoverySourceResult(
+                    setOf("192.168.10.5"),
+                    DiscoverySourceStatus.RESPONDED,
+                    mapOf("192.168.10.5" to listOf(ssdpEvidence))
+                )
+            }
+        )
+
+        val evidence = result.protocolEvidenceByIp.getValue("192.168.10.5")
+        assertTrue(evidence.contains(dnsEvidence))
+        assertTrue(evidence.contains(ssdpEvidence))
+        assertEquals(2, evidence.size)
+    }
+
+    @Test
+    fun includesOnlyInSubnetSsdpResponses() = runBlocking {
+        val result = NetworkDiscoveryEngine(
+            probeHost = { _, _ -> false },
+            ensureCurrentNetworkScope = {}
+        ).discover(
+            localIp = "192.168.10.2",
+            gateway = "192.168.10.1",
+            netmask = "255.255.255.248",
+            arpEntries = emptyMap(),
+            networkScope = "scope-ssdp",
+            timeoutMs = 150,
+            maxTargets = 16,
+            maxConcurrency = 2,
+            discoverSsdpServiceIps = {
+                DiscoverySourceResult(setOf("192.168.10.6", "192.168.20.6", "127.0.0.1"), DiscoverySourceStatus.RESPONDED)
+            }
+        )
+
+        assertEquals(setOf("192.168.10.6"), result.ssdpServiceIps)
+        assertTrue(result.ips.contains("192.168.10.6"))
+        assertFalse(result.ips.contains("192.168.20.6"))
+        assertFalse(result.ips.contains("127.0.0.1"))
+        assertEquals(1, result.coverage.ssdpResponsiveHosts)
+        assertEquals(DiscoverySourceStatus.RESPONDED, result.coverage.ssdpStatus)
+    }
+
+
 }

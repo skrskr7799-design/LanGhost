@@ -1,5 +1,7 @@
 package com.langhost.data
 
+import com.langhost.data.model.DiscoverySourceStatus
+
 /** Parses /proc/net/arp while retaining only entries owned by the active interface. */
 internal fun parseArpTable(content: String, interfaceName: String): Map<String, String> {
     if (interfaceName.isBlank()) return emptyMap()
@@ -29,3 +31,11 @@ private fun isUsableUnicastMac(value: String): Boolean {
     val isMulticast = octets.first() and 0x01 != 0
     return !isAllZero && !isMulticast
 }
+
+/** Distinguishes a readable empty ARP table from a failed or unavailable read. */
+internal fun arpSourceStatus(available: Boolean, entries: Map<String, String>): DiscoverySourceStatus =
+    when {
+        !available -> DiscoverySourceStatus.UNAVAILABLE
+        entries.isNotEmpty() -> DiscoverySourceStatus.RESPONDED
+        else -> DiscoverySourceStatus.NO_RESPONSES
+    }

@@ -1,9 +1,81 @@
+
+
+
+### Phase 7.5 — Physical-device discovery validation update
+
+- [x] User retested the implementation on the tablet.
+- [ ] Physical acceptance remains incomplete: the latest confirmed retest found only three devices (tablet, router and server); the computer, TV and two phones were still missing.
+- [ ] Continue testing source-level reliability across additional routers, Android versions, mesh roaming, client isolation and MAC randomization.
+
+### Phase 7.6 — TCP failure classification hardening
+
+- [x] Re-audit the current TCP refusal handling against actual source: the implementation treated every `ConnectException` as positive host evidence, not only ECONNREFUSED/TCP RST.
+- [x] Restrict positive refusal evidence to explicit `ECONNREFUSED` / `Connection refused` messages. Generic `ConnectException` outcomes such as network unreachable, no route, or missing error text remain unconfirmed.
+- [x] Add regression coverage for explicit refusal versus generic connectivity failures.
+- [x] Confirm the Android CI run for the classification change: run #44023075780 passed on `9bdba266783bde8f06dd0956c26c02a55e9345ab`; subsequent documentation CI runs #44023733482 and #44023727367 also passed.
+- [ ] Continue with structured per-source diagnostics: distinguish TCP OPEN/REFUSED/TIMEOUT/NO_ROUTE/OTHER, ARP unavailable versus readable-empty, and NSD/SSDP/reachability unavailable versus no responders. Keep diagnostic data privacy-safe and avoid recording IP/MAC/SSID or raw exception messages.
+- [ ] Add UI presentation for source status and counters, then run full CI before another physical-device retest.
+
+The broad `ConnectException` catch was a real correctness defect: Android/JVM connect failures are not synonymous with ECONNREFUSED. This fix narrows the positive-evidence rule; it does not yet solve all missing-device cases or prove that the current subnet and supplementary discovery mechanisms are operating correctly.
+
+
+### Phase 7.7 — Structured discovery source diagnostics
+
+- [x] Add privacy-safe aggregate source outcomes: `NOT_RUN`, `RESPONDED`, `NO_RESPONSES`, `UNAVAILABLE`, and `NOT_REPORTED`.
+- [x] Propagate DNS-SD, SSDP, reachability, TCP and ARP outcomes into scan coverage without exposing IP addresses, MAC addresses, SSIDs or raw exception messages.
+- [x] Display per-source status in the dashboard; distinguish an idle/not-applicable source from a source that ran and found no responders.
+- [x] Preserve optional-source isolation: DNS-SD, SSDP and reachability failures do not discard valid ARP/TCP evidence; coroutine cancellation remains cancellation.
+- [x] Keep subnet filtering, bounded host/result counts, bounded concurrency and network-scope checkpoints in the discovery pipeline.
+- [x] Fix the DNS-SD startup-result function's missing return and verify both push and pull-request Android CI runs passed on `7cf0de2669e874071a36d6ee0ab71f858c20892c` (runs #44026575567 and #44026581972).
+- [x] Add an explicit PARTIAL aggregate state; DNS-SD reports it when only some service types start, and SSDP reports it when responses were collected before a later socket/operation failure.
+- [x] Display partial availability distinctly in the dashboard and preserve it through the platform-independent discovery engine.
+- [x] Add regression coverage for propagation of partial DNS-SD/SSDP outcomes and retention of their valid in-subnet results.
+- [x] Extract the SSDP UDP receive loop behind an injectable receive boundary and test valid-response-then-I/O-failure (`PARTIAL` with evidence retained), failure-before-response (`UNAVAILABLE`), expected receive timeout continuation, and malformed-packet rejection.
+- [ ] Add adapter-level tests for DNS-SD mixed service-type startup and Android-specific socket creation/network binding/close behavior; SSDP receive-loop tests exercise the production loop but do not instantiate an Android-bound DatagramSocket.
+- [x] Extend pure SSDP parser regression tests for case-insensitive headers, LOCATION as an alternative identity header, invalid packet lengths, and missing identity headers.
+- [x] Add regression tests for ARP readable-empty versus unavailable; UI source-status propagation still needs a dedicated test or extraction of the presentation mapping.
+- [ ] Validate source status behavior on physical Android devices and multiple router/AP configurations.
+
+Implementation note: TCP `RESPONDED` means at least one candidate produced positive TCP host evidence; it does not mean every candidate was reachable. `NO_RESPONSES` is not proof that hosts are offline. DNS-SD and SSDP now expose `PARTIAL` when they have usable evidence alongside a failed subset of their operation. DNS-SD Android callback orchestration and Android-specific SSDP socket binding/close behavior remain open; the SSDP receive-loop logic itself now has deterministic failure-path tests. Physical-device validation remains open.
+
+#
+### Protocol evidence foundation (in progress)
+
+- Added a bounded `ProtocolEvidence` model to device snapshots, with explicit DNS-SD/SSDP provenance.
+- DNS-SD now retains sanitized service type and instance name per resolved endpoint; a lost advertisement removes only its own metadata and addresses.
+- SSDP now extracts sanitized USN identity, ST device type and SERVER header; raw LOCATION URLs are intentionally discarded.
+- Discovery results carry protocol metadata alongside status, and the network engine merges only evidence belonging to in-subnet responding endpoints.
+- Unit coverage added for protocol string sanitization, DNS-SD metadata lifecycle and SSDP metadata extraction/privacy.
+- Device detail now presents DNS-SD/SSDP protocol evidence separately from heuristic type confidence. Each scan replaces the current protocol-evidence snapshot so vanished advertisements do not remain indefinitely.
+- Added device-enrichment tests for replacing stale evidence and clearing metadata when services are no longer advertised.
+- Remaining: persistence/serialization compatibility review, richer manufacturer/model extraction where protocol data supports it, and end-to-end/device-level tests.
+
+## Phase 8 — Device Intelligence & Classification (partially implemented; protocol evidence remains queued)
+
+- [x] Replace first-match device-type heuristics with a conservative weighted classifier that records confidence and explainable signal identifiers.
+- [ ] Preserve protocol-level evidence from mDNS/DNS-SD and SSDP (service type, friendly name, manufacturer/model hints) instead of reducing all responses to an IP-only observation.
+- [ ] Add bounded, low-impact service fingerprinting for already discovered hosts; keep service discovery distinct from the security audit and never treat a closed/filtered port as a device-type signal.
+- [ ] Improve hostname normalization and vendor/OUI interpretation; locally administered/random MACs must not be assigned a manufacturer.
+- [x] Surface heuristic type confidence and evidence in device inventory/detail UI, with UNKNOWN retained whenever evidence is weak or conflicting. Confidence is an evidence-strength estimate, not a calibrated probability.
+- [x] Add deterministic classifier tests for representative phones, TVs, NAS, printers, cameras, weak/ambiguous signals and contradictory evidence; continue expanding coverage as protocol metadata is added.
+
+### Phase 8 — Visual identity
+
+- [ ] Replace the placeholder launcher mark with the LanGhost shield/hood/network-node identity; verify adaptive and round launcher icons on Android 8+.
+- [ ] Add a dedicated monochrome notification icon and validate its appearance in system notification surfaces.
+
+### Deferred engineering quality work
+- [ ] Complete Android string-resource localization for English and Russian; move user-visible Kotlin literals into resources.
+- [ ] Replace the generic Android notification small icon with a dedicated monochrome notification asset.
+- [ ] Move the OUI vendor-prefix table out of `NetworkRepository` into a versioned asset/resource with bounded loading and tests.
+- [ ] Derive HTTP User-Agent version from `BuildConfig.VERSION_NAME`.
+- [ ] Enable and validate R8/minification for Release, including keep rules and runtime smoke tests.
 # LanGhost — Engineering Roadmap & Audit Register
 
-> Status: Phases 1–5 implementation and automated CI complete; physical-device validation tracked separately in Phase 6
+> Status: Phases 1–5 implementation and automated CI complete; Phase 6 physical-device validation partially verified; Phase 7 Network Discovery Reliability IN PROGRESS; Product Expansion Roadmap recorded
 > Baseline branch: main
-> Baseline commit reviewed: e581fd0523aa90fd57a9338ac8eaae4e5a17408f (merge of PR #1)
-> Working branch: work/phase-5-final-polish
+> Baseline commit: 6c36723497925e69d97081f944f82ff6bd4dc9e4 (PR #2 merged)
+> Working branch: audit/phase-7-discovery-reliability
 
 ## Project direction
 
@@ -113,17 +185,89 @@ Phase 5 implementation and automated validation are complete. Full CI run [#4381
 - [ ] Exercise real-network scenarios: no Wi-Fi, VPN active, mobile data, guest network, mesh, IPv6, denied permissions and interrupted scans.
 - [ ] Add regression tests for every confirmed defect.
 
-### Phase 7 — Advanced network intelligence
-- [ ] More reliable device classification with confidence and evidence.
-- [ ] Network topology with clear distinction between observed and inferred links.
-- [ ] Device presence timeline and change detection.
-- [ ] Monitoring for selected devices, latency/loss history and meaningful alerts.
-- [ ] Wi-Fi channel/interference analysis with band, width and platform limitations represented accurately.
-- [ ] Security insights and actionable remediation guidance.
-- [ ] Network diagnostics (DNS, gateway, DHCP, reachability and related tools).
-- [ ] Exportable reports and network profiles with privacy controls.
+### Phase 7 — Network Discovery Reliability
 
-### Phase 8 — Release readiness
+**Status: IN PROGRESS**
+
+**Trigger:** first physical-tablet audit (2026-11-16). In the user's home LAN, the scan reported only the tablet, router and server, while the user confirmed that a computer, TV and two phones were also connected. This is a reproducible product-level concern to investigate, not yet a proven single root cause.
+
+**Goal:** make discovery materially more complete and explainable on stock Android, without claiming that silent, isolated or filtered devices are absent. Audit and improve the full path from active-network selection through candidate generation, ARP collection, reachability probes, endpoint merging, enrichment and UI publication.
+
+#### Work packages
+
+- [x] **7.1 Baseline and evidence audit**
+  - [x] Trace the complete discovery pipeline and current Android permissions / network APIs.
+  - [x] Verify active interface selection, IPv4 address/netmask/gateway calculation and candidate coverage.
+  - [x] Inspect `/proc/net/arp` parsing and filtering (interface, flags, MAC validity, freshness, address scope).
+  - [x] Review positive-evidence probes, timeout behavior, concurrency, cancellation and scan duration.
+  - [x] Determine whether the current implementation can discover silent hosts; document why TCP-only reachability misses clients with no probed service.
+  - [x] Record the observed tablet audit as a test scenario without assuming router-specific behavior.
+
+- [ ] **7.2 Discovery strategy and evidence model**
+  - Compare available stock-Android-compatible evidence sources (neighbor/ARP cache, bounded TCP probes, mDNS/NSD, SSDP and other safe LAN discovery signals).
+  - Keep discovery restricted to the active user-selected/authorized IPv4 network and explicit bounded targets.
+  - Distinguish direct observation, positive reachability, cached/stale evidence and inferred identity.
+  - Never mark a host offline solely because one probe failed; preserve UNKNOWN / FILTERED / NOT OBSERVED semantics.
+  - Make scan coverage, skipped ranges, unsupported methods and platform limitations visible.
+
+- [ ] **7.3 Engine implementation and resilience**
+  - Refactor `NetworkDiscoveryEngine`, `HostDiscovery`, `DeviceProbe` and repository orchestration where evidence supports it.
+  - Preserve bounded candidate counts, bounded concurrency, network-scope checkpoints and cancellation.
+  - Avoid duplicate devices when multiple discovery methods report the same endpoint.
+  - Prevent stale results from crossing network changes; retain privacy-safe diagnostics.
+  - Add deterministic tests for ARP parsing, interface filtering, candidate coverage, evidence merging, silent hosts, timeouts, cancellation, duplicate observations and network switching.
+
+- [ ] **7.4 Physical-network verification**
+  - Re-test on the user's tablet and home LAN with known clients: tablet, router, server, computer, TV, user's phone and brother's phone.
+  - Compare expected devices against observed devices and record per-device evidence / reason for non-detection.
+  - Test different host response profiles (ping disabled, no common TCP ports, sleeping, Wi-Fi client isolation where available).
+  - Verify no false claim of complete inventory when Android/router visibility is restricted.
+
+#### Acceptance criteria
+
+- [ ] Discovery pipeline and its limitations are documented from source, not guessed.
+- [ ] Every candidate/observation has traceable evidence and a clear distinction between observed, inferred, stale and unknown.
+- [ ] Regression tests cover each confirmed failure and the supported discovery methods.
+- [ ] Scan bounds, cancellation, network-scope isolation and privacy guarantees remain intact.
+- [ ] Full CI (Android Lint, unit tests, Debug APK, Release APK and artifact upload) passes on the final Phase 7 head.
+- [ ] Tablet/home-LAN verification is completed and results are recorded. If Android or router restrictions prevent complete visibility, the UI must disclose that limitation honestly.
+- [ ] README and roadmap reflect the actual implementation and validation status.
+
+**Exit rule:** Phase 7 is not closed by source review or CI alone. It closes only after all implementation criteria pass and the known-device tablet scenario has been re-tested. Any platform limitation that cannot be removed must be explicitly documented and surfaced in the product.
+
+### Phase 8 — Device Intelligence
+
+- [ ] Improve vendor identification using available MAC/OUI evidence; explicitly label randomized/local MAC addresses and unknown vendors.
+- [ ] Improve device-type classification using multiple independent signals and confidence/evidence.
+- [ ] Improve OS hints only where evidence supports them; never infer a precise OS from a port number alone.
+- [ ] Keep observed facts separate from heuristics and show confidence / source in device details.
+- [ ] Add deterministic tests for conflicting, missing and weak signals.
+
+### Phase 9 — Wi-Fi Analyzer Actions
+
+- [ ] Turn nearby access-point inventory into an actionable radio-analysis workspace.
+- [ ] Add detailed network inspection: band, channel, width where available, RSSI, security and freshness.
+- [ ] Improve channel overlap / congestion visualization within Android scan-data limitations.
+- [ ] Add evidence-based recommendations and explain uncertainty; do not claim measured interference from scan results alone.
+- [ ] Keep operations limited to information Android exposes; no interaction with or probing of neighboring networks.
+
+### Phase 10 — Device Actions and Wake-on-LAN Integration
+
+- [ ] Add an explicit action on eligible discovered device cards/details to create a Wake-on-LAN profile.
+- [ ] Pre-fill MAC and available network parameters; require user confirmation before saving.
+- [ ] Handle missing, randomized, multicast or otherwise unusable MAC addresses with a clear unavailable state.
+- [ ] Preserve explicit user control over sending a Magic Packet and explain that packet transmission does not prove the device powered on.
+- [ ] Add regression tests for eligibility, parameter mapping and privacy masking.
+
+### Phase 11 — UX Stabilization
+
+- [ ] Stabilize Ping/TCP diagnostic result layout so updates do not cause visible jumps.
+- [ ] Audit navigation/back-stack behavior and ensure Overview is consistently reachable.
+- [ ] Review operation feedback, empty/loading/error states and adaptive phone/tablet/landscape behavior.
+- [ ] Add focused Compose UI tests for the corrected flows.
+
+### Phase 12 — Release readiness
+
 - [ ] Final performance, battery, accessibility and privacy review.
 - [ ] Verify versioning, release notes, reproducible CI outputs and artifact retention.
 - [ ] Configure secure release signing and document key handling.
@@ -162,7 +306,7 @@ Use one entry per finding. Do not mark a suspected issue as confirmed without so
 | DATA-004 | Export | CSV fields were quoted but embedded double quotes were not escaped; spreadsheet formula injection was not neutralized | Medium | ExportHelper.exportDevicesAsCsv() | Resolved on working branch: RFC4180 quote escaping plus formula-prefix neutralization; regression tests added |
 | SEC-005 | Components | Exported AppWidgetProvider accepted a custom scan action from arbitrary external broadcasts | Medium | ACTION_SCAN was included in the exported receiver intent filter | Resolved on working branch; scan action now targets an exported=false receiver |
 | PERM-001 | Permissions | Android 12+ location permission requests should request ACCESS_FINE_LOCATION and ACCESS_COARSE_LOCATION together | Medium | Three Wi-Fi scan screens requested fine only despite declaring coarse | Updated on working branch; API-level behavior validation pending |
-| PERM-002 | Permissions | CHANGE_WIFI_MULTICAST_STATE was declared but no MulticastLock usage exists | Low | Manifest permission had no corresponding code use | Resolved on working branch: unused permission removed |
+| PERM-002 | Permissions | Multicast reception for foreground mDNS discovery requires a lock on older Android releases | Low | Phase 7 NSD adapter uses WifiManager.MulticastLock only on Android 12 and Android 13 before T extension 7; lock is released in finally | Reintroduced narrowly for Phase 7; no lock held outside the bounded foreground scan |
 | PERM-003 | Notifications | Enabling background monitoring could trigger the Android notification permission prompt even though monitoring and notifications are separate preferences | Low | SettingsScreen watch-mode callback checked the notification preference and launched POST_NOTIFICATIONS | Resolved on work/data-architecture: monitoring no longer requests notification permission; new installs default notifications off; the permission is requested only from the explicit notification opt-in control; default covered by unit test |
 | TOOLS-001 | DNS utility | DNS lookup could swallow coroutine cancellation and had no explicit lookup deadline or input bound | Medium | UtilitiesScreen.runDns() caught generic Exception around blocking InetAddress.getAllByName() | Resolved on work/data-architecture: shared interruptible DNS resolution has a four-second deadline, host input is bounded, output is capped at 16 addresses, and CancellationException propagates |
 
@@ -325,3 +469,269 @@ The working branch has completed the first implementation pass across the networ
 The final CI run on the latest branch head must complete Android Lint, unit tests, Debug APK and Release APK successfully before the automated gate is closed. Source review additionally corrected notification-permission coupling in background monitoring, bounded/cancellation-aware DNS utility lookups, and updated the README to describe current capabilities and limitations.
 
 Still outside the automated gate: Compose UI/integration tests are not yet present; real-device testing is required for Android permission and biometric lifecycle behavior, Wi-Fi scan throttling/redaction, ARP visibility, VPN/multi-network routing, router/mesh behavior, and background scheduling. IPv6 discovery, channel-width/regulatory-aware analysis and true physical topology remain explicit limitations rather than claims of completed functionality. The full visual redesign remains a separate cohesive stage after the functional gate.
+
+
+### Phase 7 implementation log — 2026-11-16
+
+**7.1 source trace: COMPLETE.** The active-interface and subnet selection path, strict ARP parser, bounded candidate generator, six-port positive TCP probe, cancellation/network-scope guards and coverage accounting have been traced. The source-level findings are recorded above.
+
+**7.2 first reliability improvement: IMPLEMENTED, CI PENDING.** After the bounded TCP candidate pass, the engine now revalidates the active network scope, re-reads the ARP table for the same active interface, revalidates scope again, and merges fresh in-subnet ARP observations with the initial ARP snapshot and positive TCP evidence. This allows a host that answers neighbor resolution but exposes none of the six TCP probe ports to be included when Android's kernel has learned its MAC address. Out-of-subnet entries remain excluded. No host is marked offline from a failed TCP probe.
+
+Regression coverage added for:
+- post-probe ARP refresh discovering a host with no open probed TCP ports;
+- filtering refreshed ARP evidence to the active subnet;
+- cancellation before the refreshed ARP read and revalidation immediately after it returns;
+- deterministic concurrent probe-count assertions (the pre-existing test used an unsynchronized shared counter across IO-dispatched coroutines).
+
+**Important limitation:** this change improves use of ARP evidence generated during the existing probe pass; it does not guarantee visibility of every LAN client. Android/kernel neighbor-cache behavior, router client isolation, sleeping devices, subnet truncation and scan timing still require physical validation. NSD/mDNS and other candidate evidence sources remain under evaluation, not yet committed.
+
+The next implementation gate is full CI on the final Phase 7 branch head, followed by review of scan latency/coverage and an on-device retest against the known home-LAN device list.
+
+## Phase 7 kickoff — Network Discovery Reliability (2026-11-16)
+
+The first tablet audit identified a high-impact discovery discrepancy: only the tablet, router and server appeared in the inventory, while the user confirmed a computer, TV and two phones were also connected to the same home network. The scan of nearby Wi-Fi access points appeared to work; this finding concerns host discovery, not access-point scanning.
+
+Phase 7 is active on `audit/phase-7-discovery-reliability`, branched from main commit `6c36723497925e69d97081f944f82ff6bd4dc9e4`. The scope and exit criteria are recorded above. No root cause is declared yet. The first implementation task is a source-level trace of candidate generation, active-interface selection, ARP neighbor collection, positive TCP evidence, endpoint merging and enrichment. The audit must specifically test the current design's dependence on positive TCP responses and determine whether additional Android-compatible discovery evidence can safely improve coverage.
+
+### Phase 7.1 — Initial source audit findings (2026-11-16)
+
+The first source trace confirms the following current behavior:
+
+- `NetworkRepository.scanDevices()` reads `/proc/net/arp` once **before** the subnet TCP-probe pass. It does not deliberately prime the neighbor table first and then re-read it.
+- `parseArpTable()` accepts only complete ARP entries (ATF_COM), usable unicast MAC addresses and the exact active interface. `NetworkDiscoveryEngine` then filters those entries to the current IPv4 subnet. This is conservative, but it means a client absent from the kernel neighbor table at that instant contributes no ARP evidence.
+- Candidate discovery probes each usable IPv4 address through TCP ports `80, 443, 22, 445, 8080, 53`. A host is included from this path only if one of those TCP connections succeeds. Refused, filtered, timed-out and other failed probes are intentionally treated as unconfirmed, not as proof of offline status.
+- Consequently, a live client that has not recently populated the ARP table and does not accept a connection on those six ports can be omitted. This is a confirmed limitation of the current implementation and a strong candidate explanation for the tablet audit; it is **not yet proof** that this was the only cause on the user's router.
+- The current probe budget is bounded (up to 1 second per host, with at most 32 concurrent host probes); subnet candidate generation is capped at 1,024 and scan coverage reports checked versus total usable addresses.
+
+**Next investigation:** evaluate a bounded neighbor-discovery/ARP-priming stage followed by a fresh neighbor-table read, plus stock-Android-compatible service discovery (for example, carefully scoped NSD/mDNS). Compare reliability, Android API behavior, permissions, multicast requirements, cancellation and battery cost before selecting an implementation. Do not add a blanket ping/port sweep or treat absence of a response as host absence.
+
+The user also reported missing vendor/OS identification. This is tracked as Phase 8 rather than mixed into discovery reliability. Nearby Wi-Fi interactivity, discovered-device-to-Wake-on-LAN integration, ping layout stability and navigation consistency are tracked in Phases 9–11. The tablet's real-network retest is a required Phase 7 exit criterion; CI alone cannot close the phase.
+
+**Phase status rule:** a phase is marked complete only after implementation, relevant regression tests, full CI review, documentation update and any required physical-device acceptance. Until then it remains explicitly IN PROGRESS or BLOCKED, never checked off by assumption.
+
+
+### Phase 7.2 — Evidence semantics hardening (implementation checkpoint, 2026-11-16)
+
+The discovery pipeline now carries two separate outputs instead of flattening all sources into one undifferentiated set:
+
+- tcpResponsiveIps: hosts for which a TCP connection to one of the six discovery ports succeeded during this scan;
+- arpAddresses: in-subnet MAC observations from the active interface's ARP table, including the post-probe refresh.
+
+Each Device now retains the time of its latest observation (lastSeen) separately from the latest positive reachability confirmation (lastConfirmedOnline), plus the source of its latest observation (DiscoveryEvidence). A passive/cached ARP row can add an inventory observation and MAC address, but it does not refresh the online timer. The local interface is treated as locally present; a configured gateway without positive response is not silently promoted to confirmed-online.
+
+The Devices inventory now labels ARP-only and unconfirmed gateway observations explicitly instead of presenting them as ordinary offline devices. Lifecycle ordering uses the confirmed-reachability timestamp, while offline retention continues to use the last observation timestamp.
+
+Regression tests cover:
+- ARP-only evidence does not create a fresh online confirmation;
+- a new ARP observation does not refresh an older TCP confirmation;
+- positive TCP discovery is carried separately from the merged inventory;
+- local-interface presence remains confirmed;
+- gateway evidence is classified independently from a passive MAC observation.
+
+This is an implementation checkpoint only. Full CI for the current branch head and physical retest remain pending. At the time of this checkpoint, the six-port probe still counted only successful TCP connections; connection-refused/RST handling was added and regression-tested in Phase 7.3. NSD/mDNS is a complementary discovery path, not a universal LAN inventory guarantee.
+
+
+### Phase 7.2 — DNS-SD / NSD complementary discovery checkpoint (2026-11-16)
+
+A bounded Android NSD adapter is now integrated into the active-network scan. It concurrently listens for a fixed set of common DNS-SD service types (HTTP, HTTPS, SSH, SMB, Google Cast, AirPlay and IPP), resolves advertised services to IPv4 addresses, deduplicates service observations, caps outstanding resolutions at four and resolved hosts at 256, and limits each discovery listener to a bounded startup/window/grace period. Android 13+ binds discovery to the captured active Network where supported; earlier versions use the platform default network. Android 14+ uses the per-service `registerServiceInfoCallback` API; older versions use `resolveService`. Discovery and service-info listeners are stopped in `finally`; scan cancellation propagates, and the legacy multicast lock is acquired only on Android versions that still require it and released in `finally`.
+
+Resolved addresses are filtered against the active IPv4 subnet before they can enter the device inventory. The engine runs the NSD pass alongside the post-probe ARP refresh and revalidates network scope before publishing the merged result. NSD is carried as its own `NSD_SERVICE_OBSERVATION` evidence type rather than being mislabeled as a TCP response. The device inventory displays this source as **mDNS / DNS-SD**.
+
+Regression tests cover:
+- inclusion of DNS-SD observations only when their resolved IPv4 address belongs to the active subnet, with a hard 256-host cap in the engine;
+- optional DNS-SD failure isolation, cancellation propagation and cross-source deduplication;
+- keeping NSD evidence distinct from TCP evidence while recording a positive service-resolution observation.
+
+**Limitations:** DNS-SD discovers only devices that advertise one of the supported service types and respond to resolution. Phones, TVs, computers and IoT devices may advertise different services, disable mDNS, use multicast filtering/client isolation, or be asleep. A resolved service does not identify the device OS or guarantee a complete inventory. The current fixed service-type list is intentionally bounded and will be reviewed against real-device results. Service-info callbacks are tracked across all concurrent service-type listeners and cleaned up once the scan ends, so one listener cannot cancel another listener's in-flight resolution. Android target SDK remains 35; the future Android 17 local-network permission migration must be handled before targeting API 37.
+
+**Status:** implementation checkpoint only. Lint, unit tests, APK builds and artifact upload are pending on the updated branch head. Phase 7 remains IN PROGRESS; physical home-LAN retest is still mandatory.
+
+
+### Phase 7.3 — Physical retest feedback and expanded evidence plan (2026-11-16)
+
+The first post-NSD physical retest on the user's Galaxy tablet completed successfully from an installation/launch perspective, but the device inventory was unchanged: tablet, router and server only. No additional computer, TV or phone appeared. This is a failed discovery acceptance check, not a phase completion. The result confirms that the initial ARP refresh and fixed DNS-SD service set have not materially improved coverage on this home LAN; it does not by itself distinguish between router/client isolation, endpoint sleep/firewall behavior, subnet selection, multicast visibility or an NSD listener/resolution issue.
+
+A source review identified another concrete false-negative path: `NetworkProbeEngine.probeHost()` previously counted only a successful TCP connect as positive evidence. A connection refusal (TCP RST) is also a response from the target and must count as reachability, while timeouts and routing errors remain unknown. This is now corrected and covered by a loopback regression test.
+
+**Next diagnostic/implementation gate:**
+- Expose source-specific scan counters (candidate addresses checked, TCP-positive hosts, ARP entries, DNS-SD-resolved hosts) so a physical retest can show which evidence path is empty instead of reporting only a total coverage percentage.
+- Add bounded, active-network-scoped discovery for additional LAN protocols with device relevance: SSDP/UPnP (TV/media devices), WS-Discovery (Windows hosts), and NBNS/NetBIOS (where enabled). Multicast/broadcast reception, lock lifecycle, interface binding, cancellation, packet limits and privacy must be explicitly handled and unit-tested.
+- Preserve source-specific evidence. A UDP discovery response may confirm a host, but must not be mislabeled as a TCP response or OS identification.
+- Review whether the subnet is fully covered by the 1,024-target cap and make truncation/source counts visible.
+- Repeat the same known-device acceptance test only after the new diagnostics and discovery paths pass full CI.
+
+**Status:** Phase 7 remains IN PROGRESS. The unchanged physical result is recorded as an unresolved acceptance failure. Do not mark the phase complete or merge PR #3 based on CI alone.
+
+
+### Phase 7.4 — Multi-signal discovery and scheduler hardening (implementation checkpoint, 2026-11-16)
+
+The follow-up code audit identified three additional reliability/performance weaknesses and proposed complementary host-discovery signals. The following changes are now implemented on `audit/phase-7-discovery-reliability`:
+
+**TCP probing**
+- A refused TCP connection (RST / `ConnectException`) remains positive reachability evidence; timeouts and routing failures remain unknown.
+- The six candidate ports are attempted concurrently under a hard global discovery-socket limit of 192 (32 host workers × 6 candidate ports). The per-port connect timeout is capped at 400 ms and the host deadline remains bounded. As soon as any port returns a positive response (open or refused), sibling sockets are closed rather than waiting for their timeouts.
+- The default scan timeout was raised from 150 ms to 350 ms. Hosts without positive TCP evidence receive one shorter second pass; hosts already confirmed in the first pass are not probed again.
+- Regression coverage verifies RST evidence and that only unresolved hosts are retried.
+
+**Continuous bounded scheduling**
+- `HostDiscovery.mapBounded` and subnet discovery now use a bounded sliding worker scheduler rather than fixed batches. A completed task immediately frees a slot for the next candidate; the scheduler does not wait for the slowest host in a batch.
+- Network-scope checks run in the parent scheduler at each sliding window, so a network change propagates cancellation directly and prevents the next window from being admitted.
+- Discovery and manual/security port scans use separate bounded socket semaphores.
+
+**ARP diagnostics**
+- `/proc/net/arp` read failures are no longer silently indistinguishable from a valid empty table. A fixed, privacy-safe `AppLog` event records the failure without logging IPs, MACs, SSIDs or exception payloads.
+- Scan coverage carries nullable `arpAvailable` state, and the inventory UI displays **ARP недоступен** when the platform denies or cannot provide the table.
+
+**Additional discovery signals**
+- Existing NSD/mDNS remains in place.
+- A bounded SSDP/UPnP M-SEARCH pass is added. Its UDP socket is bound to the captured active Android Network before sending; only valid HTTP 200 SSDP responses with service identity headers are accepted; response source addresses are subnet-filtered and capped at 256.
+- A best-effort interface-bound `InetAddress.isReachable(NetworkInterface, ...)` pass runs only for candidates without positive TCP evidence. Depending on Android/JVM implementation this may use ICMP echo or a TCP-echo fallback; it is therefore labelled as a host-reachability probe rather than guaranteed ICMP. A negative result never means offline.
+- TCP, DNS-SD, SSDP and host-reachability observations remain distinct evidence types and have separate scan counters. They are not treated as OS identification.
+- Optional SSDP/reachability failures are isolated from other discovery evidence; cancellation and active-network scope checks still propagate.
+
+**Limitations and physical acceptance**
+- SSDP only discovers devices that answer UPnP/SSDP M-SEARCH; it will not find every phone or computer.
+- `InetAddress.isReachable` is platform-dependent and many endpoints/firewalls suppress echo traffic. It is supplemental, not a guaranteed ping implementation.
+- Android's ARP table may remain inaccessible; the UI now makes that source failure visible rather than pretending the source returned zero hosts.
+- Client isolation, multicast filtering, sleeping devices, subnet candidate caps and endpoint firewall policy can still prevent discovery. The next tablet test must compare source counters as well as the total inventory against the known devices (tablet, router, server, computer, TV and both phones).
+
+**Status:** implementation checkpoint only. Full CI on the final head and the physical home-LAN retest are still required. Phase 7 remains IN PROGRESS; do not merge PR #3 or mark the phase complete yet.
+
+
+**Phase 7.4 CI validation checkpoint — 2026-11-16**
+
+The final implementation head for this checkpoint, `b746dd58f47cc3182881c8fb82c527862eaaf521`, passed GitHub Actions run [#43865999257](https://github.com/skrskr7799-design/LanGhost/actions/runs/43865999257). Android Lint, all 145 unit tests, Debug APK build, Release APK build and APK artifact upload completed successfully. The uploaded artifact is `langhost-apks` (Debug APK plus unsigned Release APK). An earlier test attempt exposed two cancellation assertions tied to the previous batch scheduler; rather than weakening cancellation behavior, the scheduler was replaced with a bounded sliding worker implementation that propagates scope-check failures from the parent coroutine. The complete test suite is green on the recorded head.
+
+**Phase status remains IN PROGRESS.** The new Debug APK is ready for the next physical home-LAN acceptance pass. The tablet test has not yet been performed on this implementation, so the known-device list and source counters still need to be verified before Phase 7 can close. PR #3 remains open and unmerged.
+
+### Phase 7.5 — Second post-implementation physical retest (2026-11-17)
+
+The user repeated the home-LAN discovery test on the tablet after the Phase 7.4 implementation checkpoint. The inventory still contains only the same three devices (tablet, router and server); the expected computer, TV and two phones remain absent. This is a second failed physical acceptance result and confirms that the Phase 7.4 multi-signal changes did not resolve the reported coverage gap.
+
+**Do not infer a single root cause yet.** The source currently exposes aggregate positive-evidence counters (ARP, TCP, DNS-SD, SSDP and host reachability), but it does not expose enough negative/transport-level diagnostics to distinguish among:
+- candidate subnet or address-range mismatch;
+- TCP connection attempts timing out versus being refused or failing for another reason;
+- ARP table readable-but-empty versus populated entries filtered by interface/state;
+- NSD discovery start/resolve failures or no advertised services;
+- SSDP send/receive failure versus no compatible responders;
+- router client isolation, VLAN separation, endpoint firewalling, sleeping clients or Android platform restrictions.
+
+**Next diagnostic gate (before another physical retest):**
+1. Capture the current scan coverage values from the tablet, especially subnet CIDR, checked/total addresses, truncated flag, ARP availability/count, TCP, DNS-SD, SSDP and reachability counts.
+2. Add privacy-safe per-source diagnostic outcomes sufficient to distinguish "no response" from "mechanism unavailable/failed"; do not log IP addresses, MAC addresses, SSIDs or raw exception payloads.
+3. Add deterministic regression tests for each diagnostic outcome and verify the UI reports unavailable sources separately from sources that ran and found no responders.
+4. Run full CI and only then request one targeted tablet retest.
+
+**Status:** Phase 7 remains IN PROGRESS. No merge or phase closure is authorized by this retest.
+
+## Product Expansion Roadmap — LanGhost Intelligence Platform
+
+The following user-proposed capabilities are accepted as product requirements. They are grouped by shared foundations and implementation dependencies rather than treated as isolated screens. All active discovery, probing, monitoring and remediation remain restricted to networks/devices the user owns or is explicitly authorized to assess.
+
+### Foundation A — Evidence, identity and network timeline
+- [ ] Persist normalized observations with timestamps and source provenance: discovery source, mDNS/DNS-SD service data, SSDP/UPnP identity/model data, hostname, OUI confidence, open services, HTTP fingerprints and scan context.
+- [ ] Build a durable local event/history model for device first/last seen, presence transitions, gateway identity, DNS configuration, router service/port changes, WAN address changes and scan/diagnostic events.
+- [ ] Add device ownership labels (Mine / Guest / Suspicious), notification actions, and a unified evidence view on device details.
+- [ ] Implement conservative randomized-MAC identity correlation ("Ghosts") using multiple independent signals and time windows. Never merge identities on hostname or timing alone; expose match confidence and allow manual split/merge.
+- [ ] Build a timeline query layer that can power presence charts, router/ISP incident logs, ghost sightings and historical topology ("time machine").
+
+### Foundation B — Network diagnostics and trust
+- [ ] One-tap "Why is the internet slow?" diagnostic pipeline: Wi-Fi link/RSSI/link speed where Android exposes them, gateway latency, DNS latency, external latency, loss/jitter and channel metadata where available. Produce a reasoned verdict with per-layer measurements and explicit unavailable/unsupported states.
+- [ ] DNS consistency check comparing configured resolver answers with independent DNS-over-HTTPS answers for a small controlled domain set; report differences, not automatic proof of spoofing.
+- [ ] Public/captive-network trust assessment: captive portal detection, DNS comparison, certificate-chain inspection for app-controlled probes, HTTP content-integrity checks against known references, and BSSID/network identity change warnings. Clearly distinguish a suspicious signal from confirmed interception.
+- [ ] Gateway drift monitoring: gateway MAC, configured DNS servers, router service/port baseline and relevant network identity changes, with deduplication and user-configurable alerts.
+- [ ] Router/WAN incident correlation: simultaneous LAN disappearance, gateway reachability loss and public-IP change, with timestamped exportable evidence for ISP support.
+
+### Foundation C — Router security and vulnerability intelligence
+- [ ] Read UPnP IGD port mappings from the local gateway and present external port, protocol, internal target, description and lease data where supplied.
+- [ ] Offer deletion of a selected mapping only after explicit per-mapping confirmation; show the consequence and preserve an audit event. Do not modify mappings automatically.
+- [ ] Add KEV matching using locally bundled/versioned CISA Known Exploited Vulnerabilities data. Match vendor/product/version conservatively; label fuzzy or incomplete matches as "possible", include catalog timestamp and never imply exploitability from a banner alone.
+- [ ] Keep router discovery, inventory fingerprinting and vulnerability assessment as distinct stages with clear evidence provenance.
+
+### Foundation D — Presence, discovery UX and network surfaces
+- [ ] Presence ("Room"): opt-in device arrival/departure notifications, hourly presence charts and privacy/retention controls.
+- [ ] Notification actions for newly observed devices: Mine / Guest / Suspicious; persist classification and expose all collected evidence in the device profile.
+- [ ] LAN home page: locally discovered service tiles (router, NAS, Home Assistant, printer, Pi-hole, etc.) using verified service endpoints and one-tap web UI launch. Never guess an endpoint from a device type alone.
+- [ ] Wi-Fi floor-plan heatmap: user-imported floor plan, manually recorded measurement points, RSSI and throughput samples, coverage visualization and dead-zone estimates. Account for device orientation, band and measurement uncertainty.
+- [ ] Hot/cold access-point radar: RSSI-based proximity guidance as the baseline; Wi-Fi RTT/802.11mc only on supported Android devices/APs with capability checks. Audio/haptics are optional feedback; AR direction is a later enhancement.
+
+### Foundation E — Advanced network intelligence
+- [ ] Ghosts screen for conservative device-identity correlation and unusual temporal patterns (brief appearances, night-only presence, repeated identity changes), with explainable evidence and false-positive controls.
+- [ ] Historical topology playback with a time slider and event reconstruction from the local timeline. Natural-language questions are optional and must query only locally stored history unless the user explicitly enables an external service.
+
+### Delivery order and dependency gates
+1. Finish Phase 7 discovery reliability and source diagnostics; the latest confirmed physical retest still finds only three of the six known devices, so repeat acceptance only after targeted diagnostics.
+2. Audit and finish current Device Intelligence work: protocol evidence preservation (mDNS/SSDP), classifier validation, icon assets and honest confidence semantics.
+3. Deliver the shared local evidence/event store and device ownership model. This unlocks Ghosts, Room, drift alerts, notification actions and the time machine.
+4. Deliver the one-tap performance diagnostic and gateway drift/DNS comparison; these are high-value, mostly read-only capabilities and reuse existing network primitives.
+5. Deliver UPnP mapping inventory first, then carefully gated per-mapping deletion; add KEV matching after reliable model/version extraction exists.
+6. Deliver LAN home page and incident-history export.
+7. Deliver public-Wi-Fi trust assessment with platform limitations documented and tests for captive portals, DNS variance and certificate results.
+8. Deliver Wi-Fi heatmap and hot/cold radar after validating Android hardware/API support and measurement reliability.
+9. Deliver advanced Ghosts correlation and historical topology playback after sufficient real observation history exists.
+
+### Platform and safety constraints
+- Android does not expose every Wi-Fi metric on every OS/device; channel utilization, scan results, BSSID and RTT may be permission-, hardware-, location- or platform-restricted. UI must report unsupported/unavailable rather than fabricate values.
+- A DNS answer difference from DoH can result from CDN geography, split-horizon DNS, filtering or resolver policy; it is an anomaly to investigate, not proof of DNS hijacking.
+- Certificate inspection is limited to connections LanGhost itself makes; the app cannot inspect arbitrary TLS sessions from other applications without invasive interception, which is out of scope.
+- HTTP integrity checks require stable, known reference content and must account for legitimate content variation.
+- Randomized MAC correlation is probabilistic. Do not silently merge devices or label a device malicious based only on unusual presence.
+- UPnP mapping removal is a consequential router configuration change and always requires explicit user confirmation.
+- KEV inclusion means a vulnerability is known to be exploited in the wild; it does not establish that the detected device is vulnerable or exploitable.
+- Persist network history locally by default, provide retention/deletion controls, and avoid collecting payloads, credentials or unrelated browsing data.
+
+
+## Phase 7.7 adapter review notes
+
+- SSDP response parsing is isolated and now has coverage for status-line validation, required identity headers, header-name case folding, and packet-length bounds. Runtime socket partial-failure behavior is now routed through a pure result aggregator with tests for response-then-failure (`PARTIAL`), failure-without-response (`UNAVAILABLE`), successful empty windows (`NO_RESPONSES`) and positive responses (`RESPONDED`). The UDP socket lifecycle itself still needs an injectable transport seam or instrumentation test; parser/aggregator tests do not claim to cover Android network binding or receive callbacks.
+- DNS-SD aggregate coverage classification is extracted into `nsdDiscoveryStatus` and unit-tested for all-start-failed, mixed startup with positive results, successful responses, observed-but-unresolved advertisements, resolution failures, tracking saturation, successful empty windows, and an empty type list. This tests the status contract independently of Android callback scheduling; it does not replace platform instrumentation.
+- DNS-SD callback registrations now use a scan-scoped registry: cleanup closes registration before taking the outstanding-callback snapshot, late `onServiceFound` events cannot register new listeners after cleanup begins, and callback release is idempotent across registration failure, unregister notification and explicit cleanup. Pure registry tests cover track/release, close/reject-late-track, and release-after-close. Android `NsdManager` orchestration still needs instrumentation/fake-adapter coverage for actual platform callback ordering and mixed service-type startup outcomes.
+- DNS-SD uses bounded per-type startup/discovery windows, bounded resolution concurrency and a 256-advertisement tracking cap. Resolved addresses are tracked per service advertisement: a lost service removes only its own addresses, shared host addresses remain while another service advertises them, and generation tokens reject stale resolve/lost callbacks after reappearance. Registration/resolve failures and tracking saturation contribute to `PARTIAL` source status. Pure tracker tests cover stale callbacks, generation monotonicity, duplicates and capacity bounds. The legacy `DiscoveryListener.onServiceLost` callback carries no scan-local generation/token, so it is intentionally not allowed to delete an entry: a delayed loss for an old advertisement could otherwise erase a newer reappearance with the same key. API 34+ `ServiceInfoCallback.onServiceLost` retains generation-checked removal. Legacy evidence remains scan-scoped and is discarded at the end of the bounded scan. Android callback orchestration still needs an instrumentation/fake-adapter test, especially registration failure, cancellation cleanup, and mixed start outcomes.
+- ARP availability is based on successful reading of `/proc/net/arp`, not on whether entries exist; `arpSourceStatus` now has unit coverage for readable-empty (`NO_RESPONSES`), unreadable (`UNAVAILABLE`) and populated (`RESPONDED`) outcomes. The dashboard label mapping now has unit coverage for all six statuses; Compose rendering and physical-device behavior remain to be verified.
+
+## Final release and merge gate — required before merging into `main`
+
+- [ ] All planned roadmap phases are either implemented or explicitly moved to a documented post-release backlog with rationale and user approval.
+- [ ] Latest branch head has successful GitHub Actions for Android Lint, unit tests, Debug APK and Release APK; no unresolved required checks.
+- [ ] Full source audit completed: discovery correctness, cancellation, network-scope isolation, concurrency/time bounds, privacy, permissions, persistence and failure handling.
+- [ ] Device Intelligence evidence and confidence semantics reviewed; no heuristic is presented as certainty.
+- [ ] Database/DataStore schema and migration paths reviewed and tested against existing user data.
+- [ ] English/Russian localization and accessibility pass reviewed; no accidental user-facing hardcoded strings remain in completed screens.
+- [ ] Launcher/adaptive/round/monochrome assets and critical UI flows verified on supported Android versions.
+- [ ] Release APK installed and smoke-tested on a physical Android device; discovery rechecked on the user's LAN.
+- [ ] Documentation, changelog, version metadata, known limitations and release notes match the shipped implementation.
+- [ ] Final diff against `main` reviewed; PR #3 checks and merge base are current; no unrelated or generated secrets/artifacts included.
+- [ ] Explicit user go-ahead received before merging PR #3 into `main`.
+
+Until every required gate is satisfied, all implementation remains on `audit/phase-7-discovery-reliability`; `main` is not modified.
+
+- DNS-SD service tracking is capped at 256 concurrently observed advertisements per scan. Duplicate active service keys are ignored, generations use a scan-local monotonic counter (no unbounded per-key generation map), and reaching the cap marks the source `PARTIAL` rather than silently growing memory or claiming complete coverage.
+
+
+### Phase 7.8 — SSDP transport lifecycle boundary
+
+- The production SSDP adapter now delegates socket-session ordering to a small transport lifecycle function: prepare/bind, send M-SEARCH, receive within the bounded window, and close in finally.
+- Unit tests verify preparation precedes send, send is skipped after preparation failure, the transport is always closed after setup failure and cancellation, and cancellation propagates rather than being converted into an ordinary unavailable-source result.
+- The injected seam deliberately does not claim to test Android's actual Network.bindSocket(DatagramSocket), multicast routing, device-specific socket behavior, or kernel-level close semantics. Those still require Android instrumentation or physical-device verification.
+
+
+- A final race review found a gap between recording a DNS-SD ServiceInfoCallback and invoking the Android registration API: cleanup could snapshot/unregister between those two operations, after which the racing thread could register a callback too late. Registration is now performed through an atomic registry operation serialized against close/snapshot. Tests cover that registration action is inside the close gate and that a closed registry never executes a late registration action.
+
+
+### Phase 7.9 — Transport-construction and active-network failure boundaries
+
+- [x] Include SSDP UDP socket construction inside the optional-source failure boundary. A constructor-level exception now becomes UNAVAILABLE rather than escaping and aborting the broader discovery scan; coroutine cancellation still propagates.
+- [x] Add deterministic tests for transport factory failure and successful factory handoff, in addition to the existing prepare/send/receive/close lifecycle tests.
+- [x] Make DNS-SD return UNAVAILABLE immediately when the scan has no captured active Android Network. It no longer silently invokes the legacy process-default discovery path with a null network reference.
+- [ ] Android instrumentation is still required to validate actual NSD network scoping and Network.bindSocket behavior on supported Android versions.
+
+
+### Phase 7.10 — DNS-SD listener session lifecycle
+
+- [x] Extract the per-service-type NSD listener lifecycle behind a coroutine-testable boundary.
+- [x] Bound the combined startup, discovery and resolution-grace window; skip the discovery window when startup fails or times out.
+- [x] Ensure the listener receives exactly one stop attempt from the lifecycle cleanup path, including startup failure and cancellation.
+- [x] Preserve coroutine cancellation while still attempting stop cleanup; stop callback waiting remains bounded.
+- [x] Add deterministic tests for successful startup, start failure, startup timeout, stop failure and cancellation propagation.
+- [ ] Run full Android CI on the updated branch head.
+- [ ] Android instrumentation/physical testing is still required for real NsdManager callback ordering and network scoping.
