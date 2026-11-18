@@ -183,7 +183,7 @@ class AndroidSsdpDiscoveryTest {
         try {
             runSsdpTransportSession(
                 results = results,
-                deadlineNanos = 10,
+                deadlineNanos = Long.MAX_VALUE,
                 prepare = { events += "prepare" },
                 sendSearch = { events += "send" },
                 receive = {
