@@ -218,12 +218,11 @@ internal class AndroidNsdDiscovery(context: Context) {
             }
         }
 
-        if (!activeInfoCallbacks.track(callback)) {
-            pendingResolutions.decrementAndGet()
-            return
-        }
         try {
-            nsdManager.registerServiceInfoCallback(service, DIRECT_EXECUTOR, callback)
+            val registered = activeInfoCallbacks.trackAndRun(callback) {
+                nsdManager.registerServiceInfoCallback(service, DIRECT_EXECUTOR, callback)
+            }
+            if (!registered) pendingResolutions.decrementAndGet()
         } catch (_: Exception) {
             results.resolutionFailed()
             release()
