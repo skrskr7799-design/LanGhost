@@ -60,13 +60,13 @@ internal class AndroidNsdDiscovery(context: Context) {
             val resolved = results.addresses()
             DiscoverySourceResult(
                 value = resolved,
-                status = when {
-                    startedTypes.none { it } -> DiscoverySourceStatus.UNAVAILABLE
-                    startedTypes.any { !it } || results.hasResolutionFailures() || results.hasTrackingLimitReached() -> DiscoverySourceStatus.PARTIAL
-                    resolved.isNotEmpty() -> DiscoverySourceStatus.RESPONDED
-                    results.hasObservedServices() -> DiscoverySourceStatus.PARTIAL
-                    else -> DiscoverySourceStatus.NO_RESPONSES
-                },
+                status = nsdDiscoveryStatus(
+                    startedTypes = startedTypes,
+                    resolvedAddresses = resolved,
+                    observedServices = results.hasObservedServices(),
+                    resolutionFailures = results.hasResolutionFailures(),
+                    trackingLimitReached = results.hasTrackingLimitReached()
+                ),
                 protocolEvidenceByIp = results.protocolEvidenceByIp()
             )
         } finally {
