@@ -2,8 +2,9 @@
 
 
 ### Phase 7.5 — Physical-device discovery validation update
-- [x] User retested the latest build and confirmed that all six known LAN devices were discovered.
-- [x] Corrected the earlier three-device observation: it came from an older APK, not the current discovery implementation.
+
+- [x] User retested the implementation on the tablet.
+- [ ] Physical acceptance remains incomplete: the latest confirmed retest found only three devices (tablet, router and server); the computer, TV and two phones were still missing.
 - [ ] Continue testing source-level reliability across additional routers, Android versions, mesh roaming, client isolation and MAC randomization.
 
 ### Phase 7.6 — TCP failure classification hardening
@@ -659,7 +660,7 @@ The following user-proposed capabilities are accepted as product requirements. T
 - [ ] Historical topology playback with a time slider and event reconstruction from the local timeline. Natural-language questions are optional and must query only locally stored history unless the user explicitly enables an external service.
 
 ### Delivery order and dependency gates
-1. Finish Phase 7 discovery reliability and source diagnostics; retain the successful physical result that the latest build discovered all six known devices.
+1. Finish Phase 7 discovery reliability and source diagnostics; the latest confirmed physical retest still finds only three of the six known devices, so repeat acceptance only after targeted diagnostics.
 2. Audit and finish current Device Intelligence work: protocol evidence preservation (mDNS/SSDP), classifier validation, icon assets and honest confidence semantics.
 3. Deliver the shared local evidence/event store and device ownership model. This unlocks Ghosts, Room, drift alerts, notification actions and the time machine.
 4. Deliver the one-tap performance diagnostic and gateway drift/DNS comparison; these are high-value, mostly read-only capabilities and reuse existing network primitives.
@@ -723,3 +724,14 @@ Until every required gate is satisfied, all implementation remains on `audit/pha
 - [x] Add deterministic tests for transport factory failure and successful factory handoff, in addition to the existing prepare/send/receive/close lifecycle tests.
 - [x] Make DNS-SD return UNAVAILABLE immediately when the scan has no captured active Android Network. It no longer silently invokes the legacy process-default discovery path with a null network reference.
 - [ ] Android instrumentation is still required to validate actual NSD network scoping and Network.bindSocket behavior on supported Android versions.
+
+
+### Phase 7.10 — DNS-SD listener session lifecycle
+
+- [x] Extract the per-service-type NSD listener lifecycle behind a coroutine-testable boundary.
+- [x] Bound the combined startup, discovery and resolution-grace window; skip the discovery window when startup fails or times out.
+- [x] Ensure the listener receives exactly one stop attempt from the lifecycle cleanup path, including startup failure and cancellation.
+- [x] Preserve coroutine cancellation while still attempting stop cleanup; stop callback waiting remains bounded.
+- [x] Add deterministic tests for successful startup, start failure, startup timeout, stop failure and cancellation propagation.
+- [ ] Run full Android CI on the updated branch head.
+- [ ] Android instrumentation/physical testing is still required for real NsdManager callback ordering and network scoping.
