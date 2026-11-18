@@ -38,6 +38,12 @@ internal class AndroidNsdDiscovery(context: Context) {
 
     @SuppressLint("NewApi")
     suspend fun discover(activeNetwork: Network?): DiscoverySourceResult<Set<String>> = withContext(Dispatchers.IO) {
+        // Never silently fall back to the process default network when the
+        // scan's captured Android Network is unavailable.
+        if (activeNetwork == null) {
+            return@withContext DiscoverySourceResult(emptySet(), DiscoverySourceStatus.UNAVAILABLE)
+        }
+
         val results = NsdResolutionResults()
         val activeInfoCallbacks = NsdCallbackRegistry<NsdManager.ServiceInfoCallback>()
         val pendingResolutions = AtomicInteger(0)
