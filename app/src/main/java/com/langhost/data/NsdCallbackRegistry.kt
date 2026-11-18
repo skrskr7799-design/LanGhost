@@ -16,6 +16,18 @@ internal class NsdCallbackRegistry<T : Any> {
         return callbacks.add(callback)
     }
 
+    /**
+     * Atomically records and starts a platform registration relative to close.
+     * The registration call runs under the same monitor as closeAndSnapshot(),
+     * so cleanup cannot unregister before a racing registration is actually made.
+     */
+    @Synchronized
+    fun trackAndRun(callback: T, register: () -> Unit): Boolean {
+        if (closed || !callbacks.add(callback)) return false
+        register()
+        return true
+    }
+
     @Synchronized
     fun release(callback: T): Boolean = callbacks.remove(callback)
 
