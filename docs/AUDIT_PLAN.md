@@ -712,3 +712,6 @@ Until every required gate is satisfied, all implementation remains on `audit/pha
 - The production SSDP adapter now delegates socket-session ordering to a small transport lifecycle function: prepare/bind, send M-SEARCH, receive within the bounded window, and close in finally.
 - Unit tests verify preparation precedes send, send is skipped after preparation failure, the transport is always closed after setup failure and cancellation, and cancellation propagates rather than being converted into an ordinary unavailable-source result.
 - The injected seam deliberately does not claim to test Android's actual Network.bindSocket(DatagramSocket), multicast routing, device-specific socket behavior, or kernel-level close semantics. Those still require Android instrumentation or physical-device verification.
+
+
+- A final race review found a gap between recording a DNS-SD ServiceInfoCallback and invoking the Android registration API: cleanup could snapshot/unregister between those two operations, after which the racing thread could register a callback too late. Registration is now performed through an atomic registry operation serialized against close/snapshot. Tests cover that registration action is inside the close gate and that a closed registry never executes a late registration action.
