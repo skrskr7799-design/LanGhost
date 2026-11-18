@@ -29,28 +29,32 @@ internal class AndroidSsdpDiscovery {
         val request = M_SEARCH.toByteArray(Charsets.US_ASCII)
         val target = InetAddress.getByName(SSDP_MULTICAST_ADDRESS)
 
-        val socket = DatagramSocket(null)
-        runSsdpTransportSession(
+        runSsdpTransportFactorySession(
             results = results,
-            deadlineNanos = System.nanoTime() + WINDOW_NANOS,
-            maxHosts = MAX_HOSTS,
-            maxPacketBytes = MAX_PACKET_BYTES,
-            prepare = {
-                socket.reuseAddress = false
-                socket.bind(InetSocketAddress(0))
-                activeNetwork.bindSocket(socket)
-                socket.soTimeout = RECEIVE_TIMEOUT_MS
-            },
-            sendSearch = {
-                socket.send(DatagramPacket(request, request.size, target, SSDP_PORT))
-            },
-            receive = { buffer ->
-                val packet = DatagramPacket(buffer, buffer.size)
-                socket.receive(packet)
-                SsdpReceivedDatagram(packet.address, packet.data, packet.length)
-            },
-            close = socket::close
-        )
+            createTransport = { DatagramSocket(null) }
+        ) { socket ->
+            runSsdpTransportSession(
+                results = results,
+                deadlineNanos = System.nanoTime() + WINDOW_NANOS,
+                maxHosts = MAX_HOSTS,
+                maxPacketBytes = MAX_PACKET_BYTES,
+                prepare = {
+                    socket.reuseAddress = false
+                    socket.bind(InetSocketAddress(0))
+                    activeNetwork.bindSocket(socket)
+                    socket.soTimeout = RECEIVE_TIMEOUT_MS
+                },
+                sendSearch = {
+                    socket.send(DatagramPacket(request, request.size, target, SSDP_PORT))
+                },
+                receive = { buffer ->
+                    val packet = DatagramPacket(buffer, buffer.size)
+                    socket.receive(packet)
+                    SsdpReceivedDatagram(packet.address, packet.data, packet.length)
+                },
+                close = socket::close
+            )
+        }
         DiscoverySourceResult(
             value = results.snapshot(),
             status = results.status(),
@@ -110,6 +114,24 @@ internal suspend fun runSsdpReceiveLoop(
             results.markOperationFailed()
             return
         }
+    }
+}
+
+/**
+ * Includes transport construction in the source's failure boundary. Socket
+ * constructors can fail before prepare/bind, and must not abort the whole scan.
+ */
+internal suspend fun <T : Any> runSsdpTransportFactorySession(
+    results: SsdpDiscoveryResults,
+    createTransport: () -> T,
+    runSession: suspend (T) -> Unit
+) {
+    try {
+        runSession(createTransport())
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        results.markOperationFailed()
     }
 }
 
