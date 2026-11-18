@@ -143,8 +143,8 @@ internal class AndroidNsdDiscovery(context: Context) {
             }
 
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
+                // The session lifecycle performs the single stop attempt in finally.
                 started.complete(false)
-                runCatching { nsdManager.stopServiceDiscovery(this) }
             }
 
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
@@ -152,38 +152,31 @@ internal class AndroidNsdDiscovery(context: Context) {
             }
         }
 
-        return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && activeNetwork != null) {
-                nsdManager.discoverServices(
-                    serviceType,
-                    NsdManager.PROTOCOL_DNS_SD,
-                    activeNetwork,
-                    DIRECT_EXECUTOR,
-                    listener
-                )
-            } else {
-                nsdManager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)
-            }
-            withTimeoutOrNull(START_TIMEOUT_MS + DISCOVERY_WINDOW_MS + RESOLUTION_GRACE_MS) {
-                val didStart = started.await()
-                if (didStart) {
-                    delay(DISCOVERY_WINDOW_MS)
-                    // Give service-resolution callbacks a short bounded opportunity to finish.
-                    delay(RESOLUTION_GRACE_MS)
+        return runNsdDiscoverySession(
+            startDiscovery = {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && activeNetwork != null) {
+                    nsdManager.discoverServices(
+                        serviceType,
+                        NsdManager.PROTOCOL_DNS_SD,
+                        activeNetwork,
+                        DIRECT_EXECUTOR,
+                        listener
+                    )
+                } else {
+                    nsdManager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)
                 }
-                didStart
-            } ?: false
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (_: Exception) {
-            // A service type may be unsupported or unavailable on this network.
-            false
-        } finally {
-            runCatching {
-                nsdManager.stopServiceDiscovery(listener)
-                withTimeoutOrNull(STOP_TIMEOUT_MS) { stopped.await() }
-            }
-        }
+            },
+            awaitStarted = { started.await() },
+            runDiscoveryWindow = {
+                delay(DISCOVERY_WINDOW_MS)
+                // Give service-resolution callbacks a short bounded opportunity to finish.
+                delay(RESOLUTION_GRACE_MS)
+            },
+            stopDiscovery = { nsdManager.stopServiceDiscovery(listener) },
+            awaitStopped = { stopped.await() },
+            sessionTimeoutMs = START_TIMEOUT_MS + DISCOVERY_WINDOW_MS + RESOLUTION_GRACE_MS,
+            stopTimeoutMs = STOP_TIMEOUT_MS
+        )
     }
 
     @SuppressLint("NewApi")
