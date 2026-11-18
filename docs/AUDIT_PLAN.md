@@ -715,3 +715,11 @@ Until every required gate is satisfied, all implementation remains on `audit/pha
 
 
 - A final race review found a gap between recording a DNS-SD ServiceInfoCallback and invoking the Android registration API: cleanup could snapshot/unregister between those two operations, after which the racing thread could register a callback too late. Registration is now performed through an atomic registry operation serialized against close/snapshot. Tests cover that registration action is inside the close gate and that a closed registry never executes a late registration action.
+
+
+### Phase 7.9 — Transport-construction and active-network failure boundaries
+
+- [x] Include SSDP UDP socket construction inside the optional-source failure boundary. A constructor-level exception now becomes UNAVAILABLE rather than escaping and aborting the broader discovery scan; coroutine cancellation still propagates.
+- [x] Add deterministic tests for transport factory failure and successful factory handoff, in addition to the existing prepare/send/receive/close lifecycle tests.
+- [x] Make DNS-SD return UNAVAILABLE immediately when the scan has no captured active Android Network. It no longer silently invokes the legacy process-default discovery path with a null network reference.
+- [ ] Android instrumentation is still required to validate actual NSD network scoping and Network.bindSocket behavior on supported Android versions.
