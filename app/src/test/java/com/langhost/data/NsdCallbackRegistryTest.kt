@@ -41,4 +41,36 @@ class NsdCallbackRegistryTest {
         assertTrue(registry.release("callback"))
         assertTrue(registry.isEmpty())
     }
+
+    @Test
+    fun registrationActionRunsBeforeCloseCanSnapshotCallback() {
+        val registry = NsdCallbackRegistry<String>()
+        val events = mutableListOf<String>()
+
+        val registered = registry.trackAndRun("callback") {
+            events += "registered"
+            assertEquals(listOf("callback"), registry.closeAndSnapshot())
+            events += "closed"
+        }
+
+        assertTrue(registered)
+        assertEquals(listOf("registered", "closed"), events)
+        assertTrue(registry.isClosed())
+    }
+
+    @Test
+    fun closedRegistryDoesNotExecuteLateRegistrationAction() {
+        val registry = NsdCallbackRegistry<String>()
+        registry.closeAndSnapshot()
+        var registrationAttempted = false
+
+        val registered = registry.trackAndRun("late") {
+            registrationAttempted = true
+        }
+
+        assertFalse(registered)
+        assertFalse(registrationAttempted)
+        assertTrue(registry.isEmpty())
+    }
+
 }
