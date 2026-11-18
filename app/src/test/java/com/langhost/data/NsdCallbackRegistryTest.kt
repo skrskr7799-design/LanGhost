@@ -68,6 +68,7 @@ class NsdCallbackRegistryTest {
         val allowRegistrationToFinish = CountDownLatch(1)
         val registrationResult = AtomicReference<Boolean>()
         val snapshot = AtomicReference<List<String>>()
+        val closeAttempting = CountDownLatch(1)
 
         val registrationThread = Thread {
             registrationResult.set(
@@ -81,11 +82,18 @@ class NsdCallbackRegistryTest {
         assertTrue("Registration did not enter its critical section", registrationEntered.await(2, TimeUnit.SECONDS))
 
         val closeThread = Thread {
+            closeAttempting.countDown()
             snapshot.set(registry.closeAndSnapshot())
         }
         closeThread.start()
+        assertTrue("Close thread did not start", closeAttempting.await(2, TimeUnit.SECONDS))
+        val blockedDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+        while (closeThread.state != Thread.State.BLOCKED && System.nanoTime() < blockedDeadline) {
+            Thread.yield()
+        }
 
-        // closeAndSnapshot must block on the registry monitor until registration exits.
+        // It must be blocked on the registry monitor until registration exits.
+        assertEquals(Thread.State.BLOCKED, closeThread.state)
         assertEquals(null, snapshot.get())
         allowRegistrationToFinish.countDown()
         registrationThread.join(2_000)
