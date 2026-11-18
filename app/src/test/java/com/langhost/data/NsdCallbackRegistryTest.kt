@@ -4,6 +4,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 class NsdCallbackRegistryTest {
     @Test
@@ -55,6 +58,43 @@ class NsdCallbackRegistryTest {
 
         assertTrue(registered)
         assertEquals(listOf("registered", "closed"), events)
+        assertTrue(registry.isClosed())
+    }
+
+    @Test
+    fun closeWaitsForInFlightRegistrationBeforeTakingSnapshot() {
+        val registry = NsdCallbackRegistry<String>()
+        val registrationEntered = CountDownLatch(1)
+        val allowRegistrationToFinish = CountDownLatch(1)
+        val registrationResult = AtomicReference<Boolean>()
+        val snapshot = AtomicReference<List<String>>()
+
+        val registrationThread = Thread {
+            registrationResult.set(
+                registry.trackAndRun("callback") {
+                    registrationEntered.countDown()
+                    check(allowRegistrationToFinish.await(2, TimeUnit.SECONDS))
+                }
+            )
+        }
+        registrationThread.start()
+        assertTrue("Registration did not enter its critical section", registrationEntered.await(2, TimeUnit.SECONDS))
+
+        val closeThread = Thread {
+            snapshot.set(registry.closeAndSnapshot())
+        }
+        closeThread.start()
+
+        // closeAndSnapshot must block on the registry monitor until registration exits.
+        assertEquals(null, snapshot.get())
+        allowRegistrationToFinish.countDown()
+        registrationThread.join(2_000)
+        closeThread.join(2_000)
+
+        assertFalse(registrationThread.isAlive)
+        assertFalse(closeThread.isAlive)
+        assertEquals(true, registrationResult.get())
+        assertEquals(listOf("callback"), snapshot.get())
         assertTrue(registry.isClosed())
     }
 
