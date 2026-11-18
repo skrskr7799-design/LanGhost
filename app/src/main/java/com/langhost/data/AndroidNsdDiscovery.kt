@@ -19,9 +19,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.net.Inet4Address
 import java.net.InetAddress
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import com.langhost.data.model.DiscoverySourceStatus
 import com.langhost.data.model.ProtocolEvidence
@@ -41,7 +39,7 @@ internal class AndroidNsdDiscovery(context: Context) {
     @SuppressLint("NewApi")
     suspend fun discover(activeNetwork: Network?): DiscoverySourceResult<Set<String>> = withContext(Dispatchers.IO) {
         val results = NsdResolutionResults()
-        val activeInfoCallbacks = ConcurrentHashMap.newKeySet<NsdManager.ServiceInfoCallback>()
+        val activeInfoCallbacks = NsdCallbackRegistry<NsdManager.ServiceInfoCallback>()
         val pendingResolutions = AtomicInteger(0)
         val multicastLock = acquireMulticastLockIfRequired()
 
@@ -73,7 +71,7 @@ internal class AndroidNsdDiscovery(context: Context) {
             )
         } finally {
             // A cancelled scan must not leave service-info listeners registered.
-            activeInfoCallbacks.toList().forEach { callback ->
+            activeInfoCallbacks.closeAndSnapshot().forEach { callback ->
                 runCatching { nsdManager.unregisterServiceInfoCallback(callback) }
             }
             withTimeoutOrNull(STOP_TIMEOUT_MS) {
@@ -191,12 +189,10 @@ internal class AndroidNsdDiscovery(context: Context) {
         activeInfoCallbacks: NsdCallbackRegistry<NsdManager.ServiceInfoCallback>,
         pendingResolutions: AtomicInteger
     ) {
-        val released = AtomicBoolean(false)
         lateinit var callback: NsdManager.ServiceInfoCallback
 
         fun release() {
-            if (released.compareAndSet(false, true)) {
-                activeInfoCallbacks.remove(callback)
+            if (activeInfoCallbacks.release(callback)) {
                 pendingResolutions.decrementAndGet()
             }
         }
@@ -222,7 +218,10 @@ internal class AndroidNsdDiscovery(context: Context) {
             }
         }
 
-        activeInfoCallbacks.add(callback)
+        if (!activeInfoCallbacks.track(callback)) {
+            pendingResolutions.decrementAndGet()
+            return
+        }
         try {
             nsdManager.registerServiceInfoCallback(service, DIRECT_EXECUTOR, callback)
         } catch (_: Exception) {
