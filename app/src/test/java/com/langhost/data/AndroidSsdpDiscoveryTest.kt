@@ -135,4 +135,70 @@ class AndroidSsdpDiscoveryTest {
         assertEquals(DiscoverySourceStatus.RESPONDED, results.status())
     }
 
+
+    @Test
+    fun transportSessionPreparesBeforeSendingAndAlwaysCloses() = runBlocking {
+        val results = SsdpDiscoveryResults()
+        val events = mutableListOf<String>()
+
+        runSsdpTransportSession(
+            results = results,
+            deadlineNanos = 0,
+            prepare = { events += "prepare" },
+            sendSearch = { events += "send" },
+            receive = { error("receive must not run after an empty deadline") },
+            close = { events += "close" }
+        )
+
+        assertEquals(listOf("prepare", "send", "close"), events)
+        assertEquals(DiscoverySourceStatus.NO_RESPONSES, results.status())
+    }
+
+    @Test
+    fun transportSessionClosesWhenPreparationFailsAndDoesNotSend() = runBlocking {
+        val results = SsdpDiscoveryResults()
+        val events = mutableListOf<String>()
+
+        runSsdpTransportSession(
+            results = results,
+            deadlineNanos = 10,
+            prepare = {
+                events += "prepare"
+                throw IOException("bind failed")
+            },
+            sendSearch = { events += "send" },
+            receive = { error("receive must not run") },
+            close = { events += "close" }
+        )
+
+        assertEquals(listOf("prepare", "close"), events)
+        assertEquals(DiscoverySourceStatus.UNAVAILABLE, results.status())
+    }
+
+    @Test
+    fun transportSessionClosesAndPropagatesCancellation() = runBlocking {
+        val results = SsdpDiscoveryResults()
+        val events = mutableListOf<String>()
+
+        try {
+            runSsdpTransportSession(
+                results = results,
+                deadlineNanos = 10,
+                prepare = { events += "prepare" },
+                sendSearch = { events += "send" },
+                receive = {
+                    events += "receive"
+                    throw kotlinx.coroutines.CancellationException("cancel scan")
+                },
+                close = { events += "close" }
+            )
+            throw AssertionError("Cancellation must propagate")
+        } catch (_: kotlinx.coroutines.CancellationException) {
+            // Expected: cancellation is not converted into source unavailability.
+        }
+
+        assertEquals(listOf("prepare", "send", "receive", "close"), events)
+        assertEquals(DiscoverySourceStatus.NO_RESPONSES, results.status())
+    }
+
 }
